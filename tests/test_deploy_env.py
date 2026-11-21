@@ -64,6 +64,12 @@ def test_login_secrets_reach_the_container() -> None:
     } <= set(args)
 
 
+def test_admin_emails_reach_the_container() -> None:
+    args, environment = run("dev", {"MERITUM_ADMIN_EMAILS_DEV": "a@x.pl,b@x.pl"}, {})
+    assert "MERITUM_ADMIN_EMAILS" in args
+    assert "MERITUM_ADMIN_EMAILS=a@x.pl,b@x.pl" in environment
+
+
 def mount(envfile: Path) -> list[str]:
     done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed command, test data only
         [

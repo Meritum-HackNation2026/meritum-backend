@@ -15,6 +15,7 @@ container_vars=(
   "MERITUM_GOOGLE_CLIENT_SECRET     GOOGLE_CLIENT_SECRET"             # #15 Google login
   "MERITUM_MICROSOFT_CLIENT_ID      MICROSOFT_CLIENT_ID"              # #15 Microsoft login (repo variable)
   "MERITUM_MICROSOFT_CLIENT_SECRET  MICROSOFT_CLIENT_SECRET"          # #15 Microsoft login
+  "MERITUM_ADMIN_EMAILS             MERITUM_ADMIN_EMAILS"             # #22 first panel administrators
 )
 
 container_env() {

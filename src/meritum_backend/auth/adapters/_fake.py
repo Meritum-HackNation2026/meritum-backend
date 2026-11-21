@@ -16,6 +16,8 @@ class FakeLogin:
     Args:
         subject: the account id every login returns.
         email: the e-mail address every login returns.
+        email_verified: whether the provider says it verified the address
+            (False: like Microsoft's ``common`` tenant).
 
     Attributes:
         providers: ``google`` and ``microsoft``.
@@ -24,9 +26,12 @@ class FakeLogin:
         US-MOD-05, US-SPR-10, F-25
     """
 
-    def __init__(self, subject: str, email: str) -> None:
+    def __init__(
+        self, subject: str, email: str, *, email_verified: bool = True
+    ) -> None:
         self._subject = subject
         self._email = email
+        self._email_verified = email_verified
 
     @property
     def providers(self) -> frozenset[str]:
@@ -88,5 +93,5 @@ class FakeLogin:
             provider=provider,
             subject=self._subject,
             email=self._email,
-            email_verified=True,
+            email_verified=self._email_verified,
         )

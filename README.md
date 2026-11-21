@@ -43,7 +43,7 @@ Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discor
 
 ## Logowanie (OIDC)
 
-Personel panelu i obywatel logują się kontem Google albo Microsoft. Backend prowadzi przepływ authorization code z PKCE przez Authlib (`starlette_client`) i sprawdza token ID: podpis kluczem z JWKS dostawcy, wystawcę, odbiorcę (nasz identyfikator klienta), czas ważności i `nonce`. Samo logowanie nie nadaje roli; rolę personelu nadaje administrator według listy adresów (#12). Microsoft nie weryfikuje adresu w claimie `email` (przy dzierżawie `common` użytkownik może go ustawić sam), dlatego `/me` zwraca `email_verified`, a lista personelu powinna uznawać tylko adresy z `email_verified: true`.
+Personel panelu i obywatel logują się kontem Google albo Microsoft. Backend prowadzi przepływ authorization code z PKCE przez Authlib (`starlette_client`) i sprawdza token ID: podpis kluczem z JWKS dostawcy, wystawcę, odbiorcę (nasz identyfikator klienta), czas ważności i `nonce`. Samo logowanie nie nadaje roli; rolę personelu nadaje administrator według listy adresów (#22). Microsoft nie weryfikuje adresu w claimie `email` (przy dzierżawie `common` użytkownik może go ustawić sam), dlatego rolę dostaje tylko adres z `email_verified: true`.
 
 Sesja to podpisane ciasteczko `meritum_session` z flagami `HttpOnly`, `Secure` i `SameSite=Lax`. Żyje 8 godzin od zalogowania, bez przedłużania przy kolejnych żądaniach (`SESSION_MAX_AGE` w `src/meritum_backend/auth/constants.py`). Ciasteczko przechowuje tylko dostawcę, identyfikator konta i e-mail; wylogowanie usuwa je z przeglądarki, ale skopiowana wartość działa do końca swojego czasu życia (sesja nie ma rejestru po stronie serwera). Żądanie zmieniające stan przy takiej sesji musi powtórzyć `csrf_token` z `GET /api/v1/auth/me` w nagłówku `X-CSRF-Token` (zależność `CsrfUser` w `auth/api.py`), inaczej dostaje 403.
 
@@ -54,6 +54,7 @@ Sesja to podpisane ciasteczko `meritum_session` z flagami `HttpOnly`, `Secure` i
 | `MERITUM_MICROSOFT_CLIENT_ID`, `MERITUM_MICROSOFT_CLIENT_SECRET` | aplikacja w Microsoft Entra; bez obu Microsoft jest wyłączony |
 | `MERITUM_MICROSOFT_TENANT` | dzierżawa Entra, domyślnie `common` (konta firmowe i prywatne) |
 | `MERITUM_PUBLIC_URL` | publiczny adres API, podstawa adresów powrotu; domyślnie według `MERITUM_ENV` |
+| `MERITUM_ADMIN_EMAILS` | adresy pierwszych administratorów panelu, rozdzielone przecinkami albo spacjami |
 
 Adresy powrotu do wpisania u dostawców:
 
@@ -66,6 +67,20 @@ Adresy powrotu do wpisania u dostawców:
 Testy i scenariusze behave (`features/moderation.feature`) używają fałszywego dostawcy (`FakeLogin`) i tokenów podpisanych lokalnym kluczem, bez sieci. Logowanie prawdziwym kontem Google i Microsoft sprawdza się ręcznie na dev, poza CI.
 
 Rejestr podmiotów przetwarzających (ADR-14, design-system#9): Google LLC i Microsoft Corporation przetwarzają dane logowania (identyfikator konta, adres e-mail, imię i nazwisko z profilu) jako dostawcy tożsamości, także poza UE. Meritum zapisuje z nich tylko identyfikator konta i e-mail, w ciasteczku sesji.
+
+## Panel personelu (#22)
+
+Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i eksport, `admin` zarządza kontami i listą tematów wysokiego ryzyka. Adresy z `MERITUM_ADMIN_EMAILS` są administratorami od startu; pozostałe role nadaje administrator. Każdy endpoint panelu sprawdza rolę zależnością `StaffGate` (`staff/api.py`), a zmiany stanu wymagają też `CsrfUser`.
+
+| Endpoint | Role |
+| --- | --- |
+| `GET /api/v1/staff/me` | każda rola; 403 znaczy „brak dostępu do panelu” |
+| `GET`, `POST /api/v1/staff`, `DELETE /api/v1/staff/{email}` | `admin` |
+| `GET /api/v1/moderation/cases` | `moderator`, `admin` |
+| `GET /api/v1/moderation/topics` | każda rola (lista jest jawna dla personelu) |
+| `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
+
+Konta personelu, sprawy i tematy są na razie w pamięci procesu: giną przy restarcie, a worker ich nie widzi. Sprawy i tematy przejdą do PostgreSQL z adapterami z meritum-core#38, konta personelu z repozytorium z meritum-core#72.
 
 ## Praca lokalna
 
@@ -116,6 +131,7 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 | `MERITUM_GOOGLE_CLIENT_SECRET` | `GOOGLE_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |
 | `MERITUM_MICROSOFT_CLIENT_ID` | `MICROSOFT_CLIENT_ID_{DEV,PRD}` (zmienna) | #15 |
 | `MERITUM_MICROSOFT_CLIENT_SECRET` | `MICROSOFT_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |
+| `MERITUM_ADMIN_EMAILS` | `MERITUM_ADMIN_EMAILS_{DEV,PRD}` (sekret) | #22 |
 
 Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli, potem dodaj sekret w ustawieniach repozytorium.
 

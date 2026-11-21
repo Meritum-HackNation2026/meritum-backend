@@ -1,9 +1,26 @@
 """Settings from MERITUM_* environment variables (written by the deploy)."""
 
-from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import re
+from typing import Annotated
 
-from meritum_backend.constants import LOCAL_DB
+from pydantic import BeforeValidator, SecretStr
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from meritum_backend.constants import LIST_SEPARATORS, LOCAL_DB
+
+
+def _emails(value: object) -> object:
+    """Split a comma- or whitespace-separated list of addresses, lower-cased.
+
+    Args:
+        value: the raw value; anything but a string passes through.
+
+    Returns:
+        The addresses as a frozenset, or ``value`` unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    return frozenset(e.lower() for e in re.split(LIST_SEPARATORS, value) if e)
 
 
 class Settings(BaseSettings):
@@ -26,6 +43,8 @@ class Settings(BaseSettings):
         microsoft_client_id: Microsoft Entra application id; no id, no Microsoft.
         microsoft_client_secret: client secret of the Microsoft application.
         microsoft_tenant: Entra tenant of the login (``common``: any account).
+        admin_emails: addresses that are administrators from the start (comma- or
+            space-separated); the role needs an address the provider verified.
 
     Features:
         none (infrastructure)
@@ -45,6 +64,9 @@ class Settings(BaseSettings):
     microsoft_client_id: str | None = None
     microsoft_client_secret: SecretStr | None = None
     microsoft_tenant: str = "common"
+    admin_emails: Annotated[frozenset[str], NoDecode, BeforeValidator(_emails)] = (
+        frozenset()
+    )
 
 
 def get_settings() -> Settings:

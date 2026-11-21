@@ -18,7 +18,11 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.limits import RateLimitExceeded, limiter, too_many_requests
+from meritum_backend.moderation.api import router as moderation_router
+from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.settings import Settings
+from meritum_backend.staff.api import router as staff_router
+from meritum_backend.staff.factory import build_staff
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -59,6 +63,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.limiter = limiter
     app.state.login = build_login(settings)
+    app.state.admin_emails = settings.admin_emails
+    app.state.staff = build_staff()
+    app.state.cases, app.state.topics = build_moderation()
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(
@@ -76,4 +83,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(discord_router)
     app.include_router(auth_router)
     app.include_router(checks_router)
+    app.include_router(staff_router)
+    app.include_router(moderation_router)
     return app
