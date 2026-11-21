@@ -43,3 +43,14 @@ Feature: Kanały bez sesji przeglądarki
     Given sprawdzenie trwa dłużej niż 3 s
     When Discord czeka na odpowiedź na interakcję
     Then bot odpowiada odroczoną odpowiedzią, a wynik wysyła jako wiadomość uzupełniającą
+
+  Scenario: wiadomość z RCS/MMS z tekstem jest sprawdzana jak SMS
+    Given bramka wysyła zdarzenie mms:downloaded z częścią tekstową
+    When webhook je odbiera i podpis się zgadza
+    Then backend sprawdza tekst tak jak przy sms:received
+    And odpowiada SMS-em z werdyktem
+
+  Scenario: MMS bez tekstu
+    Given mms:downloaded bez części tekstowej (same załączniki)
+    When webhook je odbiera i podpis się zgadza
+    Then backend potwierdza odbiór (2xx) i nic nie sprawdza

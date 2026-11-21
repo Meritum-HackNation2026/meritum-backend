@@ -19,7 +19,13 @@ MAX_CLOCK_SKEW_SECONDS: Final = 300
 """Signed requests older or newer than this are replayed or forged: 401."""
 
 SMS_RECEIVED: Final = "sms:received"
-"""The one gateway event the webhook acts on; others are acknowledged and dropped."""
+"""Gateway event of an SMS; the webhook checks its ``message``."""
+
+MMS_DOWNLOADED: Final = "mms:downloaded"
+"""Gateway event of a downloaded MMS (also RCS chats); its ``body`` is the text."""
+
+EVENT_HASH_CHARS: Final = 32
+"""Hex chars of the event's SHA-256 in the check id: ``sms-`` + 32 fits in 40."""
 
 CHANNEL: Final = "sms"
 """The channel of every check this slice starts; also the workflow id prefix."""

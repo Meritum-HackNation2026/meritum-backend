@@ -1,4 +1,4 @@
-"""POST /api/v1/sms/webhook: SMS received by the sms-gate.app gateway.
+"""POST /api/v1/sms/webhook: SMS (and MMS, e.g. RCS) received by sms-gate.app.
 
 The gateway signs every call (HMAC-SHA256, ±5 min) and retries for about two days
 until it gets a 2xx, so the answer comes at once and the work goes to the job
@@ -10,6 +10,7 @@ Features:
     US-WTY-07, US-BEZ-06, US-BEZ-07, F-32, F-21, F-20, ADR-08
 """
 
+import hashlib
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -36,8 +37,8 @@ from meritum_backend.sms.constants import (
     CHANNEL_USER,
     DELETE_COMMAND,
     DIACRITICS,
+    EVENT_HASH_CHARS,
     SIGNATURE_HEADER,
-    SMS_RECEIVED,
     SMS_REGION,
     TEXT_MAX_CHARS,
     TIMESTAMP_HEADER,
@@ -174,7 +175,8 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     event = await _signed_event(request, key)
     received = event.payload
-    if event.event != SMS_RECEIVED or received is None:
+    text = event.text
+    if text is None or received is None:  # other events, MMS with attachments only
         return Received(status="ignored")
     sender = e164(received.sender)
     # the gateway texting itself (live test) must not start a reply loop
@@ -184,16 +186,18 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     if salt is None:  # the settings already turn an empty salt into None
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "no hash salt")
     hashed = channel_user_hash(CHANNEL, sender, salt)
-    if received.message.strip().upper().translate(DIACRITICS) == DELETE_COMMAND:
+    if text.strip().upper().translate(DIACRITICS) == DELETE_COMMAND:
         await delete_subject(CHANNEL_USER, hashed, eraser, jobs)
         return Received(status="deleted")
-    check_id = f"{CHANNEL}-{event.device_id}-{event.id}"
+    # a real deviceId + id are ~54 chars; CheckResult.check_id allows 40
+    event_key = f"{event.device_id}-{event.id}".encode()
+    check_id = f"{CHANNEL}-{hashlib.sha256(event_key).hexdigest()[:EVENT_HASH_CHARS]}"
     if await jobs.state(check_id) is not None:
         return Received(status="duplicate")
     sending = _Sending(
         jobs, sms, records, pii, gate, background, sender, settings.sms_gsm7
     )
-    return await _start_check(sending, check_id, received.message, hashed)
+    return await _start_check(sending, check_id, text, hashed)
 
 
 @dataclass(frozen=True)

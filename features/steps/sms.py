@@ -10,6 +10,8 @@ import hmac
 import json
 import time
 from datetime import UTC, date, datetime, timedelta
+from http import HTTPStatus
+from pathlib import Path
 from typing import override
 
 from behave import given, then, when
@@ -38,6 +40,7 @@ KEY = "behave-signing-key"
 SALT = SecretStr("behave-salt")
 SENDER = "+48600700800"
 T0 = datetime(2026, 11, 21, 12, tzinfo=UTC)
+MMS = Path(__file__).parent.parent / "fixtures" / "mms_downloaded.json"
 CLAIM = "Wczoraj w Gdańsku wyłączono wszystkie bankomaty."
 
 
@@ -100,14 +103,16 @@ def _app(context: Context) -> None:
 
 
 def _receive(context: Context, text: str) -> None:
-    body = json.dumps(
-        {
-            "deviceId": "dev1",
-            "event": "sms:received",
-            "id": f"e{len(context.jobs.enqueued)}",
-            "payload": {"message": text, "sender": SENDER},
-        }
-    ).encode()
+    event = {
+        "deviceId": "dev1",
+        "event": "sms:received",
+        "id": f"e{len(context.jobs.enqueued)}",
+        "payload": {"message": text, "sender": SENDER},
+    }
+    _post(context, json.dumps(event).encode())
+
+
+def _post(context: Context, body: bytes) -> None:
     stamp = str(int(time.time()))
     signature = hmac.new(KEY.encode(), body + stamp.encode(), hashlib.sha256)
     headers = {"X-Signature": signature.hexdigest(), "X-Timestamp": stamp}
@@ -178,3 +183,52 @@ def _deleted(context: Context) -> None:
     )
     assert context.response.json() == {"status": "deleted"}
     assert left == []
+
+
+@given("bramka wysyła zdarzenie mms:downloaded z częścią tekstową")
+def _mms_with_text(context: Context) -> None:
+    _app(context)
+    context.jobs.finished = True
+    context.mms = MMS.read_bytes()
+
+
+@given("mms:downloaded bez części tekstowej (same załączniki)")
+def _mms_without_text(context: Context) -> None:
+    _app(context)
+    event = json.loads(MMS.read_bytes())
+    event["payload"]["body"] = None
+    context.mms = json.dumps(event).encode()
+
+
+@when("webhook je odbiera i podpis się zgadza")
+def _mms_arrives(context: Context) -> None:
+    _post(context, context.mms)
+
+
+@then("backend sprawdza tekst tak jak przy sms:received")
+def _mms_checked(context: Context) -> None:
+    assert context.response.json() == {"status": "accepted"}
+    [(payload, workflow_id)] = [
+        (job.payload, job.workflow_id) for job in context.jobs.enqueued
+    ]
+    assert payload.request.text == CLAIM
+    assert payload.channel_user_hash == channel_user_hash("sms", SENDER, SALT)
+    assert (
+        workflow_id == "sms-5b85023f895c1a8f026f15ea1e227b4c"
+    )  # sha256 of the fixture's deviceId-id
+
+
+@then("odpowiada SMS-em z werdyktem")
+def _mms_answered(context: Context) -> None:
+    assert context.gateway.sent == [
+        (SENDER, AI_NOTICE),
+        (SENDER, "Nie podlega weryfikacji"),
+    ]
+
+
+@then("backend potwierdza odbiór (2xx) i nic nie sprawdza")
+def _mms_ignored(context: Context) -> None:
+    assert context.response.status_code == HTTPStatus.ACCEPTED
+    assert context.response.json() == {"status": "ignored"}
+    assert context.jobs.enqueued == []
+    assert context.gateway.sent == []
