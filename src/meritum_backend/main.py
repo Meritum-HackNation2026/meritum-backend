@@ -28,7 +28,7 @@ from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.jury.api import require_writable_session
 from meritum_backend.jury.api import router as jury_router
-from meritum_backend.jury.factory import build_jury_counter, build_jury_links
+from meritum_backend.jury.factory import build_jury
 from meritum_backend.limits import (
     CheckRefusedError,
     LimitSettings,
@@ -105,8 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     mask_sessions_in_access_log()
     app.state.limiter = limiter
     app.state.settings = settings
-    app.state.jury_links = build_jury_links(settings)
-    app.state.jury_rate_counter = build_jury_counter(settings)
+    app.state.jury_links, app.state.jury_rate_counter = build_jury(settings)
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails

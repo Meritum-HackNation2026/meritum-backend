@@ -9,35 +9,22 @@ from meritum_backend.limits.ports import RateCounter
 from meritum_backend.settings import Settings
 
 
-def build_jury_links(settings: Settings) -> JuryLinks:
+def build_jury(settings: Settings) -> tuple[JuryLinks, RateCounter]:
     """Use the shared API schema outside local development.
 
     Args:
         settings: environment and API database connection.
 
     Returns:
-        A persistent store for deployed environments, or a local memory store.
+        The link store and the redemption rate counter: PostgreSQL in deployed
+        environments, in-process memory locally.
 
     Features:
         US-OBS-06, US-MOD-05, F-28, F-25
     """
     if settings.env == "local":
-        return MemoryJuryLinks()
-    return PostgresJuryLinks(settings.database_url)
-
-
-def build_jury_counter(settings: Settings) -> RateCounter:
-    """Use the shared PostgreSQL rate counter in deployed environments.
-
-    Args:
-        settings: environment and API database connection.
-
-    Returns:
-        The database rate counter, or a local in-process counter.
-
-    Features:
-        US-OBS-06, US-MOD-05, F-28, F-25
-    """
-    if settings.env == "local":
-        return MemoryRateCounter(time)
-    return PostgresRateCounter(settings.database_url)
+        return MemoryJuryLinks(), MemoryRateCounter(time)
+    return (
+        PostgresJuryLinks(settings.database_url),
+        PostgresRateCounter(settings.database_url),
+    )
