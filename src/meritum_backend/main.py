@@ -8,6 +8,10 @@ from dbos import DBOSClient
 from fastapi import FastAPI
 from meritum_core.jobs.adapters import DbosJobQueue
 from meritum_core.jobs.contracts import APPLICATION_NAME
+from meritum_core.moderation.fakes import (
+    InMemoryHighRiskTopicRepository,
+    InMemoryModeratorCaseRepository,
+)
 from starlette.middleware.sessions import SessionMiddleware
 
 from meritum_backend.auth.api import router as auth_router
@@ -18,7 +22,10 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.limits import RateLimitExceeded, limiter, too_many_requests
+from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.settings import Settings
+from meritum_backend.staff.api import router as staff_router
+from meritum_backend.staff.factory import build_staff
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -59,6 +66,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.limiter = limiter
     app.state.login = build_login(settings)
+    app.state.admin_emails = settings.admin_emails
+    app.state.staff = build_staff()
+    # shortcut: in memory, so the worker does not see them; PostgreSQL with core/031.
+    app.state.topics = InMemoryHighRiskTopicRepository()
+    app.state.cases = InMemoryModeratorCaseRepository()
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(
@@ -76,4 +88,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(discord_router)
     app.include_router(auth_router)
     app.include_router(checks_router)
+    app.include_router(staff_router)
+    app.include_router(moderation_router)
     return app

@@ -15,3 +15,18 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given zalogowany użytkownik
     When wysyła POST /api/v1/auth/logout
     Then ciasteczko jest unieważnione, a GET /api/v1/auth/me zwraca 401
+
+  Scenario: administrator nadaje konto moderatora
+    Given zalogowany administrator
+    When wysyła POST /api/v1/staff z adresem e-mail i rolą "moderator"
+    Then osoba może się zalogować do panelu i widzi sprawy, ale nie listę kont
+
+  Scenario: osoba bez konta
+    Given ktoś bez konta nadanego przez administratora
+    When próbuje się zalogować do panelu
+    Then dostaje odmowę i nie widzi żadnej sprawy
+
+  Scenario: zmiana listy tematów
+    Given administrator dodaje temat "wybory" ze słowami kluczowymi
+    When kolejne twierdzenie bez odpowiedzi dotyczy wyborów
+    Then rozpoznawanie tematów używa nowej listy bez restartu usługi
