@@ -7,6 +7,7 @@ import pytest
 
 from meritum_backend.sms.adapters import SmsGateSender
 from meritum_backend.sms.constants import GATEWAY_URL
+from meritum_backend.sms.errors import SmsNotSentError
 
 PHONE = "+48600700800"
 
@@ -37,5 +38,13 @@ def test_gateway_error_raises() -> None:
     refused = httpx2.MockTransport(lambda _: httpx2.Response(401))
     sender = SmsGateSender("user", "wrong", transport=refused)
 
-    with pytest.raises(httpx2.HTTPStatusError):
+    with pytest.raises(SmsNotSentError):
+        asyncio.run(sender.send(PHONE, "Fałszywe"))
+
+
+def test_unexpected_gateway_answer_raises() -> None:
+    odd = httpx2.MockTransport(lambda _: httpx2.Response(202, json={"state": "x"}))
+    sender = SmsGateSender("user", "pass", transport=odd)
+
+    with pytest.raises(SmsNotSentError):
         asyncio.run(sender.send(PHONE, "Fałszywe"))

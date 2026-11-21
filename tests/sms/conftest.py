@@ -16,6 +16,8 @@ from meritum_core.shared.database import DatabaseSettings
 from pydantic import SecretStr
 
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.privacy import get_eraser
 from meritum_backend.settings import Settings, get_settings
@@ -23,7 +25,7 @@ from meritum_backend.sms.api import get_records, get_sms
 
 URL = "/api/v1/sms/webhook"
 KEY = "test-signing-key"
-GATEWAY_NUMBER = "+48500000000"
+GATEWAY_NUMBER = "+48 500 000 000"
 SENDER = "+48600700800"
 
 type Post = Callable[..., Response]
@@ -78,7 +80,13 @@ def repositories() -> AppRepositories:
 
 
 @pytest.fixture
+def gate() -> CheckGate:
+    return CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+
+
+@pytest.fixture
 def client(
+    gate: CheckGate,
     jobs: InMemoryJobQueue,
     sms: FakeSms,
     repositories: AppRepositories,
@@ -93,6 +101,7 @@ def client(
     app = create_app(settings)
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_jobs] = lambda: jobs
+    app.dependency_overrides[get_check_gate] = lambda: gate
     app.dependency_overrides[get_sms] = lambda: sms
     app.dependency_overrides[get_records] = lambda: repositories.records
     app.dependency_overrides[get_eraser] = lambda: repositories.eraser

@@ -25,6 +25,6 @@ class SmsSender(Protocol):
             The gateway's message id.
 
         Raises:
-            httpx2.HTTPError: the gateway refused or did not answer.
+            SmsNotSentError: the gateway refused or did not answer.
         """
         ...

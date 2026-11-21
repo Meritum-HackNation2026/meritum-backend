@@ -26,6 +26,8 @@ from pydantic import SecretStr
 
 from meritum_backend.channels import channel_user_hash
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.privacy import get_eraser
 from meritum_backend.settings import Settings, get_settings
@@ -89,6 +91,8 @@ def _app(context: Context) -> None:
     app = create_app(settings)
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_jobs] = lambda: context.jobs
+    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+    app.dependency_overrides[get_check_gate] = lambda: gate
     app.dependency_overrides[get_sms] = lambda: context.gateway
     app.dependency_overrides[get_records] = lambda: context.repositories.records
     app.dependency_overrides[get_eraser] = lambda: context.repositories.eraser

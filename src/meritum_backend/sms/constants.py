@@ -21,6 +21,9 @@ MAX_CLOCK_SKEW_SECONDS: Final = 300
 SMS_RECEIVED: Final = "sms:received"
 """The one gateway event the webhook acts on; others are acknowledged and dropped."""
 
+CHANNEL: Final = "sms"
+"""The channel of every check this slice starts; also the workflow id prefix."""
+
 CHANNEL_USER: Final = "channel_user_hash"
 """SubjectKind naming an SMS sender: the salted hash of the number."""
 
@@ -28,7 +31,19 @@ TEXT_MAX_CHARS: Final = 4000
 """Longest checkable text (CheckRequest.text); a longer SMS gets TOO_LONG_TEXT."""
 
 DELETE_COMMAND: Final = "USUN"
-"""SMS text (any case, no diacritics needed) that deletes the number's checks."""
+"""SMS text that deletes the number's checks; any case, ``USUŃ`` counts too."""
+
+POLAND: Final = "48"
+"""Country code of a bare national number: the gateway has a Polish SIM."""
+
+NATIONAL_DIGITS: Final = 9
+"""Digits of a Polish number without the country code."""
+
+INTERNATIONAL_PREFIX: Final = "00"
+"""Dialled before a country code instead of ``+`` (``0048...``)."""
+
+SMS_REGION: Final = "XX"
+"""Region of an SMS check for the shared limits: no Cloudflare header here."""
 
 GATEWAY_URL: Final = "https://api.sms-gate.app/3rdparty/v1/messages"
 """sms-gate.app Cloud API: send an SMS through the gateway phone (202 with ``id``)."""

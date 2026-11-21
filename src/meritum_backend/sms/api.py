@@ -28,19 +28,24 @@ from meritum_backend.channels import channel_user_hash
 from meritum_backend.checks import masked
 from meritum_backend.checks.api import PiiGate
 from meritum_backend.jobs.api import Jobs
+from meritum_backend.limits import CheckGate, Gate, Origin
 from meritum_backend.privacy import delete_subject, get_eraser
 from meritum_backend.settings import Settings, get_settings
 from meritum_backend.sms.constants import (
+    CHANNEL,
     CHANNEL_USER,
     DELETE_COMMAND,
+    DIACRITICS,
     SIGNATURE_HEADER,
     SMS_RECEIVED,
+    SMS_REGION,
     TEXT_MAX_CHARS,
     TIMESTAMP_HEADER,
     TOO_LONG_TEXT,
 )
 from meritum_backend.sms.delivery import reply_when_done
 from meritum_backend.sms.models import GatewayEvent
+from meritum_backend.sms.numbers import e164
 from meritum_backend.sms.ports import SmsSender
 from meritum_backend.sms.replies import one_sms
 from meritum_backend.sms.signature import signature_is_valid
@@ -53,13 +58,16 @@ class Received(BaseModel):
 
     Attributes:
         status: accepted (a check started), duplicate (a retried event),
-            deleted (USUN), rejected (text not checkable) or ignored.
+            deleted (USUN), rejected (text not checkable), refused (over a
+            limit or the queue is full; no reply, so no SMS cost) or ignored.
 
     Features:
         US-WTY-07, F-32
     """
 
-    status: Literal["accepted", "duplicate", "deleted", "rejected", "ignored"]
+    status: Literal[
+        "accepted", "duplicate", "deleted", "rejected", "refused", "ignored"
+    ]
 
 
 def get_sms(request: Request) -> SmsSender | None:
@@ -116,7 +124,7 @@ async def _signed_event(request: Request, key: str) -> GatewayEvent:
 
 
 async def _check_input(text: str, hashed: str, pii: PiiGatePort) -> CheckInput:
-    request = CheckRequest(channel="sms", text=text)
+    request = CheckRequest(channel=CHANNEL, text=text)
     return CheckInput(
         request=await masked(request, pii),
         session_id=hashed,
@@ -135,6 +143,7 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     records: Records,
     eraser: Eraser,
     pii: PiiGate,
+    gate: Gate,
     background: BackgroundTasks,
 ) -> Received:
     """Take one gateway event: start a check, delete on USUN, or drop it.
@@ -147,6 +156,7 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
         records: check records; none for the number means first contact.
         eraser: deletes the number's checks on USUN.
         pii: masks personal data in the text before it is queued.
+        gate: the shared rate limits and the pending-checks threshold.
         background: runs the reply after the answer.
 
     Returns:
@@ -164,22 +174,24 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     event = await _signed_event(request, key)
     received = event.payload
+    if event.event != SMS_RECEIVED or received is None:
+        return Received(status="ignored")
+    sender = e164(received.sender)
     # the gateway texting itself (live test) must not start a reply loop
-    is_own = received is not None and received.sender == settings.sms_gateway_number
-    if event.event != SMS_RECEIVED or received is None or is_own:
+    if sender == e164(settings.sms_gateway_number or ""):
         return Received(status="ignored")
     salt = settings.channel_hash_salt
     if salt is None:  # the settings already turn an empty salt into None
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "no hash salt")
-    hashed = channel_user_hash("sms", received.sender, salt)
-    if received.message.strip().upper() == DELETE_COMMAND:
+    hashed = channel_user_hash(CHANNEL, sender, salt)
+    if received.message.strip().upper().translate(DIACRITICS) == DELETE_COMMAND:
         await delete_subject(CHANNEL_USER, hashed, eraser, jobs)
         return Received(status="deleted")
-    check_id = f"sms-{event.device_id}-{event.id}"
+    check_id = f"{CHANNEL}-{event.device_id}-{event.id}"
     if await jobs.state(check_id) is not None:
         return Received(status="duplicate")
     sending = _Sending(
-        jobs, sms, records, pii, background, received.sender, settings.sms_gsm7
+        jobs, sms, records, pii, gate, background, sender, settings.sms_gsm7
     )
     return await _start_check(sending, check_id, received.message, hashed)
 
@@ -190,6 +202,7 @@ class _Sending:
     sms: SmsSender
     records: CheckRecordRepository
     pii: PiiGatePort
+    gate: CheckGate
     background: BackgroundTasks
     phone_number: str
     gsm7: bool
@@ -207,6 +220,10 @@ async def _start_check(
                 sending.sms.send, sending.phone_number, too_long
             )
         return Received(status="rejected")
+    # the hash stands for the address: one sender's own budget, not the relay's
+    origin = Origin(ip=hashed, region=SMS_REGION)
+    if await sending.gate.refusal(origin, CHANNEL) is not None:
+        return Received(status="refused")
     first = not await sending.records.list_for(CHANNEL_USER, hashed)
     await sending.jobs.enqueue(CHECK, payload, workflow_id=check_id)
     sending.background.add_task(

@@ -5,8 +5,14 @@ Features:
 """
 
 import httpx2
+from pydantic import BaseModel, ValidationError
 
 from meritum_backend.sms.constants import GATEWAY_URL, HTTP_TIMEOUT_SECONDS
+from meritum_backend.sms.errors import SmsNotSentError
+
+
+class _Queued(BaseModel):
+    id: str
 
 
 class SmsGateSender:
@@ -33,7 +39,7 @@ class SmsGateSender:
         self._transport = transport
 
     async def send(self, phone_number: str, text: str) -> str:
-        """Queue one SMS on the gateway; an error status raises httpx2.HTTPStatusError.
+        """Queue one SMS on the gateway.
 
         Args:
             phone_number: the recipient, E.164.
@@ -41,11 +47,19 @@ class SmsGateSender:
 
         Returns:
             The gateway's message id (its state: GET .../messages/{id}).
+
+        Raises:
+            SmsNotSentError: an error status, no answer or an answer without ``id``.
         """
         body = {"textMessage": {"text": text}, "phoneNumbers": [phone_number]}
-        async with httpx2.AsyncClient(
-            auth=self._auth, transport=self._transport, timeout=HTTP_TIMEOUT_SECONDS
-        ) as client:
-            response = await client.post(GATEWAY_URL, json=body)
-        response.raise_for_status()
-        return str(response.json()["id"])
+        try:
+            async with httpx2.AsyncClient(
+                auth=self._auth,
+                transport=self._transport,
+                timeout=HTTP_TIMEOUT_SECONDS,
+            ) as client:
+                response = await client.post(GATEWAY_URL, json=body)
+            response.raise_for_status()
+            return _Queued.model_validate_json(response.content).id
+        except (httpx2.HTTPError, ValidationError) as exc:
+            raise SmsNotSentError(type(exc).__name__) from exc
