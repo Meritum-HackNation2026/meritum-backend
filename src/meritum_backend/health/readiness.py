@@ -24,6 +24,7 @@ from meritum_backend.health.constants import (
     READY_CACHE_SECONDS,
     SALT_ENV,
     STARTUP_WORKER_WAIT_SECONDS,
+    WORKER_REFRESH_SECONDS,
     WORKFLOW_ID_PREFIX,
 )
 from meritum_backend.health.models import Readiness
@@ -71,9 +72,11 @@ class ReadinessProbe:
         self._blob_store = blob_store
         self._enqueued = False
         self._last: tuple[float, Readiness] | None = None
+        self._report: tuple[float, ReadinessReport] | None = None
+        self._report_id = ""
         self.workflow_id = f"{WORKFLOW_ID_PREFIX}{uuid4().hex}"
 
-    async def _worker_report(self, wait: float) -> ReadinessReport | None:
+    async def _read_event(self, wait: float) -> ReadinessReport | None:
         try:
             async with asyncio.timeout(wait):
                 if not self._enqueued:
@@ -93,6 +96,20 @@ class ReadinessProbe:
                 "worker readiness report unreadable: %s", type(exc).__name__
             )
             return None
+
+    async def _worker_report(self, wait: float) -> ReadinessReport | None:
+        report = await self._read_event(wait)
+        if report is not None and self._report_id != self.workflow_id:
+            self._report = (time.monotonic(), report)
+            self._report_id = self.workflow_id
+        if self._report is None:
+            return None
+        stale = time.monotonic() - self._report[0] >= WORKER_REFRESH_SECONDS
+        if stale and self._report_id == self.workflow_id:
+            # a restarted worker answers a new workflow; keep the last report meanwhile
+            self.workflow_id = f"{WORKFLOW_ID_PREFIX}{uuid4().hex}"
+            self._enqueued = False
+        return self._report[1]
 
     async def check(self, worker_wait: float = HEALTH_WORKER_WAIT_SECONDS) -> Readiness:
         """Probe the database, the API's variables and the worker's report.
@@ -114,6 +131,10 @@ class ReadinessProbe:
         if worker is not None:
             missing += worker.missing_env
             unavailable += worker.unavailable_providers
+        missing, unavailable = (
+            list(dict.fromkeys(missing)),
+            list(dict.fromkeys(unavailable)),
+        )
         ok = database_ok and worker is not None and not missing and not unavailable
         readiness = Readiness(
             status="ok" if ok else "degraded",

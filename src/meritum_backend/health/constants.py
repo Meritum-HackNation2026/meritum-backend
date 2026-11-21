@@ -6,13 +6,16 @@ Features:
 
 from typing import Final
 
-from meritum_core.shared.blobs.settings import BlobProvider
+from meritum_core.shared.blobs import BlobProvider
 
 SALT_ENV: Final = "MERITUM_CHANNEL_HASH_SALT"
 """Variable with the salt of channel user id hashes; required in every env."""
 
 BOT_TOKEN_ENV: Final = "MERITUM_DISCORD_BOT_TOKEN"  # ruff: ignore[hardcoded-password-string] -- a variable name, not a token
 """Variable with the Discord bot token; required when the Discord channel is on."""
+
+BLOB_ENV_PREFIX: Final = "MERITUM_BLOB_"
+"""Prefix of the blob store variables (``ENV_PREFIX`` of core's BlobSettings)."""
 
 BLOB_PROVIDER_FIELDS: Final = {
     BlobProvider.FILESYSTEM: "directory",
@@ -43,3 +46,6 @@ NOT_READY_KEY: Final = "status_hint.technical_failure"
 
 DATABASE_CONNECT_TIMEOUT_SECONDS: Final = 3
 """How long the readiness probe waits to connect to the API's database."""
+
+WORKER_REFRESH_SECONDS: Final = 60.0
+"""Age of the worker report after which the API enqueues a new `readiness` workflow."""

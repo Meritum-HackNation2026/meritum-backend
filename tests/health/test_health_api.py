@@ -65,7 +65,7 @@ def test_api_variables_are_named_without_values(
 
 def test_api_and_worker_lists_are_joined(make_probe: MakeProbe) -> None:
     blob = FakeBlobStore(Problems(["MERITUM_BLOB_PROVIDER"], ["blob_store"]))
-    report = worker_report(["MERITUM_LLM_API_KEY"])
+    report = worker_report(["MERITUM_LLM_API_KEY", "MERITUM_BLOB_PROVIDER"])
     probe = make_probe(InMemoryJobQueue(), report=report, blob=blob)
     body = client_for(probe).get("/api/v1/health").json()
     assert body["missing_env"] == ["MERITUM_BLOB_PROVIDER", "MERITUM_LLM_API_KEY"]

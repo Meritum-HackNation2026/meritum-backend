@@ -4,18 +4,19 @@ Features:
     US-WDR-08, F-30, ADR-31
 """
 
-from meritum_core.shared.blobs.constants import ENV_PREFIX
-from meritum_core.shared.blobs.errors import BlobError
-from meritum_core.shared.blobs.factory import build_blob_store
-from meritum_core.shared.blobs.settings import BlobSettings
+from meritum_core.shared.blobs import BlobError, BlobSettings, build_blob_store
 from pydantic import ValidationError
 
-from meritum_backend.health.constants import BLOB_PROVIDER_FIELDS, BLOB_STORE
+from meritum_backend.health.constants import (
+    BLOB_ENV_PREFIX,
+    BLOB_PROVIDER_FIELDS,
+    BLOB_STORE,
+)
 from meritum_backend.health.models import Problems
 
 
 def _env_name(field: str | int) -> str:
-    return f"{ENV_PREFIX}{field}".upper()
+    return f"{BLOB_ENV_PREFIX}{field}".upper()
 
 
 class BlobStoreConfig:
@@ -39,7 +40,12 @@ class BlobStoreConfig:
         try:
             build_blob_store(settings)
         except BlobError:
-            return Problems([_env_name(BLOB_PROVIDER_FIELDS[settings.provider])], [])
+            field = BLOB_PROVIDER_FIELDS.get(settings.provider)
+            return (
+                Problems([_env_name(field)], [])
+                if field is not None
+                else Problems([], [BLOB_STORE])
+            )
         except Exception:  # ruff: ignore[blind-except] -- any SDK error (e.g. GCS without credentials) means unavailable; the name is enough
             return Problems([], [BLOB_STORE])
         return Problems([], [])

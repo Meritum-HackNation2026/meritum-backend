@@ -47,12 +47,14 @@ for i in $(seq 30); do
   sleep 2
 done
 # Readiness (#19) names missing variables and providers (never values); a 503 warns
-# and does not stop the deploy.
+# and does not stop the deploy, unless the API's database is unreachable.
 readiness=$(docker exec "$container" python -c "import urllib.error, urllib.request
 try: print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=10).read().decode())
 except urllib.error.HTTPError as e: print(e.read().decode())" 2>&1 || true)
 case "$readiness" in
   *'"status":"ok"'*) log "ready: $readiness" ;;
+  # the database does not depend on the jury's keys: an unreachable one fails the deploy
+  *'"database":"unavailable"'*) log "database unavailable: $readiness"; docker logs --tail 50 "$container" >&2; exit 1 ;;
   *) echo "::warning title=API not ready::$readiness" ;;
 esac
 
