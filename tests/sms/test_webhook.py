@@ -113,3 +113,35 @@ def test_without_signing_key_the_endpoint_does_not_exist(
     app.dependency_overrides[get_jobs] = lambda: jobs
 
     assert TestClient(app).post(URL, json=event(CLAIM)).status_code == 404
+
+
+def test_timestamp_from_the_future_is_401(post: Post, jobs: InMemoryJobQueue) -> None:
+    ahead = str(int(time.time()) + 301)
+
+    assert post(event(CLAIM), timestamp=ahead).status_code == 401
+    assert jobs.enqueued == []
+
+
+def test_non_numeric_timestamp_is_401(post: Post) -> None:
+    assert post(event(CLAIM), timestamp="yesterday").status_code == 401
+
+
+def test_non_ascii_signature_is_401(client: TestClient) -> None:
+    headers = {
+        b"X-Signature": "zażółć".encode(),
+        b"X-Timestamp": str(int(time.time())).encode(),
+    }
+
+    response = client.post(URL, content=b"{}", headers=headers)
+
+    assert response.status_code == 401
+
+
+def test_empty_sms_is_rejected_without_a_reply(
+    post: Post, jobs: InMemoryJobQueue, sms: FakeSms
+) -> None:
+    response = post(event("  "))
+
+    assert response.json() == {"status": "rejected"}
+    assert jobs.enqueued == []
+    assert sms.sent == []

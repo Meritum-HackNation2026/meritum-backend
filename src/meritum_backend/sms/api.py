@@ -11,6 +11,7 @@ Features:
 """
 
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
@@ -18,6 +19,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from meritum_core.checks import CheckRequest
 from meritum_core.checks.ports import CheckRecordRepository
 from meritum_core.jobs.contracts import CHECK, CheckInput
+from meritum_core.jobs.ports import JobQueue
 from meritum_core.observability import SubjectEraser
 from pydantic import BaseModel, SecretStr, ValidationError
 
@@ -26,15 +28,17 @@ from meritum_backend.jobs.api import Jobs
 from meritum_backend.privacy import delete_subject, get_eraser
 from meritum_backend.settings import Settings, get_settings
 from meritum_backend.sms.constants import (
+    CHANNEL_USER,
     DELETE_COMMAND,
     SIGNATURE_HEADER,
     SMS_RECEIVED,
+    TEXT_MAX_CHARS,
     TIMESTAMP_HEADER,
     TOO_LONG_TEXT,
 )
 from meritum_backend.sms.delivery import reply_when_done
 from meritum_backend.sms.identity import sender_hash
-from meritum_backend.sms.models import GatewayEvent, ReceivedSms
+from meritum_backend.sms.models import GatewayEvent
 from meritum_backend.sms.ports import SmsSender
 from meritum_backend.sms.replies import one_sms
 from meritum_backend.sms.signature import signature_is_valid
@@ -109,8 +113,8 @@ async def _signed_event(request: Request, key: str) -> GatewayEvent:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "bad event") from None
 
 
-def _check_input(sms: ReceivedSms, hashed: str) -> CheckInput:
-    request = CheckRequest(channel="sms", text=sms.message)
+def _check_input(text: str, hashed: str) -> CheckInput:
+    request = CheckRequest(channel="sms", text=text)
     return CheckInput(
         request=masked(request),
         session_id=hashed,
@@ -161,31 +165,52 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     if event.event != SMS_RECEIVED or received is None or is_own:
         return Received(status="ignored")
     salt = settings.channel_hash_salt
-    if not _secret(salt) or salt is None:
+    if salt is None or not salt.get_secret_value():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "no hash salt")
     hashed = sender_hash(received.sender, salt)
     if received.message.strip().upper() == DELETE_COMMAND:
-        await delete_subject("channel_user_hash", hashed, eraser, jobs)
+        await delete_subject(CHANNEL_USER, hashed, eraser, jobs)
         return Received(status="deleted")
     check_id = f"sms-{event.device_id}-{event.id}"
     if await jobs.state(check_id) is not None:
         return Received(status="duplicate")
-    gsm7 = settings.sms_gsm7
+    sending = _Sending(
+        jobs, sms, records, background, received.sender, settings.sms_gsm7
+    )
+    return await _start_check(sending, check_id, received.message, hashed)
+
+
+@dataclass(frozen=True)
+class _Sending:
+    jobs: JobQueue
+    sms: SmsSender
+    records: CheckRecordRepository
+    background: BackgroundTasks
+    phone_number: str
+    gsm7: bool
+
+
+async def _start_check(
+    sending: _Sending, check_id: str, text: str, hashed: str
+) -> Received:
     try:
-        payload = _check_input(received, hashed)
+        payload = _check_input(text, hashed)
     except ValidationError:
-        too_long = one_sms(TOO_LONG_TEXT, gsm7=gsm7)
-        background.add_task(sms.send, received.sender, too_long)
+        if len(text) > TEXT_MAX_CHARS:
+            too_long = one_sms(TOO_LONG_TEXT, gsm7=sending.gsm7)
+            sending.background.add_task(
+                sending.sms.send, sending.phone_number, too_long
+            )
         return Received(status="rejected")
-    first = not await records.list_for("channel_user_hash", hashed)
-    await jobs.enqueue(CHECK, payload, workflow_id=check_id)
-    background.add_task(
+    first = not await sending.records.list_for(CHANNEL_USER, hashed)
+    await sending.jobs.enqueue(CHECK, payload, workflow_id=check_id)
+    sending.background.add_task(
         reply_when_done,
-        jobs,
-        sms,
+        sending.jobs,
+        sending.sms,
         check_id,
-        received.sender,
+        sending.phone_number,
         first_contact=first,
-        gsm7=gsm7,
+        gsm7=sending.gsm7,
     )
     return Received(status="accepted")

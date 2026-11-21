@@ -21,6 +21,12 @@ MAX_CLOCK_SKEW_SECONDS: Final = 300
 SMS_RECEIVED: Final = "sms:received"
 """The one gateway event the webhook acts on; others are acknowledged and dropped."""
 
+CHANNEL_USER: Final = "channel_user_hash"
+"""SubjectKind naming an SMS sender: the salted hash of the number."""
+
+TEXT_MAX_CHARS: Final = 4000
+"""Longest checkable text (CheckRequest.text); a longer SMS gets TOO_LONG_TEXT."""
+
 DELETE_COMMAND: Final = "USUN"
 """SMS text (any case, no diacritics needed) that deletes the number's checks."""
 

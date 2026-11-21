@@ -33,4 +33,6 @@ def signature_is_valid(
     except ValueError:
         return False
     expected = hmac.new(key.encode(), body + timestamp.encode(), hashlib.sha256)
-    return is_fresh and hmac.compare_digest(expected.hexdigest(), signature.lower())
+    # bytes: compare_digest rejects non-ASCII str, and the header is untrusted
+    given = signature.lower().encode()
+    return is_fresh and hmac.compare_digest(expected.hexdigest().encode(), given)
