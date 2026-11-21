@@ -83,10 +83,9 @@ Bramką jest telefon z Androidem (polska karta prepaid) z aplikacją SMS Gateway
 - SMS o treści `USUN` (także `USUŃ`, wielkość liter bez znaczenia) usuwa zapisy sprawdzeń dla skrótu tego numeru (`delete_subject`, backend#20).
 - Sprawdzenie z SMS-a przechodzi przez te same limity co formularz (kanał `sms` i próg oczekujących sprawdzeń); skrót numeru zastępuje w nich adres IP, bo wszystkie webhooki przychodzą z serwerów sms-gate.app. Odmowa daje 202 `refused` bez odpowiedzi SMS, więc nie kosztuje SMS-a z karty bramki.
 - SMS bramki do samej siebie (numer `MERITUM_SMS_GATEWAY_NUMBER`) dostaje 202 bez sprawdzenia i bez odpowiedzi, żeby nie zapętlić odpowiedzi.
-
 - Wiadomość z telefonu z włączonym RCS („czat” w Wiadomościach Google) bramka widzi jako MMS i wysyła [`mms:downloaded`](https://docs.sms-gate.app/features/mms/#mms-webhook-events) zamiast `sms:received`. Jej pole `body` idzie tą samą ścieżką co tekst SMS-a (podpis, deduplikacja, skrót numeru, `USUN`); załączniki są pomijane i nigdzie nie trafiają. MMS bez tekstu dostaje 202 `ignored`.
 
-Webhook `sms:received` jest zarejestrowany tylko dla dev; dev i prd korzystają z tego samego telefonu, więc prd dostanie własny webhook dopiero po decyzji zespołu (każdy SMS trafiłby wtedy do obu środowisk i oba by odpowiedziały). Rejestracja (stały `id` nadpisuje webhook zamiast tworzyć drugi; webhooków `web-dashboard-*` nie usuwaj):
+Webhooki `sms:received` i `mms:downloaded` są rejestrowane tylko dla dev; dev i prd korzystają z tego samego telefonu, więc prd dostanie własny webhook dopiero po decyzji zespołu (każdy SMS trafiłby wtedy do obu środowisk i oba by odpowiedziały). Rejestracja (stały `id` nadpisuje webhook zamiast tworzyć drugi; webhooków `web-dashboard-*` nie usuwaj):
 
 ```bash
 curl -X POST -u "$SMS_GATEWAY_USERNAME:$SMS_GATEWAY_PASSWORD" -H "Content-Type: application/json" \

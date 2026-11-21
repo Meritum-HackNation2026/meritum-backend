@@ -213,9 +213,9 @@ def _mms_checked(context: Context) -> None:
     ]
     assert payload.request.text == CLAIM
     assert payload.channel_user_hash == channel_user_hash("sms", SENDER, SALT)
-    event = json.loads(context.mms)
-    key = f"{event['deviceId']}-{event['id']}".encode()
-    assert workflow_id == f"sms-{hashlib.sha256(key).hexdigest()[:32]}"
+    assert (
+        workflow_id == "sms-5b85023f895c1a8f026f15ea1e227b4c"
+    )  # sha256 of the fixture's deviceId-id
 
 
 @then("odpowiada SMS-em z werdyktem")

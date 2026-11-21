@@ -38,9 +38,7 @@ from meritum_backend.sms.constants import (
     DELETE_COMMAND,
     DIACRITICS,
     EVENT_HASH_CHARS,
-    MMS_DOWNLOADED,
     SIGNATURE_HEADER,
-    SMS_RECEIVED,
     SMS_REGION,
     TEXT_MAX_CHARS,
     TIMESTAMP_HEADER,
@@ -177,11 +175,8 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     event = await _signed_event(request, key)
     received = event.payload
-    if event.event not in {SMS_RECEIVED, MMS_DOWNLOADED} or received is None:
-        return Received(status="ignored")
-    mms = event.event == MMS_DOWNLOADED
-    text = (received.body or "") if mms else received.message
-    if mms and not text.strip():  # attachments only: nothing to check
+    text = event.text
+    if text is None or received is None:  # other events, MMS with attachments only
         return Received(status="ignored")
     sender = e164(received.sender)
     # the gateway texting itself (live test) must not start a reply loop

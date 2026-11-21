@@ -6,6 +6,8 @@ Features:
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from meritum_backend.sms.constants import MMS_DOWNLOADED, SMS_RECEIVED
+
 
 class ReceivedSms(BaseModel):
     """The ``payload`` of an ``sms:received`` or ``mms:downloaded`` event.
@@ -47,3 +49,21 @@ class GatewayEvent(BaseModel):
     event: str
     id: str = Field(pattern=r"^[\w-]{1,64}$")
     payload: ReceivedSms | None = None
+
+    @property
+    def text(self) -> str | None:
+        """The text to check: ``message`` of an SMS, ``body`` of an MMS.
+
+        Returns:
+            The text, or None for other events and for an MMS without text.
+
+        Features:
+            US-WTY-07, F-32
+        """
+        if self.payload is None:
+            return None
+        if self.event == SMS_RECEIVED:
+            return self.payload.message
+        if self.event == MMS_DOWNLOADED and (self.payload.body or "").strip():
+            return self.payload.body
+        return None

@@ -19,7 +19,7 @@ MAX_CLOCK_SKEW_SECONDS: Final = 300
 """Signed requests older or newer than this are replayed or forged: 401."""
 
 SMS_RECEIVED: Final = "sms:received"
-"""Gateway event of an SMS; with MMS_DOWNLOADED the only ones the webhook acts on."""
+"""Gateway event of an SMS; the webhook checks its ``message``."""
 
 MMS_DOWNLOADED: Final = "mms:downloaded"
 """Gateway event of a downloaded MMS (also RCS chats); its ``body`` is the text."""
