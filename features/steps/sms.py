@@ -9,7 +9,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import override
 
 from behave import given, then, when
@@ -24,13 +24,13 @@ from meritum_core.observability import build_app_repositories
 from meritum_core.shared.database import DatabaseSettings
 from pydantic import SecretStr
 
+from meritum_backend.channels import channel_user_hash
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app
 from meritum_backend.privacy import get_eraser
 from meritum_backend.settings import Settings, get_settings
 from meritum_backend.sms.api import get_records, get_sms
 from meritum_backend.sms.constants import AI_NOTICE, UCS2_LIMIT
-from meritum_backend.sms.identity import sender_hash
 
 KEY = "behave-signing-key"
 SALT = SecretStr("behave-salt")
@@ -66,6 +66,8 @@ class _FinishedJobs(InMemoryJobQueue):
             claims=[
                 ClaimResult(
                     claim=CLAIM,
+                    claim_date=date(2026, 11, 21),
+                    claim_date_source="today",
                     verdict="not_verifiable",
                     explanation="To przewidywanie, nie fakt.",
                 )
@@ -140,7 +142,7 @@ def _within_limit(context: Context) -> None:
 @given("numer ma zapisane sprawdzenia")
 def _number_has_checks(context: Context) -> None:
     _app(context)
-    hashed = sender_hash(SENDER, SALT)
+    hashed = channel_user_hash("sms", SENDER, SALT)
     context.hashed = hashed
     record = CheckRecord(
         check_id="sms-dev1-old",

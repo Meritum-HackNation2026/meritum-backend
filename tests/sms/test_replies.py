@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 from typing import override
 
 from meritum_core.checks import CheckResult
@@ -19,6 +20,8 @@ RESULT = CheckResult(
     claims=[
         ClaimResult(
             claim="Wczoraj w Gdańsku wyłączono wszystkie bankomaty.",
+            claim_date=date(2026, 11, 21),
+            claim_date_source="today",
             verdict="insufficient_evidence",
             explanation="Źródła w korpusie nie opisują takiego zdarzenia.",
             unresolved="Czy bankomaty działały.",

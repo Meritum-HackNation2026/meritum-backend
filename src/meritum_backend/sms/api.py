@@ -21,9 +21,12 @@ from meritum_core.checks.ports import CheckRecordRepository
 from meritum_core.jobs.contracts import CHECK, CheckInput
 from meritum_core.jobs.ports import JobQueue
 from meritum_core.observability import SubjectEraser
+from meritum_core.security import PiiGatePort
 from pydantic import BaseModel, SecretStr, ValidationError
 
+from meritum_backend.channels import channel_user_hash
 from meritum_backend.checks import masked
+from meritum_backend.checks.api import PiiGate
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.privacy import delete_subject, get_eraser
 from meritum_backend.settings import Settings, get_settings
@@ -37,7 +40,6 @@ from meritum_backend.sms.constants import (
     TOO_LONG_TEXT,
 )
 from meritum_backend.sms.delivery import reply_when_done
-from meritum_backend.sms.identity import sender_hash
 from meritum_backend.sms.models import GatewayEvent
 from meritum_backend.sms.ports import SmsSender
 from meritum_backend.sms.replies import one_sms
@@ -113,10 +115,10 @@ async def _signed_event(request: Request, key: str) -> GatewayEvent:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "bad event") from None
 
 
-def _check_input(text: str, hashed: str) -> CheckInput:
+async def _check_input(text: str, hashed: str, pii: PiiGatePort) -> CheckInput:
     request = CheckRequest(channel="sms", text=text)
     return CheckInput(
-        request=masked(request),
+        request=await masked(request, pii),
         session_id=hashed,
         channel_user_hash=hashed,
         received_at=datetime.now(UTC),
@@ -132,6 +134,7 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     sms: Sms,
     records: Records,
     eraser: Eraser,
+    pii: PiiGate,
     background: BackgroundTasks,
 ) -> Received:
     """Take one gateway event: start a check, delete on USUN, or drop it.
@@ -143,6 +146,7 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
         sms: the gateway sender.
         records: check records; none for the number means first contact.
         eraser: deletes the number's checks on USUN.
+        pii: masks personal data in the text before it is queued.
         background: runs the reply after the answer.
 
     Returns:
@@ -165,9 +169,9 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     if event.event != SMS_RECEIVED or received is None or is_own:
         return Received(status="ignored")
     salt = settings.channel_hash_salt
-    if salt is None or not salt.get_secret_value():
+    if salt is None:  # the settings already turn an empty salt into None
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "no hash salt")
-    hashed = sender_hash(received.sender, salt)
+    hashed = channel_user_hash("sms", received.sender, salt)
     if received.message.strip().upper() == DELETE_COMMAND:
         await delete_subject(CHANNEL_USER, hashed, eraser, jobs)
         return Received(status="deleted")
@@ -175,7 +179,7 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     if await jobs.state(check_id) is not None:
         return Received(status="duplicate")
     sending = _Sending(
-        jobs, sms, records, background, received.sender, settings.sms_gsm7
+        jobs, sms, records, pii, background, received.sender, settings.sms_gsm7
     )
     return await _start_check(sending, check_id, received.message, hashed)
 
@@ -185,6 +189,7 @@ class _Sending:
     jobs: JobQueue
     sms: SmsSender
     records: CheckRecordRepository
+    pii: PiiGatePort
     background: BackgroundTasks
     phone_number: str
     gsm7: bool
@@ -194,7 +199,7 @@ async def _start_check(
     sending: _Sending, check_id: str, text: str, hashed: str
 ) -> Received:
     try:
-        payload = _check_input(text, hashed)
+        payload = await _check_input(text, hashed, sending.pii)
     except ValidationError:
         if len(text) > TEXT_MAX_CHARS:
             too_long = one_sms(TOO_LONG_TEXT, gsm7=sending.gsm7)
