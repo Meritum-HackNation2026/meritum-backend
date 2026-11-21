@@ -59,9 +59,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests: plain asserts and literals; tests/ is not a package (pytest importlib mode).
 "tests/**/*.py" = ["assert", "magic-value-comparison", "D", "DOC", "implicit-namespace-package"]
-"scripts/**/*.py" = ["implicit-namespace-package"]
+"scripts/**/*.py" = ["implicit-namespace-package"]  # standalone scripts, not a package
 # behave loads features/ by path, it is not a package; steps use plain asserts.
-"features/**/*.py" = ["implicit-namespace-package", "assert"]  # standalone scripts, not a package
+"features/**/*.py" = ["implicit-namespace-package", "assert"]
 # Bare names tell vulture they are used; the file is never imported.
 "vulture_whitelist.py" = ["implicit-namespace-package", "useless-expression"]
 
