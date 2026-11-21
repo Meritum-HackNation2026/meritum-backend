@@ -15,7 +15,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `GET /api/v1/health/live` | żywotność procesu, bez bazy (healthcheck Dockera) |
 | `POST /api/v1/jobs/ping` | zleca workflow `ping` (test dymny po deployu), zwraca `workflow_id` |
 | `GET /api/v1/jobs/{workflow_id}` | stan zadania: `status`, `output`, `error` |
-| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje dane osobowe w tekście i w parametrach query linku przed `JobQueue` (bramka PII z `MERITUM_PII_*`, domyślnie pusta, potem wzorce telefonów, e-maili i PESEL) (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27; ponad limit dostaje 429 z `Retry-After` (patrz „Limity zapytań”); przy niegotowej usłudze (niedostępna baza API, brak zmiennych API albo braki zgłoszone przez workera) 503 `{"status": "technical_failure", "code": "not_ready", "message_key": "status_hint.technical_failure"}` |
+| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje dane osobowe w tekście i w parametrach query linku przed `JobQueue` (bramka PII z `MERITUM_PII_*`, domyślnie pusta, potem wzorce telefonów, e-maili i PESEL) (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27 (SMS przychodzi przez `POST /api/v1/sms/webhook`); ponad limit dostaje 429 z `Retry-After` (patrz „Limity zapytań”); przy niegotowej usłudze (niedostępna baza API, brak zmiennych API albo braki zgłoszone przez workera) 503 `{"status": "technical_failure", "code": "not_ready", "message_key": "status_hint.technical_failure"}` |
 | `POST /api/v1/audio` | nagranie z formularza jako treść żądania (OGG Opus, MP3, M4A albo WAV; format odczytany z bajtów, nie z `Content-Type`); zapisuje plik w `BlobStore` z retencją zapisu sprawdzenia (30 dni) i zwraca 201 z `audio_id` do `POST /api/v1/checks`; odmowa ma `status: out_of_scope`, klucz z `copy/pl.json` oraz `formats`, `max_mb` i `max_minutes` do wstawienia w tekst: 413 `errors.audio_too_large` (ponad 20 MiB), 422 `errors.audio_too_long` (ponad 10 min), 415 `status_hint.out_of_scope_audio_format`; 10 wysyłek na minutę i 30 na dobę z jednego adresu |
 | `GET /api/v1/checks/{check_id}` | `AnalysisStatus`: kroki i, po zakończeniu, `result` (`CheckResult` z `ai_disclosure: true` i nagłówkiem `AI-Disclosure: mode=ai-originated`) |
 | `GET /api/v1/checks/{check_id}/events` | postęp sprawdzenia jako Server-Sent Events: każda wartość strumienia `progress` workflowu (`JobQueue.stream`) to jedno zdarzenie `AnalysisStatus`; `result` pojawia się dopiero po kroku `verify_citations` (`done` albo `skipped`), więc wersja wstępna nie niesie werdyktu; po zakończeniu ostatnie zdarzenie ma pełny `CheckResult` i strumień się zamyka; rozłączenie nie przerywa workflowu, a ponowne połączenie odtwarza kroki od początku (404 dla nieznanego id) |
@@ -23,6 +23,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `POST /api/v1/checks/{check_id}/claims/{n}/escalate` | „Przekaż moderatorom”: zleca workflow `escalate_claim` (powód `recommended_clicked`) i czeka na zapis sprawy; 200 z `Escalation` `created` albo `updated` z numerem i kluczem `escalation.created`/`escalation.updated`; gdy sprawy nie zapisano, 503 z `Escalation` `recommended` bez numeru i kluczem `escalation.recommended`; 404 dla nieukończonego sprawdzenia albo nieznanego twierdzenia |
 | `POST /api/v1/checks/{check_id}/claims/{n}/dispute` | „Zgłoś błąd”: opcjonalnie `{"justification": "..."}` (maskowane jak pytanie; do 4000 znaków, dłuższe daje 422 `errors.too_long`; po zamaskowaniu przycinane do 1000 przed znacznikiem), powód `user_dispute`, odpowiedzi jak wyżej z kluczem `result.report_error_done`; uzasadnienie jest opcjonalne (brak treści albo same spacje wysyła spór bez niego); wynik sprawdzenia się nie zmienia |
 | `POST /api/v1/discord/interactions` | kanał Discord: interakcje HTTP podpisane kluczem Ed25519 aplikacji (401 przy złym podpisie, 404 gdy środowisko nie ma aplikacji Discord) |
+| `POST /api/v1/sms/webhook` | kanał SMS: zdarzenie `sms:received` bramki sms-gate.app podpisane HMAC (401 przy złym podpisie albo znaczniku czasu spoza ±5 min, 404 gdy środowisko nie ma bramki); zawsze szybkie 202, sprawdzenie idzie do kolejki jobów (patrz „Kanał SMS”) |
 | `GET /api/v1/auth/login/{google,microsoft}` | logowanie OIDC: przekierowanie do dostawcy (404, gdy dostawca nie jest skonfigurowany) |
 | `GET /api/v1/auth/callback/{google,microsoft}` | powrót od dostawcy: sprawdza `state` i token ID, zakłada sesję, przekierowuje na `/` (400 przy złym `state` albo tokenie) |
 | `GET /api/v1/auth/me` | zalogowane konto: dostawca, identyfikator konta, e-mail i `csrf_token` (401 bez sesji) |
@@ -66,6 +67,26 @@ DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... uv run python scripts/register_
 ```
 
 Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discorda); limit per użytkownik Discorda dojdzie razem ze sprawdzaniem.
+
+## Kanał SMS
+
+Bramką jest telefon z Androidem (polska karta prepaid) z aplikacją SMS Gateway for Android w trybie Cloud ([sms-gate.app](https://docs.sms-gate.app/)). W tym trybie treść SMS-ów przechodzi przez serwery sms-gate.app. Usługa jest bezpłatna; operator nadawcy może pobrać standardową opłatę za SMS według jego taryfy.
+
+- Odbiór: bramka wysyła `POST /api/v1/sms/webhook` z nagłówkami `X-Signature` (hex `HMAC_SHA256(klucz, surowe body + X-Timestamp)`) i `X-Timestamp`. Zły podpis albo znacznik czasu starszy lub nowszy niż 5 minut daje 401. Bramka ponawia zdarzenie do ok. 2 dni, dopóki nie dostanie 2xx, więc identyfikator workflowu to `sms-<deviceId>-<id>`: powtórzone zdarzenie nie startuje drugiego sprawdzenia.
+- Numer nadawcy od razu zamienia się w skrót z solą (`MERITUM_CHANNEL_HASH_SALT`, ta sama funkcja co w backend#24), który jest `session_id` i `channel_user_hash`. Surowy numer zostaje tylko w pamięci zadania, które po zakończeniu sprawdzenia wysyła odpowiedź; restart procesu gubi odpowiedź, ale numer nigdzie nie trafia.
+- Odpowiedź to werdykt głównego twierdzenia, bez linku (operatorzy filtrują linki), najwyżej 70 znaków UCS-2 na SMS. Pierwszy SMS do numeru bez wcześniejszych sprawdzeń poprzedza informacja, że odpowiada system AI. `MERITUM_SMS_GSM7=true` zamienia polskie litery na litery bez ogonków i pozwala na 160 znaków. Sprawdzenie, które nie skończy się w 10 minut, dostaje tekst o niepowodzeniu.
+- SMS o treści `USUN` usuwa zapisy sprawdzeń dla skrótu tego numeru (`delete_subject`, backend#20).
+- SMS bramki do samej siebie (numer `MERITUM_SMS_GATEWAY_NUMBER`) dostaje 202 bez sprawdzenia i bez odpowiedzi, żeby nie zapętlić odpowiedzi.
+
+Webhook `sms:received` jest zarejestrowany tylko dla dev; dev i prd korzystają z tego samego telefonu, więc prd dostanie własny webhook dopiero po decyzji zespołu (każdy SMS trafiłby wtedy do obu środowisk i oba by odpowiedziały). Rejestracja (stały `id` nadpisuje webhook zamiast tworzyć drugi; webhooków `web-dashboard-*` nie usuwaj):
+
+```bash
+curl -X POST -u "$SMS_GATEWAY_USERNAME:$SMS_GATEWAY_PASSWORD" -H "Content-Type: application/json" \
+  -d '{"id":"meritum-dev-sms-received","url":"https://meritum-dev.gburek.app/api/v1/sms/webhook","event":"sms:received"}' \
+  https://api.sms-gate.app/3rdparty/v1/webhooks
+```
+
+Próba na żywo (ręcznie, poza CI): wyślij przez bramkę SMS na jej własny numer i sprawdź w logach `meritum-api-dev` wpis `POST /api/v1/sms/webhook ... 202`.
 
 ## Usuwanie danych
 
@@ -229,6 +250,10 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 | `MERITUM_MICROSOFT_CLIENT_ID` | `MICROSOFT_CLIENT_ID_{DEV,PRD}` (zmienna) | #15 |
 | `MERITUM_MICROSOFT_CLIENT_SECRET` | `MICROSOFT_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |
 | `MERITUM_ADMIN_EMAILS` | `MERITUM_ADMIN_EMAILS_{DEV,PRD}` (sekret) | #22 |
+| `MERITUM_SMS_GATEWAY_USERNAME` | `SMS_GATEWAY_USERNAME_{DEV,PRD}` (sekret) | #29 |
+| `MERITUM_SMS_GATEWAY_PASSWORD` | `SMS_GATEWAY_PASSWORD_{DEV,PRD}` (sekret) | #29 |
+| `MERITUM_SMS_GATEWAY_WEBHOOK_SIGNING_KEY` | `SMS_GATEWAY_WEBHOOK_SIGNING_KEY_{DEV,PRD}` (sekret) | #29 |
+| `MERITUM_SMS_GATEWAY_NUMBER` | `SMS_GATEWAY_NUMBER_{DEV,PRD}` (sekret) | #29 |
 
 Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli, potem dodaj sekret w ustawieniach repozytorium.
 
