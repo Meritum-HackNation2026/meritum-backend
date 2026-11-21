@@ -1,6 +1,7 @@
 """Models of the auth slice: the signed-in account and a login in progress."""
 
 from typing import Annotated
+from urllib.parse import urlsplit
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
 
@@ -15,11 +16,17 @@ def _same_origin_path(path: str) -> str:
 
     Returns:
         ``path``, or ``HOME`` for anything that could leave the site: a scheme,
-        ``//host``, a backslash, whitespace, control characters or a long value.
+        ``//`` anywhere in the path (``/.//host`` normalises to ``//host``), a
+        backslash, whitespace, control characters or a long value.
     """
-    is_absolute_path = path.startswith("/") and not path.startswith("//")
+    parts = urlsplit(path)
+    is_rooted = path.startswith("/") and not parts.netloc and "//" not in parts.path
     is_plain = len(path) <= RETURN_PATH_MAX and set(path) <= RETURN_PATH_CHARS
-    return path if is_absolute_path and is_plain else HOME
+    return path if is_rooted and is_plain else HOME
+
+
+type ReturnPath = Annotated[str, AfterValidator(_same_origin_path)]
+"""A page on this site to open after login; anything else becomes ``HOME``."""
 
 
 class Account(BaseModel):
@@ -66,7 +73,7 @@ class PendingLogin(BaseModel):
     nonce: str
     code_verifier: str
     redirect_uri: str
-    return_to: Annotated[str, AfterValidator(_same_origin_path)] = HOME
+    return_to: ReturnPath = HOME
 
 
 class LoginStart(BaseModel):

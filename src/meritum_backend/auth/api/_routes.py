@@ -27,7 +27,7 @@ from meritum_backend.auth.constants import (
     SESSION_SINCE,
     TOKEN_BYTES,
 )
-from meritum_backend.auth.models import Me
+from meritum_backend.auth.models import Me, ReturnPath
 from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -44,7 +44,7 @@ async def login(
     request: Request,
     login: Login,
     settings: Annotated[Settings, Depends(get_settings)],
-    return_to: Annotated[str, Query(description=RETURN_TO_DOC)] = HOME,
+    return_to: Annotated[ReturnPath, Query(description=RETURN_TO_DOC)] = HOME,
 ) -> RedirectResponse:
     """Send the user to the provider's login page.
 
@@ -74,9 +74,8 @@ async def login(
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY, "provider unavailable"
         ) from exc
-    # validated: an unsafe return_to becomes HOME (no open redirect)
-    pending = start.pending.model_dump() | {"return_to": return_to}
-    request.session[SESSION_PENDING] = PendingLogin.model_validate(pending).model_dump()
+    pending = start.pending.model_copy(update={"return_to": return_to})
+    request.session[SESSION_PENDING] = pending.model_dump()
     return RedirectResponse(start.url, status.HTTP_302_FOUND)
 
 
