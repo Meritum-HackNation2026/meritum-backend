@@ -117,10 +117,11 @@ def test_a_running_check_has_no_claims_to_hand_off() -> None:
         ("SUCCESS", {"unexpected": True}),
     ],
 )
+@pytest.mark.parametrize("route", ["escalate", "dispute"])
 def test_a_case_that_was_not_saved_gives_no_number(
-    status: str, output: dict[str, JsonValue] | None
+    status: str, output: dict[str, JsonValue] | None, route: str
 ) -> None:
-    response = _client(Worker(status, output)).post(f"{CLAIMS}/0/escalate")
+    response = _client(Worker(status, output)).post(f"{CLAIMS}/0/{route}")
     assert response.status_code == 503
     assert response.json() == NOT_SAVED
 
@@ -147,22 +148,25 @@ def test_a_dispute_without_a_reason_goes_without_one(
     assert job.payload.model_dump()["justification_masked"] is None
 
 
-def test_a_too_long_reason_is_cut_and_masked() -> None:
+@pytest.mark.parametrize("padding", [991, 993])
+def test_a_long_reason_is_masked_before_it_is_cut(padding: int) -> None:
     worker = _saved()
-    body = {"justification": "Dzwoń: 600 700 800. " + "x" * 2000}
+    body = {"justification": "a" * padding + " 600 700 800 koniec"}
     response = _client(worker).post(f"{CLAIMS}/1/dispute", json=body)
     assert response.json()["message_key"] == "result.report_error_done"
     [job] = worker.enqueued
     sent = job.payload.model_dump()["justification_masked"]
-    assert sent.startswith("Dzwoń: [telefon]. ")
     assert len(sent) <= 1000
+    assert "600" not in sent
+    assert "70" not in sent
 
 
 def test_a_reason_that_is_not_text_is_refused_without_echo() -> None:
     worker = _saved()
-    response = _client(worker).post(f"{CLAIMS}/1/dispute", json={"justification": 5})
+    body = {"justification": ["600 700 800"]}
+    response = _client(worker).post(f"{CLAIMS}/1/dispute", json=body)
     assert response.status_code == 422
-    assert response.json() == {"message_key": "errors.empty"}
+    assert "600" not in response.text
     assert worker.enqueued == []
 
 

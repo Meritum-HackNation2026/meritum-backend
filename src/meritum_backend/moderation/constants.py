@@ -14,6 +14,9 @@ ESCALATION_WAIT_SECONDS: Final = 10.0
 HANDOFF_LIMIT: Final = "10/minute"
 """Hand-offs per client address; each one creates or updates a moderator case."""
 
+JUSTIFICATION_INPUT_MAX_CHARS: Final = 4000
+"""Longest reason read from a dispute; once masked it is cut to 1000 characters."""
+
 POLL_SECONDS: Final = 0.2
 """Pause between two reads of the escalate_claim workflow's state."""
 

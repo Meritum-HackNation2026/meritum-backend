@@ -21,7 +21,7 @@ from meritum_core.jobs.contracts import (
     EscalateClaimOutput,
 )
 from meritum_core.jobs.ports import JobQueue, JobState
-from pydantic import BaseModel, BeforeValidator, ValidationError
+from pydantic import BaseModel, BeforeValidator, StringConstraints, ValidationError
 
 from meritum_backend.checks import masked_text
 from meritum_backend.checks.api import InvalidCheck, KeyedErrorsRoute, PiiGate
@@ -33,6 +33,7 @@ from meritum_backend.moderation.constants import (
     ESCALATION_KEY_PREFIX,
     ESCALATION_WAIT_SECONDS,
     HANDOFF_LIMIT,
+    JUSTIFICATION_INPUT_MAX_CHARS,
     NOT_SAVED,
     NOT_SAVED_KEY,
     POLL_SECONDS,
@@ -57,12 +58,10 @@ class Handoff(BaseModel):
     message_key: str
 
 
-def _blank_or_cut(value: object) -> object:
+def _none_when_blank(value: object) -> object:
     if not isinstance(value, str):
         return value  # left to pydantic: anything but text is refused
-    # shortcut: no copy/pl.json text tells the person a reason is too long, so the
-    # rest is dropped; the form caps the field at MAX_JUSTIFICATION_CHARS
-    return value.strip()[:MAX_JUSTIFICATION_CHARS] or None
+    return value.strip() or None
 
 
 class Dispute(BaseModel):
@@ -70,14 +69,18 @@ class Dispute(BaseModel):
 
     Attributes:
         justification: what the person thinks is wrong, optional (a blank one
-            counts as none); cut to MAX_JUSTIFICATION_CHARS and masked before
-            it leaves.
+            counts as none); masked, then cut to MAX_JUSTIFICATION_CHARS
+            before any marker the cut would split.
 
     Features:
         US-MOD-06, F-24
     """
 
-    justification: Annotated[str | None, BeforeValidator(_blank_or_cut)] = None
+    justification: Annotated[
+        Annotated[str, StringConstraints(max_length=JUSTIFICATION_INPUT_MAX_CHARS)]
+        | None,
+        BeforeValidator(_none_when_blank),
+    ] = None
 
 
 router = APIRouter(
