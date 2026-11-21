@@ -84,7 +84,9 @@ class ReadinessProbe:
         self._database = database
         self._blob_store = blob_store
         self._clock = clock
-        self._refreshed_at: float | None = None  # when the pending refresh was enqueued
+        # when the pending refresh was enqueued, and when the current workflow was
+        self._refreshed_at: float | None = None
+        self._asked_at = clock()
         self._enqueued = False
         self._last: tuple[float, Readiness] | None = None
         # (workflow id, when its report arrived, the report)
@@ -117,9 +119,13 @@ class ReadinessProbe:
             return  # no report yet, or a refresh is already pending
         if self._clock() - self._report[1] >= WORKER_REFRESH_SECONDS:
             # a restarted worker answers a new workflow; keep the last report meanwhile
-            self.workflow_id = _new_workflow_id()
-            self._enqueued = False
             self._refreshed_at = self._clock()
+            self._ask_again()
+
+    def _ask_again(self) -> None:
+        self.workflow_id = _new_workflow_id()
+        self._enqueued = False
+        self._asked_at = self._clock()
 
     async def _worker_report(self, wait: float) -> ReadinessReport | None:
         self._refresh_if_due()
@@ -128,6 +134,9 @@ class ReadinessProbe:
         if report is not None and is_new:
             self._report = (self.workflow_id, self._clock(), report)
             self._refreshed_at = None
+        answered = self._report is not None and self._report[0] == self.workflow_id
+        if not answered and self._clock() - self._asked_at >= WORKER_REFRESH_SECONDS:
+            self._ask_again()  # the workflow failed or no worker knew it
         # a worker that left a refresh unanswered for a whole period is not reported
         unanswered = self._refreshed_at is not None and (
             self._clock() - self._refreshed_at >= WORKER_REFRESH_SECONDS
@@ -183,13 +192,18 @@ class ReadinessProbe:
             return self._last[1].ready
         return (await self.check()).ready
 
-    async def log_startup(self) -> None:
+    async def log_startup(
+        self, worker_wait: float = STARTUP_WORKER_WAIT_SECONDS
+    ) -> None:
         """Log the report once the worker answered or the startup wait ran out.
+
+        Args:
+            worker_wait: how long to wait for the worker's report, in seconds.
 
         Features:
             US-WDR-08, US-BEZ-03, F-30
         """
-        readiness = await self.check(STARTUP_WORKER_WAIT_SECONDS)
+        readiness = await self.check(worker_wait)
         if readiness.ready:
             _logger.info("ready (env %s)", readiness.env)
             return

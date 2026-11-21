@@ -155,8 +155,11 @@ def startup_log_lists(context: Context) -> None:
         asyncio.run(context.probe.log_startup())
     finally:
         logger.removeHandler(records)
-    listed = ", ".join(context.response.json()["missing_env"])
-    assert any(f"missing env {listed}," in message for message in records.messages)
+    body = context.response.json()
+    missing = ", ".join(body["missing_env"]) or "none"
+    unavailable = ", ".join(body["unavailable_providers"]) or "none"
+    expected = f"missing env {missing}, unavailable {unavailable}"
+    assert any(message.endswith(expected) for message in records.messages)
 
 
 @then('dostaje stan "{state}" z kodem "{code}", bez nazw kluczy w komunikacie')

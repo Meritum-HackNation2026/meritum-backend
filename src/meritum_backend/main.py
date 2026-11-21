@@ -71,9 +71,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             retry_connection_errors=False,
         )
         app.state.jobs = DbosJobQueue(client, app_version=settings.env)
-        app.state.blobs = build_blobs(settings)
-        app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
         app.state.readiness = build_readiness(settings, app.state.jobs)
+        try:
+            app.state.blobs = build_blobs(settings)
+        except Exception:
+            # name the missing variables before a misconfigured deploy stops (#19)
+            await app.state.readiness.log_startup(worker_wait=0)
+            raise
+        app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
         startup_log = asyncio.create_task(app.state.readiness.log_startup())
         pruner = start_pruning(app.state.check_gate)
         try:

@@ -3,6 +3,7 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
+from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 from tests.conftest import FakeBlobStore, FakeClock, MakeProbe, worker_report
@@ -102,7 +103,7 @@ def test_quiet_period_keeps_a_live_worker_ready(make_probe: MakeProbe) -> None:
     clock.now = 130.0  # nobody asked for over two minutes
     assert client.get("/api/v1/health").json()["worker"] == "ok"
     jobs.set_event(
-        probe.workflow_id, "readiness", worker_report()
+        probe.workflow_id, READINESS_KEY, worker_report()
     )  # answers the refresh
     clock.now = 200.0
     assert client.get("/api/v1/health").json()["worker"] == "ok"
@@ -138,7 +139,19 @@ def test_checks_reuse_a_fresh_report(make_probe: MakeProbe) -> None:
     jobs = InMemoryJobQueue()
     probe = make_probe(jobs)
     assert not asyncio.run(probe.ready())
-    jobs.set_event(probe.workflow_id, "readiness", worker_report())
+    jobs.set_event(probe.workflow_id, READINESS_KEY, worker_report())
     assert not asyncio.run(probe.ready())  # the cached report
     assert asyncio.run(probe.check()).status == "ok"
     assert asyncio.run(probe.ready())
+
+
+def test_unanswered_workflow_is_asked_again(make_probe: MakeProbe) -> None:
+    clock = FakeClock()
+    jobs = InMemoryJobQueue()
+    client = client_for(make_probe(jobs, clock=clock))
+    client.get("/api/v1/health")
+    clock.now = 61.0  # e.g. failed or taken by a worker that did not know it
+    client.get("/api/v1/health")  # gives up on the first workflow
+    body = client.get("/api/v1/health").json()  # enqueues the next one
+    assert body["worker"] == "not_reported"
+    assert len({job.workflow_id for job in jobs.enqueued}) == 2
