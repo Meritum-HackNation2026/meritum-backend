@@ -51,3 +51,10 @@ WORKER_REFRESH_SECONDS: Final = 60.0
 """Age of the worker report that triggers a new `readiness` workflow; also how long
 an enqueued one may stay unanswered before it is enqueued again and the last report
 stops counting."""
+
+BLOCK_CHECKS_WITHOUT_WORKER_REPORT: Final[bool] = False
+"""Whether checks get 503 while the worker's report is missing or expired.
+
+Off until worker#28 publishes the report (team decision on #19): /health still
+shows the worker as not_reported and the API logs a warning. Turn on after that.
+"""

@@ -16,6 +16,7 @@ from meritum_core.jobs.ports import JobQueue
 from pydantic import SecretStr
 
 from meritum_backend.health.constants import (
+    BLOCK_CHECKS_WITHOUT_WORKER_REPORT,
     BOT_TOKEN_ENV,
     HEALTH_WORKER_WAIT_SECONDS,
     READY_CACHE_SECONDS,
@@ -40,6 +41,17 @@ def _settings_missing(settings: Settings) -> list[str]:
     if discord_on and _unset(settings.discord_bot_token):
         missing.append(BOT_TOKEN_ENV)
     return missing
+
+
+def _accepts_checks(readiness: Readiness) -> bool:
+    if readiness.ready:
+        return True
+    only_worker_silent = readiness.worker == "not_reported" and (
+        readiness.database == "ok"
+        and not readiness.missing_env
+        and not readiness.unavailable_providers
+    )
+    return only_worker_silent and not BLOCK_CHECKS_WITHOUT_WORKER_REPORT
 
 
 class ReadinessProbe:
@@ -120,15 +132,24 @@ class ReadinessProbe:
     async def ready(self) -> bool:
         """Whether checks may run; reuses a report younger than the cache window.
 
+        A missing or expired worker report alone does not stop checks unless
+        BLOCK_CHECKS_WITHOUT_WORKER_REPORT is on; it is logged as a warning.
+
         Returns:
-            True when the last report is ok.
+            True when the last report is ok, or lacks only the worker's report.
 
         Features:
             US-WDR-08, US-BEZ-03, F-30
         """
         if self._last and self._clock() - self._last[0] < READY_CACHE_SECONDS:
-            return self._last[1].ready
-        return (await self.check()).ready
+            return _accepts_checks(self._last[1])
+        readiness = await self.check()
+        if readiness.worker == "not_reported":
+            _logger.warning(
+                "no worker readiness report; checks blocked: %s",
+                BLOCK_CHECKS_WITHOUT_WORKER_REPORT,
+            )
+        return _accepts_checks(readiness)
 
     async def log_startup(self) -> None:
         """Log the report once the worker answered or the startup wait ran out.

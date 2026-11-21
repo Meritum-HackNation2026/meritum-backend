@@ -1,8 +1,12 @@
+import logging
+
+import pytest
 from fastapi.testclient import TestClient
 from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from tests.conftest import FakeClock, MakeProbe, worker_report
 
+from meritum_backend.health import readiness
 from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app
@@ -64,3 +68,28 @@ def test_fixed_worker_lets_checks_through_without_an_api_restart(
     queue.set_event(ids[-1], READINESS_KEY, worker_report())
     clock.now = 92.0  # past the 30 s cache of the last answer
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 202
+
+
+def post_without_worker_report(make_probe: MakeProbe) -> int:
+    probe = make_probe(InMemoryJobQueue())  # the worker never answered
+    app = create_app(Settings())
+    app.dependency_overrides[get_jobs] = InMemoryJobQueue
+    app.dependency_overrides[get_readiness] = lambda: probe
+    return (
+        TestClient(app).post("/api/v1/checks", json=CHECK, headers=SESSION).status_code
+    )
+
+
+def test_missing_worker_report_does_not_block_checks(
+    make_probe: MakeProbe, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="meritum_backend"):
+        assert post_without_worker_report(make_probe) == 202
+    assert "no worker readiness report" in caplog.text
+
+
+def test_switch_blocks_checks_without_worker_report(
+    make_probe: MakeProbe, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(readiness, "BLOCK_CHECKS_WITHOUT_WORKER_REPORT", True)
+    assert post_without_worker_report(make_probe) == 503

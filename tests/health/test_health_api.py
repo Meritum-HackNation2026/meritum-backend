@@ -6,7 +6,13 @@ from fastapi.testclient import TestClient
 from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
-from tests.conftest import FakeBlobStore, FakeClock, MakeProbe, worker_report
+from tests.conftest import (
+    FakeBlobStore,
+    FakeClock,
+    FakeDatabase,
+    MakeProbe,
+    worker_report,
+)
 
 from meritum_backend.health.api import get_readiness
 from meritum_backend.health.models import Problems
@@ -135,11 +141,14 @@ def test_startup_log_names_variables_never_values(
     assert "worker not_reported" in caplog.text
 
 
-def test_checks_reuse_a_fresh_report(make_probe: MakeProbe) -> None:
+def test_checks_reuse_a_fresh_report() -> None:
     jobs = InMemoryJobQueue()
-    probe = make_probe(jobs)
-    assert not asyncio.run(probe.ready())
+    database = FakeDatabase(ok=False)
+    settings = Settings(channel_hash_salt=SecretStr(SALT))
+    probe = ReadinessProbe(settings, jobs, database, FakeBlobStore())
     jobs.set_event(probe.workflow_id, READINESS_KEY, worker_report())
+    assert not asyncio.run(probe.ready())
+    database.ok = True
     assert not asyncio.run(probe.ready())  # the cached report
     assert asyncio.run(probe.check()).status == "ok"
     assert asyncio.run(probe.ready())
