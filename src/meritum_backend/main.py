@@ -50,7 +50,7 @@ from meritum_backend.staff.api import router as staff_router
 from meritum_backend.staff.factory import build_staff
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too-many-statements]  # composition root: one line per slice it wires
     """Build the app: the composition root that wires adapters from settings.
 
     Args:
