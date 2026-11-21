@@ -21,7 +21,7 @@ from meritum_backend.auth.factory import build_login
 from meritum_backend.checks.api import audio_router
 from meritum_backend.checks.api import events_router as check_events_router
 from meritum_backend.checks.api import router as checks_router
-from meritum_backend.checks.factory import build_blobs
+from meritum_backend.checks.factory import build_blobs, build_result_cache
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
@@ -108,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
         build_jury(settings)
     )
     app.state.login = build_login(settings)
+    app.state.result_cache = build_result_cache(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
     app.state.sms = build_sms(settings)

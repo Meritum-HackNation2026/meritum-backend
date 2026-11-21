@@ -5,6 +5,7 @@ Features:
     F-09, F-20, F-21, ADR-08
 """
 
+from meritum_backend.checks.api._cache import get_records, get_result_cache
 from meritum_backend.checks.api._events import router as events_router
 from meritum_backend.checks.api._pii import PiiGate, get_pii_gate
 from meritum_backend.checks.api._status import InvalidCheck, KeyedErrorsRoute, router
@@ -20,5 +21,7 @@ __all__ = [
     "events_router",
     "get_blobs",
     "get_pii_gate",
+    "get_records",
+    "get_result_cache",
     "router",
 ]

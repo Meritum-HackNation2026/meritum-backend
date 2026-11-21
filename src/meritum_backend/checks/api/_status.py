@@ -25,6 +25,14 @@ from meritum_core.jobs.contracts import CHECK, CheckInput
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
 
+from meritum_backend.checks.api._cache import (
+    Cache,
+    Records,
+    fill,
+    link_miss,
+    serve_from_cache,
+    served,
+)
 from meritum_backend.checks.api._identity import identity
 from meritum_backend.checks.api._keyed import InvalidCheck, KeyedErrorsRoute, invalid
 from meritum_backend.checks.api._pii import PiiGate
@@ -87,6 +95,8 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
     origin: ClientOrigin,
     pii: PiiGate,
     readiness: Ready,
+    cache: Cache,
+    records: Records,
     settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
@@ -99,6 +109,8 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         origin: the client address and region the limits count.
         pii: the personal-data masking gate.
         readiness: the readiness probe; a service that is not ready refuses checks.
+        cache: the result cache; a hit starts no `check` workflow.
+        records: where a hit's CheckRecord goes.
         settings: the app settings (the channel user hash salt).
         session: the random browser session id; no sign-in needed.
 
@@ -114,7 +126,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
 
     Features:
         US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-03, US-BEZ-04, US-BEZ-06, US-WTY-08,
-        US-WDR-03, US-WDR-08, F-01, F-20, F-23, F-30
+        US-WDR-03, US-WDR-08, US-WTY-03, US-MOD-03, F-01, F-05, F-20, F-23, F-30
     """
     received_at = datetime.now(UTC)
     if is_unsupported_link(request):
@@ -140,11 +152,14 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
     if (refusal := await gate.refusal(origin, request.channel)) is not None:
         raise CheckRefusedError(refusal)
     try:
-        check_id = await jobs.enqueue(CHECK, payload)
+        hit = await serve_from_cache(jobs, cache, records, payload)
+        check_id = hit or await jobs.enqueue(CHECK, payload)
     except Exception as exc:  # DBOS wraps driver errors in its own types
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "job queue unavailable"
         ) from exc
+    if hit is None:
+        await link_miss(cache, check_id, payload)
     return CheckAccepted(check_id=check_id)
 
 
@@ -179,11 +194,14 @@ def _output_result(state: JobState) -> CheckResult | None:
         }
     },
 )
-async def check_status(jobs: Jobs, check_id: str, response: Response) -> AnalysisStatus:
+async def check_status(
+    jobs: Jobs, cache: Cache, check_id: str, response: Response
+) -> AnalysisStatus:
     """Read a check's steps and, once it finished, its result.
 
     Args:
         jobs: the job queue port.
+        cache: the result cache; filled with a finished result, read for a hit.
         check_id: the id POST /api/v1/checks returned.
         response: the response; gets the AI-Disclosure header with a result.
 
@@ -194,14 +212,20 @@ async def check_status(jobs: Jobs, check_id: str, response: Response) -> Analysi
         HTTPException: 404 when the id is unknown.
 
     Features:
-        US-SPR-01, US-BEZ-07, F-01, F-21
+        US-SPR-01, US-BEZ-07, US-WTY-03, F-01, F-05, F-21
     """
     state = await jobs.state(check_id)
     if state is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
-    latest = await _latest_progress(jobs, check_id)
-    steps = latest.steps if latest else [RECEIVED]
-    result = (latest.result if latest else None) or _output_result(state)
+        result = await served(jobs, cache, check_id)
+        if result is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
+        steps = [RECEIVED]
+    else:
+        latest = await _latest_progress(jobs, check_id)
+        steps = latest.steps if latest else [RECEIVED]
+        result = (latest.result if latest else None) or _output_result(state)
+        if result is not None:
+            await fill(cache, result, datetime.now(UTC))
     if result is not None:
         response.headers[AI_DISCLOSURE_HEADER] = AI_DISCLOSURE_VALUE
     return AnalysisStatus(check_id=check_id, steps=steps, result=result)

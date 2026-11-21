@@ -12,6 +12,8 @@ from meritum_core.shared.blobs import (
 )
 from pydantic import ValidationError
 
+from meritum_backend.checks.adapters import PostgresResultCache
+from meritum_backend.checks.ports import ResultCache
 from meritum_backend.constants import LOCAL_ENV
 from meritum_backend.settings import Settings
 
@@ -49,3 +51,18 @@ def build_blobs(settings: Settings) -> BlobStore:
         # read; set MERITUM_FILES_DIR to run recordings end to end.
         blob_settings = BlobSettings(provider=BlobProvider.MEMORY)
     return build_blob_store(blob_settings)
+
+
+def build_result_cache(settings: Settings) -> ResultCache:
+    """Build the result cache every API instance shares (ADR-22).
+
+    Args:
+        settings: the backend settings; ``database_url`` holds the cache tables.
+
+    Returns:
+        The PostgreSQL adapter; an unreachable database makes every lookup a miss.
+
+    Features:
+        US-WTY-03, F-05, ADR-22
+    """
+    return PostgresResultCache(settings.database_url)

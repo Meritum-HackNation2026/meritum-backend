@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from tests.conftest import MakeProbe, worker_report
 
+from meritum_backend.checks.adapters import MemoryResultCache
+from meritum_backend.checks.api import get_result_cache
 from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import (
@@ -41,6 +43,8 @@ def make_client(gate: CheckGate, make_probe: MakeProbe) -> MakeClient:
         app.dependency_overrides[get_settings] = lambda: settings
         app.dependency_overrides[get_jobs] = lambda: jobs
         app.dependency_overrides[get_check_gate] = lambda: gate
+        cache = MemoryResultCache()
+        app.dependency_overrides[get_result_cache] = lambda: cache
         # own queue: the readiness job stays out of `jobs.enqueued`
         probe = make_probe(InMemoryJobQueue(), report=worker_report())
         app.dependency_overrides[get_readiness] = lambda: probe
