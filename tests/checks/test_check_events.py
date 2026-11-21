@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from datetime import date
 from typing import override
 
 from fastapi.testclient import TestClient
@@ -26,6 +27,8 @@ VERDICT = CheckResult(
     claims=[
         ClaimResult(
             claim="We Włoszech odbył się strajk generalny.",
+            claim_date=date(2026, 11, 21),
+            claim_date_source="today",
             verdict="insufficient_evidence",
             explanation="Źródła w korpusie nie opisują takiego strajku.",
             unresolved="Data i zasięg strajku.",

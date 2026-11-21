@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from meritum_core.jobs.adapters import DbosJobQueue
 from meritum_core.jobs.contracts import APPLICATION_NAME
 from meritum_core.observability import build_app_repositories
+from meritum_core.security import PiiGateSettings, build_pii_gate
 from meritum_core.shared.database import DatabaseSettings
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -79,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.limiter = limiter
     app.state.login = build_login(settings)
+    app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
     app.state.staff = build_staff()
     app.state.cases, app.state.topics = build_moderation()

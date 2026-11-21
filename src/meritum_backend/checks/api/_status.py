@@ -30,6 +30,7 @@ from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
 from pydantic_core import ErrorDetails
 
+from meritum_backend.checks.api._pii import PiiGate
 from meritum_backend.checks.constants import (
     AI_DISCLOSURE_HEADER,
     AI_DISCLOSURE_VALUE,
@@ -125,11 +126,12 @@ router = APIRouter(
         status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks},
     },
 )
-async def start_check(
+async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-arguments] (FastAPI injects each dependency as a parameter)
     request: CheckRequest,
     jobs: Jobs,
     gate: Gate,
     origin: ClientOrigin,
+    pii: PiiGate,
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
@@ -139,6 +141,7 @@ async def start_check(
         jobs: the job queue port.
         gate: the shared rate limits and the pending-checks threshold.
         origin: the client address and region the limits count.
+        pii: the personal-data masking gate.
         session: the random browser session id; no sign-in needed.
 
     Returns:
@@ -162,7 +165,7 @@ async def start_check(
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
     try:
-        clean = masked(request)
+        clean = await masked(request, pii)
     except ValidationError as exc:
         return _invalid(message_key(exc.errors()))
     try:

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from meritum_core.checks.contracts import CheckStatus
 from meritum_core.checks.transcription import (
     MAX_AUDIO_BYTES,
+    AudioTooLongError,
     UnsupportedAudioError,
     inspect_audio,
 )
@@ -29,7 +30,6 @@ from meritum_backend.checks.constants import (
     AUDIO_MAX_MINUTES,
     AUDIO_RETENTION,
     AUDIO_TOO_LARGE_KEY,
-    AUDIO_TOO_LONG_ERROR,
     AUDIO_TOO_LONG_KEY,
     AUDIO_UPLOAD_LIMIT,
     STORAGE_DETAIL,
@@ -116,14 +116,6 @@ async def _read_capped(request: Request) -> bytes | None:
     return b"".join(chunks)
 
 
-def _unsupported(error: UnsupportedAudioError) -> JSONResponse:
-    # shortcut: core has one error for format and length; tell them apart by its
-    # message until core adds a subclass (tests/checks/test_uploads.py pins it).
-    if str(error).startswith(AUDIO_TOO_LONG_ERROR):
-        return _rejected(status.HTTP_422_UNPROCESSABLE_CONTENT, AUDIO_TOO_LONG_KEY)
-    return _rejected(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, AUDIO_FORMAT_KEY)
-
-
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
@@ -169,8 +161,10 @@ async def upload_audio(request: Request, blobs: Blobs) -> AudioAccepted | JSONRe
         return _rejected(status.HTTP_413_CONTENT_TOO_LARGE, AUDIO_TOO_LARGE_KEY)
     try:
         info = inspect_audio(data)
-    except UnsupportedAudioError as error:
-        return _unsupported(error)
+    except AudioTooLongError:
+        return _rejected(status.HTTP_422_UNPROCESSABLE_CONTENT, AUDIO_TOO_LONG_KEY)
+    except UnsupportedAudioError:  # UnsupportedAudioFormatError and any future kind
+        return _rejected(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, AUDIO_FORMAT_KEY)
     content_type = AUDIO_CONTENT_TYPES[info.format]
     try:
         ref = await blobs.put(

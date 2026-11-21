@@ -101,9 +101,6 @@ AUDIO_TOO_LONG_KEY: Final = "errors.audio_too_long"
 AUDIO_FORMAT_KEY: Final = "status_hint.out_of_scope_audio_format"
 """copy/pl.json key: not a supported recording; the form lists the formats."""
 
-AUDIO_TOO_LONG_ERROR: Final = "recording length"
-"""Start of core's UnsupportedAudioError message for a too long recording."""
-
 AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
 """Uploads per client address; each can keep MAX_AUDIO_BYTES for 30 days."""
 
