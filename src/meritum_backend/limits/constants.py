@@ -18,11 +18,16 @@ WINDOW_SECONDS: Final = 60
 CHECKS_PER_IP_PER_MINUTE: Final = 10
 """Checks one client address may start per minute (MERITUM_CHECKS_PER_IP_PER_MINUTE)."""
 
-CHECKS_PER_REGION_PER_MINUTE: Final = 300
-"""Checks one country may start per minute (MERITUM_CHECKS_PER_REGION_PER_MINUTE)."""
+CHECKS_PER_REGION_PER_MINUTE: Final = 3000
+"""Checks one country may start per minute (MERITUM_CHECKS_PER_REGION_PER_MINUTE).
 
-CHECKS_PER_CHANNEL_PER_MINUTE: Final = 600
-"""Checks one channel may start per minute (MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE)."""
+A safety valve against a distributed flood, well above normal traffic: almost all
+checks come from PL, so a low value would refuse every user in the country."""
+
+CHECKS_PER_CHANNEL_PER_MINUTE: Final = 6000
+"""Checks one channel may start per minute (MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE).
+
+A safety valve like the region limit; most checks come through the web form."""
 
 MAX_PENDING_CHECKS: Final = 100
 """Queued checks at which new ones get 429 busy (MERITUM_MAX_PENDING_CHECKS)."""
@@ -44,6 +49,18 @@ BUSY: Final = Refusal(BUSY_KEY, BUSY_RETRY_SECONDS)
 
 CONNECT_TIMEOUT_SECONDS: Final = 3
 """How long the rate counter waits for a database connection."""
+
+IP_SCOPE: Final = "ip"
+"""Key prefix of per-address counters; every instance must write the same keys."""
+
+REGION_SCOPE: Final = "region"
+"""Key prefix of per-country counters in the shared table."""
+
+CHANNEL_SCOPE: Final = "channel"
+"""Key prefix of per-channel counters in the shared table."""
+
+RETRY_AFTER_HEADER: Final = "Retry-After"
+"""Header with the seconds a refused client should wait."""
 
 REGION_HEADER: Final = "CF-IPCountry"
 """Cloudflare's header with the client's ISO 3166 country code."""

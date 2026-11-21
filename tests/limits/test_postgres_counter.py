@@ -4,6 +4,7 @@ Needs `docker compose up -d --wait db`.
 """
 
 import asyncio
+import time
 from uuid import uuid4
 
 import pytest
@@ -22,6 +23,21 @@ def test_two_instances_count_on_one_table() -> None:
         return sorted(await asyncio.gather(*together))
 
     assert asyncio.run(hits()) == list(range(1, 11))
+
+
+@pytest.mark.integration
+def test_next_window_starts_from_one() -> None:
+    key = f"test:{uuid4().hex}"
+    counter = PostgresRateCounter(LOCAL_DB)
+
+    async def hits() -> list[int]:
+        first = [await counter.hit(key, 1), await counter.hit(key, 1)]
+        await asyncio.sleep(1.1)
+        return [*first, await counter.hit(key, 1)]
+
+    while time.time() % 1 > 0.5:  # both first hits in one 1-second window
+        time.sleep(0.05)
+    assert asyncio.run(hits()) == [1, 2, 1]
 
 
 @pytest.mark.integration

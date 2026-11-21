@@ -71,7 +71,7 @@ def test_channel_limit_counts_every_client_of_the_channel() -> None:
 
 @pytest.mark.parametrize(("pending", "answer"), [(49, None), (50, BUSY)])
 def test_pending_checks_threshold_answers_busy(
-    pending: int, answer: str | None
+    pending: int, answer: Refusal | None
 ) -> None:
     assert refusals(gate(MemoryRateCounter(), pending), HOME, 1) == [answer]
 

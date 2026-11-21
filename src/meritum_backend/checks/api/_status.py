@@ -160,8 +160,6 @@ async def start_check(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, SESSIONLESS_DETAIL)
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
-    if (refusal := await gate.refusal(origin, request.channel)) is not None:
-        return too_many_checks(refusal)
     try:
         clean = masked(request)
     except ValidationError as exc:
@@ -170,6 +168,8 @@ async def start_check(
         payload = CheckInput(request=clean, session_id=session, received_at=received_at)
     except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
+    if (refusal := await gate.refusal(origin, request.channel)) is not None:
+        return too_many_checks(refusal)
     try:
         check_id = await jobs.enqueue(CHECK, payload)
     except Exception as exc:  # DBOS wraps driver errors in its own types

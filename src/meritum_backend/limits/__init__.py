@@ -22,8 +22,8 @@ from meritum_backend.limits.api import (
 )
 from meritum_backend.limits.constants import BUSY, RATE_LIMITED
 from meritum_backend.limits.factory import build_check_gate
-from meritum_backend.limits.gate import CheckGate, Origin
-from meritum_backend.limits.models import Refusal
+from meritum_backend.limits.gate import CheckGate
+from meritum_backend.limits.models import Origin, Refusal
 from meritum_backend.limits.settings import LimitSettings
 
 __all__ = [

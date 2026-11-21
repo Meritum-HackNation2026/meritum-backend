@@ -13,11 +13,12 @@ from pydantic import BaseModel
 from meritum_backend.limits.constants import (
     REGION_CODE,
     REGION_HEADER,
+    RETRY_AFTER_HEADER,
     UNKNOWN_IP,
     UNKNOWN_REGION,
 )
-from meritum_backend.limits.gate import CheckGate, Origin
-from meritum_backend.limits.models import Refusal
+from meritum_backend.limits.gate import CheckGate
+from meritum_backend.limits.models import Origin, Refusal
 
 
 class TooManyChecks(BaseModel):
@@ -46,7 +47,7 @@ def too_many_checks(refusal: Refusal) -> JSONResponse:
         US-BEZ-02, US-WDR-03, F-20, F-23
     """
     body = TooManyChecks(message_key=refusal.message_key).model_dump()
-    headers = {"Retry-After": str(refusal.retry_after_seconds)}
+    headers = {RETRY_AFTER_HEADER: str(refusal.retry_after_seconds)}
     return JSONResponse(body, status.HTTP_429_TOO_MANY_REQUESTS, headers)
 
 

@@ -4,6 +4,7 @@ Features:
     US-BEZ-02, US-WDR-03, F-20, F-23
 """
 
+from dataclasses import dataclass
 from typing import NamedTuple
 
 
@@ -20,3 +21,19 @@ class Refusal(NamedTuple):
 
     message_key: str
     retry_after_seconds: int
+
+
+@dataclass(frozen=True)
+class Origin:
+    """Where a request comes from.
+
+    Attributes:
+        ip: the client address (from uvicorn --proxy-headers).
+        region: ISO 3166 country code from Cloudflare, or ``XX``.
+
+    Features:
+        US-BEZ-02, F-20
+    """
+
+    ip: str
+    region: str
