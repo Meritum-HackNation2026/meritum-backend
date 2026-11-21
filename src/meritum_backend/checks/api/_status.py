@@ -4,7 +4,8 @@ Every channel (web form, extension, Discord, SMS, MCP) calls this one API, so th
 result does not depend on the channel (ADR-08).
 
 Features:
-    US-SPR-01, US-SPR-07, US-BEZ-04, US-BEZ-07, F-01, F-20, F-21, ADR-08
+    US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-BEZ-07, US-WDR-03, F-01, F-20,
+    F-21, F-23, ADR-08
 """
 
 import asyncio
@@ -48,6 +49,7 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.jobs.api import Jobs
+from meritum_backend.limits import CheckRefusedError, ClientOrigin, Gate, TooManyChecks
 
 
 class InvalidCheck(BaseModel):
@@ -118,11 +120,16 @@ router = APIRouter(
     "",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=CheckAccepted,
-    responses={status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck}},
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck},
+        status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks},
+    },
 )
 async def start_check(
     request: CheckRequest,
     jobs: Jobs,
+    gate: Gate,
+    origin: ClientOrigin,
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
@@ -130,6 +137,8 @@ async def start_check(
     Args:
         request: text (up to 4000 characters), a full http(s) link or an audio id.
         jobs: the job queue port.
+        gate: the shared rate limits and the pending-checks threshold.
+        origin: the client address and region the limits count.
         session: the random browser session id; no sign-in needed.
 
     Returns:
@@ -139,9 +148,11 @@ async def start_check(
         HTTPException: 400 without a valid session or for Discord, SMS and MCP
             (they come through their adapters with a hashed user id, backend#27),
             503 when the job queue is unreachable.
+        CheckRefusedError: over a rate limit or with too many pending checks;
+            answered 429 with Retry-After, nothing enqueued.
 
     Features:
-        US-SPR-01, US-SPR-07, US-BEZ-04, F-01, F-20
+        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-WDR-03, F-01, F-20, F-23
     """
     received_at = datetime.now(UTC)
     if is_unsupported_link(request):
@@ -158,6 +169,8 @@ async def start_check(
         payload = CheckInput(request=clean, session_id=session, received_at=received_at)
     except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
+    if (refusal := await gate.refusal(origin, request.channel)) is not None:
+        raise CheckRefusedError(refusal)
     try:
         check_id = await jobs.enqueue(CHECK, payload)
     except Exception as exc:  # DBOS wraps driver errors in its own types

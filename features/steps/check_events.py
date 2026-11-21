@@ -18,6 +18,8 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -128,6 +130,8 @@ def stream_read(context: Context) -> None:
     """
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
     app.dependency_overrides[get_jobs] = lambda: context.jobs
+    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+    app.dependency_overrides[get_check_gate] = lambda: gate
     path = f"/api/v1/checks/{CHECK_ID}/events"
     with TestClient(app).stream("GET", path) as response:
         assert response.headers["content-type"].startswith("text/event-stream")

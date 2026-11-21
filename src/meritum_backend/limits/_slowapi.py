@@ -7,6 +7,11 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from meritum_backend.constants import MINUTE_SECONDS
+from meritum_backend.limits.constants import (
+    DAY_SECONDS,
+    RATE_LIMITED_DAILY_KEY,
+    RATE_LIMITED_KEY,
+)
 
 # The client address comes from uvicorn --proxy-headers (X-Forwarded-For set by
 # meritum-gateway from Cloudflare's CF-Connecting-IP).
@@ -23,7 +28,9 @@ def too_many_requests(_request: Request, exc: Exception) -> JSONResponse:
         exc: the limit error; its window sets Retry-After.
 
     Returns:
-        429 with a message for people, not a stack of limit details.
+        429 with a copy/pl.json key (errors.rate_limited_daily for a daily
+        limit, errors.rate_limited otherwise) and a message for people, not a
+        stack of limit details.
 
     Features:
         US-BEZ-02
@@ -31,7 +38,8 @@ def too_many_requests(_request: Request, exc: Exception) -> JSONResponse:
     hit = exc.limit if isinstance(exc, RateLimitExceeded) else None
     window = hit.limit.get_expiry() if hit is not None else MINUTE_SECONDS
     when = "za minutę" if window <= MINUTE_SECONDS else "później"
-    body = {"detail": f"Za dużo zapytań. Spróbuj ponownie {when}."}
+    key = RATE_LIMITED_DAILY_KEY if window >= DAY_SECONDS else RATE_LIMITED_KEY
+    body = {"message_key": key, "detail": f"Za dużo zapytań. Spróbuj ponownie {when}."}
     return JSONResponse(body, status_code=429, headers={"Retry-After": str(window)})
 
 

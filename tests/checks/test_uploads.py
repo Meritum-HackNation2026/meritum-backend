@@ -130,7 +130,9 @@ def test_uploads_are_limited_per_minute_and_per_day(
         ]
 
     assert 429 not in burst(10)
-    assert burst(1) == [429]  # 11th in a minute
+    minute = client.post("/api/v1/audio", content=b"")  # 11th in a minute
+    assert minute.status_code == 429
+    assert minute.json()["message_key"] == "errors.rate_limited"
     for _ in range(2):
         now[0] += 61
         assert 429 not in burst(10)
@@ -139,6 +141,7 @@ def test_uploads_are_limited_per_minute_and_per_day(
     assert response.status_code == 429
     assert response.headers["Retry-After"] == str(24 * 60 * 60)
     assert "później" in response.json()["detail"]
+    assert response.json()["message_key"] == "errors.rate_limited_daily"
 
 
 def test_files_volume_gives_the_filesystem_store(tmp_path: Path) -> None:

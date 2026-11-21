@@ -25,6 +25,7 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.jobs.api import Jobs
+from meritum_backend.limits import TooManyChecks, admit_stream
 
 router = APIRouter(prefix="/api/v1/checks", tags=["checks"])
 
@@ -37,7 +38,12 @@ async def _known_check(jobs: Jobs, check_id: str) -> str:
     return check_id
 
 
-@router.get("/{check_id}/events", response_class=EventSourceResponse)
+@router.get(
+    "/{check_id}/events",
+    response_class=EventSourceResponse,
+    dependencies=[Depends(admit_stream)],
+    responses={status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks}},
+)
 async def check_events(
     jobs: Jobs, check_id: Annotated[str, Depends(_known_check)]
 ) -> AsyncIterable[AnalysisStatus]:
@@ -52,12 +58,14 @@ async def check_events(
     Args:
         jobs: the job queue port.
         check_id: the id POST /api/v1/checks returned; 404 when unknown.
+            Opening a stream counts against the address's own stream budget
+            (429 above it).
 
     Yields:
         One AnalysisStatus per progress value, then the final one with ``result``.
 
     Features:
-        US-SPR-02, F-09
+        US-SPR-02, US-BEZ-02, F-09, F-20
     """
     last = AnalysisStatus(check_id=check_id, steps=[RECEIVED])
     async for progress in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):

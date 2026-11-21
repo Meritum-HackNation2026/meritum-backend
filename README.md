@@ -15,7 +15,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `GET /api/v1/health/live` | żywotność procesu, bez bazy (healthcheck Dockera) |
 | `POST /api/v1/jobs/ping` | zleca workflow `ping` (test dymny po deployu), zwraca `workflow_id` |
 | `GET /api/v1/jobs/{workflow_id}` | stan zadania: `status`, `output`, `error` |
-| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje telefony, e-maile i PESEL w tekście i w parametrach query linku przed `JobQueue` (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27 |
+| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje telefony, e-maile i PESEL w tekście i w parametrach query linku przed `JobQueue` (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27; ponad limit dostaje 429 z `Retry-After` (patrz „Limity zapytań”) |
 | `POST /api/v1/audio` | nagranie z formularza jako treść żądania (OGG Opus, MP3, M4A albo WAV; format odczytany z bajtów, nie z `Content-Type`); zapisuje plik w `BlobStore` z retencją zapisu sprawdzenia (30 dni) i zwraca 201 z `audio_id` do `POST /api/v1/checks`; odmowa ma `status: out_of_scope`, klucz z `copy/pl.json` oraz `formats`, `max_mb` i `max_minutes` do wstawienia w tekst: 413 `errors.audio_too_large` (ponad 20 MiB), 422 `errors.audio_too_long` (ponad 10 min), 415 `status_hint.out_of_scope_audio_format`; 10 wysyłek na minutę i 30 na dobę z jednego adresu |
 | `GET /api/v1/checks/{check_id}` | `AnalysisStatus`: kroki i, po zakończeniu, `result` (`CheckResult` z `ai_disclosure: true` i nagłówkiem `AI-Disclosure: mode=ai-originated`) |
 | `GET /api/v1/checks/{check_id}/events` | postęp sprawdzenia jako Server-Sent Events: każda wartość strumienia `progress` workflowu (`JobQueue.stream`) to jedno zdarzenie `AnalysisStatus`; `result` pojawia się dopiero po kroku `verify_citations` (`done` albo `skipped`), więc wersja wstępna nie niesie werdyktu; po zakończeniu ostatnie zdarzenie ma pełny `CheckResult` i strumień się zamyka; rozłączenie nie przerywa workflowu, a ponowne połączenie odtwarza kroki od początku (404 dla nieznanego id) |
@@ -74,6 +74,24 @@ uv run pytest -m integration tests/privacy
 ```
 
 Drugi test zleca workflow `check` dla świeżej sesji i sprawdza, że trafił do tabel DBOS. To, że po usunięciu żaden wiersz DBOS nie zawiera sesji, sprawdza tylko z działającym workerem (worker#24) na tej samej bazie i z `MERITUM_TEST_WORKER=1`; bez tego kończy się pominięciem.
+
+## Limity zapytań
+
+`POST /api/v1/checks` liczy każde poprawne sprawdzenie (po walidacji i maskowaniu, także te, które potem dostaną 429) na adres IP klienta, kraj (nagłówek `CF-IPCountry` od Cloudflare, bez niego `XX`) i kanał, w oknach jednominutowych. Liczniki są wspólne dla wszystkich instancji API (ADR-18): tabela `rate_limit_hits` w schemacie API, zakładana przy pierwszym użyciu. Klucze są skrótami SHA-256 bez soli, czyli adresami pseudonimizowanymi, nie anonimowymi. Każde kolejne sprawdzenie usuwa wiersze zakończonych okien. Kod limitów nie zapisuje adresów IP w logach; logi dostępu uvicorna i bramy to osobna sprawa polityki prywatności.
+
+Przed zleceniem workflowu API sprawdza też, ile sprawdzeń czeka w kolejce DBOS tego środowiska. Gdy osiągną próg, nowe dostają 429. Limit współbieżności kolejki zostaje w workerze.
+
+Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `errors.rate_limited` z `Retry-After: 60` albo `errors.busy` z `Retry-After: 300`. Limity slowapi (`/jobs/ping`, `POST /api/v1/audio`) liczą nadal w pamięci procesu; ich 429 ma `message_key` `errors.rate_limited`, a po wyczerpaniu limitu dobowego (30 nagrań na dobę) `errors.rate_limited_daily`. Gdy baza liczników albo DBOS nie odpowiada, limit przepuszcza żądanie (ostrzeżenie w logu), a przed API zostają reguły Cloudflare.
+
+| Zmienna | Domyślnie | Opis |
+| --- | --- | --- |
+| `MERITUM_CHECKS_PER_IP_PER_MINUTE` | 10 | sprawdzenia z jednego adresu IP na minutę |
+| `MERITUM_CHECKS_PER_REGION_PER_MINUTE` | 3000 | sprawdzenia z jednego kraju na minutę; bezpiecznik na rozproszony zalew, bo prawie cały ruch idzie z `PL` |
+| `MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE` | 6000 | sprawdzenia z jednego kanału na minutę; bezpiecznik jak limit kraju |
+| `MERITUM_EVENT_STREAMS_PER_IP_PER_MINUTE` | 60 | strumienie postępu (`GET /api/v1/checks/{id}/events`) otwarte z jednego adresu IP na minutę, z ponownymi połączeniami i z zapytaniami o nieznane id (to też ogranicza zgadywanie id); osobna pula, więc śledzenie sprawdzenia nie zużywa limitu nowych |
+| `MERITUM_MAX_PENDING_CHECKS` | 100 | oczekujące sprawdzenia, od których API odpowiada 429 |
+
+Domyślne wartości są w `src/meritum_backend/limits/constants.py`. Test licznika na prawdziwym PostgreSQL: `docker compose up -d --wait db`, potem `uv run pytest -m integration tests/limits`.
 
 ## Logowanie (OIDC)
 
