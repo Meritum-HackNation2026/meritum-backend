@@ -104,8 +104,8 @@ AUDIO_FORMAT_KEY: Final = "status_hint.out_of_scope_audio_format"
 AUDIO_TOO_LONG_ERROR: Final = "recording length"
 """Start of core's UnsupportedAudioError message for a too long recording."""
 
-AUDIO_UPLOAD_LIMIT: Final = "10/minute"
-"""Uploads per client address; each can take MAX_AUDIO_BYTES of storage."""
+AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
+"""Uploads per client address; each can keep MAX_AUDIO_BYTES for 30 days."""
 
 STORAGE_DETAIL: Final = "file storage unavailable"
 """503 detail: the BlobStore failed (a server fault, not user copy)."""

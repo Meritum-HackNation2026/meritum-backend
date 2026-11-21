@@ -1,7 +1,10 @@
+import time
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import override
 
+import limits.storage.memory
 import pytest
 from fastapi.testclient import TestClient
 from meritum_core.checks.transcription import MAX_AUDIO_SECONDS
@@ -10,7 +13,7 @@ from meritum_core.shared.blobs.adapters import FilesystemBlobStore, MemoryBlobSt
 from pydantic import AwareDatetime, ValidationError
 
 from meritum_backend.checks import get_blobs
-from meritum_backend.checks.constants import AUDIO_RETENTION, AUDIO_UPLOAD_LIMIT
+from meritum_backend.checks.constants import AUDIO_RETENTION
 from meritum_backend.checks.factory import build_blobs
 from meritum_backend.limits import limiter
 from meritum_backend.main import create_app
@@ -113,15 +116,26 @@ def test_storage_failure_is_503_without_details() -> None:
     assert "disk" not in response.text
 
 
-def test_uploads_are_rate_limited_per_client() -> None:
+def test_uploads_are_limited_per_minute_and_per_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = client_on(Blobs())
-    allowed = int(AUDIO_UPLOAD_LIMIT.split("/")[0])
-    codes = [
-        client.post("/api/v1/audio", content=b"").status_code
-        for _ in range(allowed + 1)
-    ]
-    assert codes[-1] == 429
-    assert 429 not in codes[:-1]
+    now = [time.time()]
+    clock = SimpleNamespace(time=lambda: now[0])
+    monkeypatch.setattr(limits.storage.memory, "time", clock)  # slowapi's counters
+
+    def burst(count: int) -> list[int]:
+        return [
+            client.post("/api/v1/audio", content=b"").status_code for _ in range(count)
+        ]
+
+    assert 429 not in burst(10)
+    assert burst(1) == [429]  # 11th in a minute
+    for _ in range(2):
+        now[0] += 61
+        assert 429 not in burst(10)
+    now[0] += 61
+    assert burst(1) == [429]  # 31st in a day, in a fresh minute
 
 
 def test_files_volume_gives_the_filesystem_store(tmp_path: Path) -> None:

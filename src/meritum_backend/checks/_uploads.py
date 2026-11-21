@@ -171,11 +171,12 @@ async def upload_audio(request: Request, blobs: Blobs) -> AudioAccepted | JSONRe
         info = inspect_audio(data)
     except UnsupportedAudioError as error:
         return _unsupported(error)
+    content_type = AUDIO_CONTENT_TYPES[info.format]
     try:
         ref = await blobs.put(
             data,
             kind=BlobKind.AUDIO,
-            content_type=AUDIO_CONTENT_TYPES[info.format],
+            content_type=content_type,
             expires_at=datetime.now(UTC) + AUDIO_RETENTION,
         )
     except Exception as exc:  # disk, bucket or SDK errors: none is the user's fault
