@@ -17,6 +17,7 @@ from meritum_backend.limits.constants import (
     UNKNOWN_IP,
     UNKNOWN_REGION,
 )
+from meritum_backend.limits.errors import CheckRefusedError
 from meritum_backend.limits.gate import CheckGate
 from meritum_backend.limits.models import Origin, Refusal
 
@@ -91,3 +92,37 @@ Gate = Annotated[CheckGate, Depends(get_check_gate)]
 
 ClientOrigin = Annotated[Origin, Depends(origin_of)]
 """The request's origin as a route parameter."""
+
+
+async def admit_stream(gate: Gate, origin: ClientOrigin) -> None:
+    """Count a progress stream before it opens (route dependency).
+
+    Args:
+        gate: the app's check gate.
+        origin: the client address and region.
+
+    Raises:
+        CheckRefusedError: the address opened too many streams this minute.
+
+    Features:
+        US-BEZ-02, F-20
+    """
+    if (refusal := await gate.stream_refusal(origin)) is not None:
+        raise CheckRefusedError(refusal)
+
+
+def check_refused(_request: Request, exc: Exception) -> JSONResponse:
+    """Answer a CheckRefusedError (exception handler).
+
+    Args:
+        _request: the refused request (unused; the handler signature needs it).
+        exc: the CheckRefusedError.
+
+    Returns:
+        429 with the copy key and Retry-After.
+
+    Features:
+        US-BEZ-02, F-20
+    """
+    # registered for CheckRefusedError only (main.py)
+    return too_many_checks(cast("CheckRefusedError", exc).refusal)

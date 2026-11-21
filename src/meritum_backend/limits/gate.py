@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from meritum_backend.limits.constants import (
     BUSY,
     CHANNEL_SCOPE,
+    EVENTS_SCOPE,
     IP_SCOPE,
     RATE_LIMITED,
     REGION_SCOPE,
@@ -66,4 +67,22 @@ class CheckGate:
         most = self.limits.max_pending_checks
         if await self.pending.count(most) >= most:
             return BUSY
+        return None
+
+    async def stream_refusal(self, origin: Origin) -> Refusal | None:
+        """Count one progress stream and say why it may not open, if it may not.
+
+        Streams have their own per-address budget, so watching a check never
+        uses up the budget for starting one.
+
+        Args:
+            origin: the client address and region.
+
+        Returns:
+            RATE_LIMITED, or None when the stream may open.
+        """
+        key = _key(EVENTS_SCOPE, origin.ip)
+        limit = self.limits.event_streams_per_ip_per_minute
+        if await self.counter.hit(key, WINDOW_SECONDS) > limit:
+            return RATE_LIMITED
         return None

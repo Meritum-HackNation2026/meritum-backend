@@ -23,9 +23,11 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.limits import (
+    CheckRefusedError,
     LimitSettings,
     RateLimitExceeded,
     build_check_gate,
+    check_refused,
     limiter,
     too_many_requests,
 )
@@ -93,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         https_only=True,
     )
     app.add_exception_handler(RateLimitExceeded, too_many_requests)
+    app.add_exception_handler(CheckRefusedError, check_refused)
     app.include_router(health_router)
     app.include_router(jobs_router)
     app.include_router(discord_router)

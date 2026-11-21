@@ -17,10 +17,13 @@ from meritum_backend.limits.api import (
     ClientOrigin,
     Gate,
     TooManyChecks,
+    admit_stream,
+    check_refused,
     get_check_gate,
     too_many_checks,
 )
 from meritum_backend.limits.constants import BUSY, RATE_LIMITED
+from meritum_backend.limits.errors import CheckRefusedError
 from meritum_backend.limits.factory import build_check_gate
 from meritum_backend.limits.gate import CheckGate
 from meritum_backend.limits.models import Origin, Refusal
@@ -30,6 +33,7 @@ __all__ = [
     "BUSY",
     "RATE_LIMITED",
     "CheckGate",
+    "CheckRefusedError",
     "ClientOrigin",
     "Gate",
     "LimitSettings",
@@ -37,7 +41,9 @@ __all__ = [
     "RateLimitExceeded",
     "Refusal",
     "TooManyChecks",
+    "admit_stream",
     "build_check_gate",
+    "check_refused",
     "get_check_gate",
     "limiter",
     "too_many_checks",

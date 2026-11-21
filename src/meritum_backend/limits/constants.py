@@ -29,6 +29,10 @@ CHECKS_PER_CHANNEL_PER_MINUTE: Final = 6000
 
 A safety valve like the region limit; most checks come through the web form."""
 
+EVENT_STREAMS_PER_IP_PER_MINUTE: Final = 60
+"""Progress streams one client address may open per minute; reconnects count too
+(MERITUM_EVENT_STREAMS_PER_IP_PER_MINUTE)."""
+
 MAX_PENDING_CHECKS: Final = 100
 """Queued checks at which new ones get 429 busy (MERITUM_MAX_PENDING_CHECKS)."""
 
@@ -58,6 +62,9 @@ REGION_SCOPE: Final = "region"
 
 CHANNEL_SCOPE: Final = "channel"
 """Key prefix of per-channel counters in the shared table."""
+
+EVENTS_SCOPE: Final = "events"
+"""Key prefix of per-address counters of progress streams (GET .../events)."""
 
 RETRY_AFTER_HEADER: Final = "Retry-After"
 """Header with the seconds a refused client should wait."""
