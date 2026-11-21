@@ -33,7 +33,7 @@ container_env "$env"
 files_mount "$envfile"
 [ ${#mount_args[@]} -gt 0 ] || echo "::warning title=No files volume::$envfile has no MERITUM_FILES_VOLUME/DIR: run the platform workflow in meritum-infra"
 gcp_mounts "$envfile"
-[ ${#gcp_args[@]} -gt 0 ] || echo "::warning title=No GCP credentials::$envfile has no MERITUM_GCP_MOUNTS: run the platform workflow in meritum-infra"
+[ ${#gcp_args[@]} -gt 0 ] || echo "::warning title=No GCP credentials::no MERITUM_GCP_MOUNTS in $envfile: container starts without GCP credentials"
 docker run -d --name "$container" --network meritum --restart unless-stopped \
   "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "${mount_args[@]}" "${gcp_args[@]}" "$image" >/dev/null
 log "started $container"
