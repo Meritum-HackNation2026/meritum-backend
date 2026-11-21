@@ -103,9 +103,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
-    app.state.staff = build_staff()
     app.state.cases, app.state.topics = build_moderation()
-    app.state.repositories = build_app_repositories(DatabaseSettings())
+    repositories = build_app_repositories(DatabaseSettings())
+    app.state.repositories = repositories
+    app.state.staff = build_staff(repositories)
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(

@@ -100,7 +100,7 @@ def test_configured_admin_matches_any_case(app: FastAPI) -> None:
 def test_revoked_member_loses_the_panel(app: FastAPI) -> None:
     moderator = member(app, "moderator")
     admin = signed_in(app, ADMIN)
-    assert admin.delete("/api/v1/staff/moderator@example.com").status_code == 204
+    assert admin.delete("/api/v1/staff/MODERATOR@Example.com").status_code == 204
     assert moderator.get("/api/v1/moderation/cases").status_code == 403
 
 

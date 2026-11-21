@@ -145,7 +145,15 @@ Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i ekspor
 | `GET /api/v1/moderation/topics` | każda rola (lista jest jawna dla personelu) |
 | `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
 
-Konta personelu, sprawy i tematy są na razie w pamięci procesu: giną przy restarcie, a worker ich nie widzi. Sprawy i tematy przejdą do PostgreSQL z adapterami z meritum-core#38, konta personelu z repozytorium z meritum-core#72.
+Konta personelu zapisuje repozytorium z core. Przy `MERITUM_DATABASE_PROVIDER=postgres` nadane role zostają po restarcie API. Schemat aplikacji musi mieć migrację `0003_staff_accounts.sql`, którą wykonuje deploy workera z odpowiednią wersją core. Lokalnie i w CI domyślny provider `memory` używa repozytorium w pamięci z core. Sprawy i tematy panelu są na razie w pamięci procesu.
+
+Przed pierwszym wdrożeniem z PostgreSQL zapisz aktualne przydziały ról z panelu. Po wdrożeniu administrator może nadać je ponownie. Konta administratorów z konfiguracji nadal działają.
+
+Scenariusz restartu uruchom lokalnie po ustawieniu `MERITUM_TEST_DATABASE_URL` na adres PostgreSQL, na którym możesz tworzyć schematy.
+
+```bash
+uv run behave --tags=@integration features/moderation.feature
+```
 
 ## Praca lokalna
 
