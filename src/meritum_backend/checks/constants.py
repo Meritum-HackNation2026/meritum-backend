@@ -1,13 +1,19 @@
 """Constants of the checks slice.
 
 Features:
-    US-SPR-01, US-SPR-07, US-BEZ-04, US-BEZ-07, F-01, F-20, F-21
+    US-SPR-01, US-SPR-07, US-SPR-11, US-BEZ-04, US-BEZ-07, F-01, F-08, F-20, F-21
 """
 
 import re
+from datetime import timedelta
 from typing import Final
 
 from meritum_core.checks import AnalysisStep
+from meritum_core.checks.transcription import (
+    MAX_AUDIO_BYTES,
+    MAX_AUDIO_SECONDS,
+    AudioFormat,
+)
 from meritum_core.security.constants import EMAIL_MARKER, PESEL_MARKER, PHONE_MARKER
 
 SESSION_HEADER: Final = "X-Meritum-Session"
@@ -74,3 +80,44 @@ VERIFY_STEP: Final = "verify_citations"
 
 FINISHED_STEP_STATES: Final = frozenset({"done", "skipped"})
 """States of a step that will not change any more (a failed one may be retried)."""
+
+AUDIO_RETENTION: Final = timedelta(days=30)
+"""How long an uploaded recording is kept at most: the check record's retention."""
+
+AUDIO_CONTENT_TYPES: Final = {
+    AudioFormat.OGG_OPUS: "audio/ogg",
+    AudioFormat.MP3: "audio/mpeg",
+    AudioFormat.M4A: "audio/mp4",
+    AudioFormat.WAV: "audio/wav",
+}
+"""MIME type stored with a recording, by the format read from its bytes."""
+
+AUDIO_TOO_LARGE_KEY: Final = "errors.audio_too_large"
+"""copy/pl.json key: the recording is over MAX_AUDIO_BYTES."""
+
+AUDIO_TOO_LONG_KEY: Final = "errors.audio_too_long"
+"""copy/pl.json key: the recording is over MAX_AUDIO_SECONDS."""
+
+AUDIO_FORMAT_KEY: Final = "status_hint.out_of_scope_audio_format"
+"""copy/pl.json key: not a supported recording; the form lists the formats."""
+
+AUDIO_TOO_LONG_ERROR: Final = "recording length"
+"""Start of core's UnsupportedAudioError message for a too long recording."""
+
+AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
+"""Uploads per client address; each can keep MAX_AUDIO_BYTES for 30 days."""
+
+STORAGE_DETAIL: Final = "file storage unavailable"
+"""503 detail: the BlobStore failed (a server fault, not user copy)."""
+
+LOCAL_ENV: Final = "local"
+"""MERITUM_ENV of developer machines and tests; only there uploads stay in memory."""
+
+AUDIO_FORMATS: Final = ("OGG", "MP3", "M4A", "WAV")
+"""Formats named to the person ({formats} in form.audio_limits)."""
+
+AUDIO_MAX_MB: Final = MAX_AUDIO_BYTES // (1024 * 1024)
+"""{max_mb} of the copy: MAX_AUDIO_BYTES in MiB."""
+
+AUDIO_MAX_MINUTES: Final = MAX_AUDIO_SECONDS // 60
+"""{max_minutes} of the copy: MAX_AUDIO_SECONDS in minutes."""

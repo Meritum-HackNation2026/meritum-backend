@@ -1,6 +1,7 @@
 """Settings from MERITUM_* environment variables (written by the deploy)."""
 
 import re
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import BeforeValidator, SecretStr
@@ -45,6 +46,7 @@ class Settings(BaseSettings):
         microsoft_tenant: Entra tenant of the login (``common``: any account).
         admin_emails: addresses that are administrators from the start (comma- or
             space-separated); the role needs an address the provider verified.
+        files_dir: the files volume shared with the worker (platform, ADR-31).
 
     Features:
         none (infrastructure)
@@ -67,6 +69,7 @@ class Settings(BaseSettings):
     admin_emails: Annotated[frozenset[str], NoDecode, BeforeValidator(_emails)] = (
         frozenset()
     )
+    files_dir: Path | None = None
 
 
 def get_settings() -> Settings:
