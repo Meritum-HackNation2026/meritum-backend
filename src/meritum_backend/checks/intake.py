@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from meritum_core.checks import CheckRequest
-from meritum_core.security import mask_personal_data
+from meritum_core.security import PiiGatePort, mask_personal_data
 from pydantic import HttpUrl
 from pydantic_core import ErrorDetails
 
@@ -70,12 +70,12 @@ def is_unsupported_link(request: CheckRequest) -> bool:
     return has_credentials or FOREIGN_LINK.fullmatch(text) is not None
 
 
-def _mask(value: str) -> str:
-    return mask_personal_data(value).text
+async def _mask(value: str, gate: PiiGatePort) -> str:
+    return (await mask_personal_data(value, gate)).text
 
 
-def _masked_text(text: str) -> str:
-    full = _mask(text)
+async def _masked_text(text: str, gate: PiiGatePort) -> str:
+    full = await _mask(text, gate)
     if len(full) <= TEXT_MAX_CHARS:
         return full
     cut = full[:TEXT_MAX_CHARS]
@@ -88,12 +88,14 @@ def _masked_text(text: str) -> str:
     return cut[:opened] if is_cut_marker else cut
 
 
-def _masked_link(url: HttpUrl | None) -> str | None:
+async def _masked_link(url: HttpUrl | None, gate: PiiGatePort) -> str | None:
     if url is None:
         return None
     parts = urlsplit(str(url))
     pairs = parse_qsl(parts.query, keep_blank_values=True)
-    masked_pairs = [(_mask(key), _mask(value)) for key, value in pairs]
+    masked_pairs = [
+        (await _mask(key, gate), await _mask(value, gate)) for key, value in pairs
+    ]
     if masked_pairs == pairs and not parts.fragment:
         return str(url)
     query = parts.query if masked_pairs == pairs else urlencode(masked_pairs)
@@ -101,12 +103,14 @@ def _masked_link(url: HttpUrl | None) -> str | None:
     return urlunsplit(parts._replace(query=query, fragment=""))
 
 
-def masked(request: CheckRequest) -> CheckRequest:
+async def masked(request: CheckRequest, gate: PiiGatePort) -> CheckRequest:
     """Return the request with personal data replaced by markers.
 
-    Masks the text and each query parameter of the links and drops their
-    fragment; the path stays as sent, so the worker still fetches the same page
-    (a query with personal data is re-encoded, so ``;`` stops separating there).
+    Runs core's ``mask_personal_data``: the gate (a DLP service, or the null gate
+    that masks nothing), then the phone, e-mail and PESEL patterns. Masks the
+    text and each query parameter of the links and drops their fragment; the
+    path stays as sent, so the worker still fetches the same page (a query
+    with personal data is re-encoded, so ``;`` stops separating there).
     Markers can be longer than what they replace, so the masked text is cut to
     TEXT_MAX_CHARS, before any marker the cut would split: the limit applies to
     what the person sent. pydantic's ValidationError propagates when a masked
@@ -114,6 +118,7 @@ def masked(request: CheckRequest) -> CheckRequest:
 
     Args:
         request: the validated request.
+        gate: the masking gate the app built from ``MERITUM_PII_*``.
 
     Returns:
         A new, validated request.
@@ -122,9 +127,11 @@ def masked(request: CheckRequest) -> CheckRequest:
         US-BEZ-04, F-20
     """
     update = {
-        "text": None if request.text is None else _masked_text(request.text),
-        "url": _masked_link(request.url),
-        "page_url": _masked_link(request.page_url),
+        "text": None
+        if request.text is None
+        else await _masked_text(request.text, gate),
+        "url": await _masked_link(request.url, gate),
+        "page_url": await _masked_link(request.page_url, gate),
     }
     # model_dump keeps every other field, also ones core adds later
     return CheckRequest.model_validate({**request.model_dump(), **update})

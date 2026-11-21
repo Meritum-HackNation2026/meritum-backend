@@ -1,6 +1,7 @@
 """Deleting a person's checks: every table, every channel, only their own."""
 
 import asyncio
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
@@ -103,10 +104,12 @@ def test_unreachable_queue_is_503_and_deletes_nothing(
     assert remaining(repos) == ALL
 
 
-def test_deletion_is_limited_per_client_address(repos: AppRepositories) -> None:
+def test_deletion_is_limited_per_client_address_across_session_ids(
+    repos: AppRepositories,
+) -> None:
     client = client_on(repos, InMemoryJobQueue())
     codes = [
-        client.delete(f"/api/v1/sessions/{SESSION}/checks").status_code
+        client.delete(f"/api/v1/sessions/{uuid.uuid4()}/checks").status_code
         for _ in range(DELETE_LIMIT_PER_MINUTE + 1)
     ]
     assert codes[:-1] == [202] * DELETE_LIMIT_PER_MINUTE

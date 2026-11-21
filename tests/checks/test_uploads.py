@@ -7,7 +7,11 @@ from typing import override
 import limits.storage.memory
 import pytest
 from fastapi.testclient import TestClient
-from meritum_core.checks.transcription import MAX_AUDIO_SECONDS
+from meritum_core.checks.transcription import (
+    MAX_AUDIO_SECONDS,
+    AudioTooLongError,
+    UnsupportedAudioFormatError,
+)
 from meritum_core.shared.blobs import BlobKind, BlobRef
 from meritum_core.shared.blobs.adapters import FilesystemBlobStore, MemoryBlobStore
 from pydantic import AwareDatetime, ValidationError
@@ -178,3 +182,26 @@ def test_streamed_oversize_is_413_and_stores_nothing() -> None:
     response = client_on(blobs).post("/api/v1/audio", content=chunks)
     assert response.status_code == 413
     assert blobs.refs == []
+
+
+@pytest.mark.parametrize(
+    ("error", "code", "key"),
+    [
+        (AudioTooLongError("any wording"), 422, "errors.audio_too_long"),
+        (
+            UnsupportedAudioFormatError("any wording"),
+            415,
+            "status_hint.out_of_scope_audio_format",
+        ),
+    ],
+)
+def test_audio_error_type_decides_the_answer_not_its_message(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, code: int, key: str
+) -> None:
+    def refuse(_: bytes) -> None:
+        raise error
+
+    monkeypatch.setattr("meritum_backend.checks.api._uploads.inspect_audio", refuse)
+    response = client_on(Blobs()).post("/api/v1/audio", content=wav(1))
+    assert response.status_code == code
+    assert response.json()["message_key"] == key

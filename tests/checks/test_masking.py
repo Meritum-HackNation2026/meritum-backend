@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qsl, urlsplit
 
 import pytest
@@ -6,8 +8,12 @@ from fastapi.testclient import TestClient
 from meritum_core.checks import CheckRequest
 from meritum_core.jobs.contracts import CheckInput
 from meritum_core.jobs.fakes import InMemoryJobQueue
+from meritum_core.security import MaskedText, NullPiiGate
 
+from meritum_backend.checks.api import get_pii_gate
 from meritum_backend.checks.constants import SESSION_HEADER
+from meritum_backend.main import create_app
+from meritum_backend.settings import Settings
 
 SESSION = {SESSION_HEADER: "session-0123456789"}
 
@@ -150,3 +156,30 @@ def test_brackets_the_person_typed_stay(
     [job] = jobs.enqueued
     assert isinstance(job.payload, CheckInput)
     assert job.payload.request.text == text
+
+
+def name_gate() -> SimpleNamespace:
+    """A gate that knows one name, as a DLP service would."""
+
+    def replace(text: str) -> MaskedText:
+        return MaskedText(text=text.replace("Jan Kowalski", "[osoba]"), replaced=1)
+
+    return SimpleNamespace(mask=AsyncMock(side_effect=replace))
+
+
+def test_text_goes_through_the_app_gate_before_the_queue(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    client.app.dependency_overrides[get_pii_gate] = name_gate  # ty: ignore[missing-attribute]  # TestClient.app is the FastAPI app
+    body = {"channel": "web", "text": "Jan Kowalski, tel. 600 700 800"}
+    response = client.post("/api/v1/checks", json=body, headers=SESSION)
+    assert response.status_code == 202
+    [job] = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    assert job.payload.request.text == "[osoba], tel. [telefon]"
+
+
+def test_app_uses_the_null_gate_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MERITUM_PII_GATE", raising=False)
+    app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
+    assert isinstance(app.state.pii_gate, NullPiiGate)
