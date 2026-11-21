@@ -36,3 +36,19 @@ Feature: Kontrole działającego API
     Given workflow kończy się stanem "done"
     When serwer wysyła ostatnie zdarzenie
     Then zdarzenie zawiera AnalysisStatus z pełnym CheckResult w polu result, a strumień się zamyka
+
+  Scenario: nagranie z formularza
+    Given plik M4A o długości 40 s
+    When klient wysyła POST /api/v1/audio
+    Then odpowiedź ma kod 201 i audio_id
+    And POST /api/v1/checks z tym audio_id startuje sprawdzenie z krokiem "transcribe_audio"
+
+  Scenario: nieobsługiwany format
+    Given plik "nagranie.xyz"
+    When klient wysyła go do sprawdzenia
+    Then wynik ma stan "out_of_scope" z komunikatem, jakie pliki można wysłać
+
+  Scenario: za duży plik
+    Given plik większy niż limit rozmiaru z core/013
+    When klient wysyła POST /api/v1/audio
+    Then odpowiedź ma kod 413 z komunikatem po polsku, bez werdyktu

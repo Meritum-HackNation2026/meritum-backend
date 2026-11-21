@@ -12,9 +12,11 @@ from pytestarch import EvaluableArchitecture, Rule, get_evaluable_architecture
 
 PACKAGE = "meritum_backend"
 # Modules that may use frameworks and adapters: the composition root (main), the
-# inbound HTTP adapters (<slice>.api), HTTP rate limits (slowapi) and factories.
+# inbound HTTP adapters (<slice>.api, plus checks._uploads: the audio upload router
+# backend#23 names), HTTP rate limits (slowapi) and factories.
 WIRING = re.compile(
-    r"^meritum_backend\.(main|limits|[a-z_]+\.(api|adapters|factory))(\.|$)"
+    r"^meritum_backend\.(main|limits|checks\._uploads"
+    r"|[a-z_]+\.(api|adapters|factory))(\.|$)"
 )
 FRAMEWORKS = re.compile(
     r"^(dbos|fastapi|starlette|slowapi|psycopg|uvicorn|httpx2?|cryptography"
