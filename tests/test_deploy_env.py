@@ -52,3 +52,13 @@ def test_discord_key_comes_from_repo_variable() -> None:
 def test_missing_secret_is_skipped() -> None:
     args, _ = run("dev", {}, {})
     assert args == []
+
+
+def test_login_secrets_reach_the_container() -> None:
+    secrets = {"MERITUM_SESSION_SECRET_PRD": "k", "GOOGLE_CLIENT_SECRET_PRD": "g"}
+    args, _ = run("prd", secrets, {"GOOGLE_CLIENT_ID_PRD": "id"})
+    assert {
+        "MERITUM_SESSION_SECRET",
+        "MERITUM_GOOGLE_CLIENT_SECRET",
+        "MERITUM_GOOGLE_CLIENT_ID",
+    } <= set(args)
