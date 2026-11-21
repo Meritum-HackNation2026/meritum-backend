@@ -7,6 +7,7 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 from tests.conftest import FakeBlobStore, MakeProbe, worker_report
 
+from meritum_backend.health import readiness
 from meritum_backend.health.api import get_readiness
 from meritum_backend.health.models import Problems
 from meritum_backend.health.readiness import ReadinessProbe
@@ -85,12 +86,21 @@ def test_unreachable_queue_means_worker_not_reported(
     assert (body["status"], body["worker"]) == ("degraded", "not_reported")
 
 
-def test_readiness_workflow_is_enqueued_once(make_probe: MakeProbe) -> None:
+def test_fresh_report_enqueues_no_new_workflow(make_probe: MakeProbe) -> None:
     jobs = InMemoryJobQueue()
-    client = client_for(make_probe(jobs))
+    client = client_for(make_probe(jobs, report=worker_report()))
     client.get("/api/v1/health")
     client.get("/api/v1/health")
     assert [job.spec.name for job in jobs.enqueued] == ["readiness"]
+
+
+def test_worker_silent_after_a_refresh_is_not_reported(
+    make_probe: MakeProbe, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(readiness, "WORKER_EXPIRY_SECONDS", 0)
+    probe = make_probe(InMemoryJobQueue(), report=worker_report())
+    body = client_for(probe).get("/api/v1/health").json()
+    assert (body["status"], body["worker"]) == ("degraded", "not_reported")
 
 
 def test_startup_log_names_variables_never_values(

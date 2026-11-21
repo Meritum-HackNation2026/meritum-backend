@@ -59,6 +59,9 @@ def test_fixed_worker_lets_checks_through_without_an_api_restart(
     app.dependency_overrides[get_readiness] = lambda: probe
     client = TestClient(app)
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 503
+    client.post("/api/v1/checks", json=CHECK, headers=SESSION)  # enqueues a new one
+    ids = [job.workflow_id for job in queue.enqueued]
+    assert len(set(ids)) == 2  # a finished workflow never runs again in DBOS
     # the restarted worker answers the readiness workflow the API enqueued next
-    queue.set_event(probe.workflow_id, READINESS_KEY, worker_report())
+    queue.set_event(ids[-1], READINESS_KEY, worker_report())
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 202

@@ -4,7 +4,7 @@ Feature: Test gotowości przy starcie
     Given raport gotowości workera wymienia brakującą zmienną "MERITUM_LLM_API_KEY"
     When administrator otwiera GET /api/v1/health
     Then odpowiedź ma kod 503 i wymienia nazwę "MERITUM_LLM_API_KEY"
-    And log startu API zawiera nazwę "MERITUM_LLM_API_KEY"
+    And log startu API zawiera tę samą listę
 
   Scenario: pytanie przy niegotowej usłudze
     Given usługa jest niegotowa

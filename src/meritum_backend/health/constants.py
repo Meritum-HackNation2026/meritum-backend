@@ -27,7 +27,7 @@ BLOB_STORE: Final = "blob_store"
 """Provider name reported when the blob store is configured but cannot be built."""
 
 WORKFLOW_ID_PREFIX: Final = "readiness-"
-"""Prefix of the `readiness` workflow id the API enqueues once per process."""
+"""Prefix of the ids of the `readiness` workflows the API enqueues."""
 
 HEALTH_WORKER_WAIT_SECONDS: Final = 1.0
 """How long GET /api/v1/health waits for the worker's readiness event."""
@@ -49,3 +49,6 @@ DATABASE_CONNECT_TIMEOUT_SECONDS: Final = 3
 
 WORKER_REFRESH_SECONDS: Final = 60.0
 """Age of the worker report after which the API enqueues a new `readiness` workflow."""
+
+WORKER_EXPIRY_SECONDS: Final = 2 * WORKER_REFRESH_SECONDS
+"""Age after which the worker's last report no longer counts: it stopped answering."""

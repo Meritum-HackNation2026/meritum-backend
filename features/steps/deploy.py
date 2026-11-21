@@ -138,13 +138,12 @@ def lists_missing(context: Context, name: str) -> None:
     assert name in context.response.json()["missing_env"]
 
 
-@then('log startu API zawiera nazwę "{name}"')
-def startup_log_lists(context: Context, name: str) -> None:
-    """The startup log has the same list.
+@then("log startu API zawiera tę samą listę")
+def startup_log_lists(context: Context) -> None:
+    """The startup log names the same missing variables as /api/v1/health.
 
     Args:
         context: the behave context.
-        name: the expected variable name.
 
     Features:
         US-WDR-08, F-30
@@ -156,7 +155,8 @@ def startup_log_lists(context: Context, name: str) -> None:
         asyncio.run(context.probe.log_startup())
     finally:
         logger.removeHandler(records)
-    assert any(name in message for message in records.messages)
+    listed = ", ".join(context.response.json()["missing_env"])
+    assert any(f"missing env {listed}," in message for message in records.messages)
 
 
 @then('dostaje stan "{state}" z kodem "{code}", bez nazw kluczy w komunikacie')

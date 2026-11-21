@@ -1,7 +1,9 @@
 """Readiness of the service: the API's own variables and the worker's report.
 
 The worker holds the model, search, transcription and fact-check keys, so the API
-enqueues the `readiness` workflow once per process and reads its event (ADR-03).
+enqueues the `readiness` workflow and reads its event (ADR-03). It enqueues a new one
+when the last report is older than WORKER_REFRESH_SECONDS, so a restarted worker
+is seen.
 Only variable and provider names are reported, never their values.
 
 Features:
@@ -24,6 +26,7 @@ from meritum_backend.health.constants import (
     READY_CACHE_SECONDS,
     SALT_ENV,
     STARTUP_WORKER_WAIT_SECONDS,
+    WORKER_EXPIRY_SECONDS,
     WORKER_REFRESH_SECONDS,
     WORKFLOW_ID_PREFIX,
 )
@@ -32,6 +35,10 @@ from meritum_backend.health.ports import BlobStoreProbe, DatabaseProbe
 from meritum_backend.settings import Settings
 
 _logger = logging.getLogger(__name__)
+
+
+def _new_workflow_id() -> str:
+    return f"{WORKFLOW_ID_PREFIX}{uuid4().hex}"
 
 
 def _unset(secret: SecretStr | None) -> bool:
@@ -48,6 +55,10 @@ def _settings_missing(settings: Settings) -> list[str]:
 
 class ReadinessProbe:
     """Builds the readiness report of the API and the worker.
+
+    Attributes:
+        workflow_id: the `readiness` workflow the probe reads; replaced by a new one
+            when the worker's report is older than WORKER_REFRESH_SECONDS.
 
     Args:
         settings: the app settings.
@@ -72,9 +83,9 @@ class ReadinessProbe:
         self._blob_store = blob_store
         self._enqueued = False
         self._last: tuple[float, Readiness] | None = None
-        self._report: tuple[float, ReadinessReport] | None = None
-        self._report_id = ""
-        self.workflow_id = f"{WORKFLOW_ID_PREFIX}{uuid4().hex}"
+        # (workflow id, when its report arrived, the report)
+        self._report: tuple[str, float, ReadinessReport] | None = None
+        self.workflow_id = _new_workflow_id()
 
     async def _read_event(self, wait: float) -> ReadinessReport | None:
         try:
@@ -99,17 +110,19 @@ class ReadinessProbe:
 
     async def _worker_report(self, wait: float) -> ReadinessReport | None:
         report = await self._read_event(wait)
-        if report is not None and self._report_id != self.workflow_id:
-            self._report = (time.monotonic(), report)
-            self._report_id = self.workflow_id
+        now = time.monotonic()
+        is_new = self._report is None or self._report[0] != self.workflow_id
+        if report is not None and is_new:
+            self._report = (self.workflow_id, now, report)
         if self._report is None:
             return None
-        stale = time.monotonic() - self._report[0] >= WORKER_REFRESH_SECONDS
-        if stale and self._report_id == self.workflow_id:
+        report_id, arrived, last = self._report
+        if report_id == self.workflow_id and now - arrived >= WORKER_REFRESH_SECONDS:
             # a restarted worker answers a new workflow; keep the last report meanwhile
-            self.workflow_id = f"{WORKFLOW_ID_PREFIX}{uuid4().hex}"
+            self.workflow_id = _new_workflow_id()
             self._enqueued = False
-        return self._report[1]
+        # a worker that stopped answering refreshes is not reported any more
+        return last if now - arrived < WORKER_EXPIRY_SECONDS else None
 
     async def check(self, worker_wait: float = HEALTH_WORKER_WAIT_SECONDS) -> Readiness:
         """Probe the database, the API's variables and the worker's report.
