@@ -170,7 +170,8 @@ async def _latest_progress(jobs: JobQueue, check_id: str) -> AnalysisStatus | No
     latest = None
     # a running workflow's stream stays open, so a poll reads it briefly;
     # live steps go through GET /api/v1/checks/{id}/events.
-    with contextlib.suppress(TimeoutError):
+    # a value written under an older contract (no ai_marker) is no progress
+    with contextlib.suppress(TimeoutError, ValidationError):
         async with asyncio.timeout(PROGRESS_WAIT_SECONDS):
             async for value in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):
                 latest = without_early_verdict(value)

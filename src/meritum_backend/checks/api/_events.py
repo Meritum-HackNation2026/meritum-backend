@@ -10,7 +10,7 @@ Features:
     US-SPR-02, F-09
 """
 
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, AsyncIterator
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.sse import EventSourceResponse
 from meritum_core.checks import AnalysisStatus
 from meritum_core.jobs.constants import PROGRESS_KEY
+from pydantic import ValidationError
 
 from meritum_backend.checks.api._cache import Cache, fill, served
 from meritum_backend.checks.constants import NOT_FOUND_DETAIL, RECEIVED
@@ -40,6 +41,16 @@ async def _known_check(jobs: Jobs, cache: Cache, check_id: str) -> str:
     if state is None or not is_check(state):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     return check_id
+
+
+async def _progress(jobs: Jobs, check_id: str) -> AsyncIterator[AnalysisStatus]:
+    values = jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus)
+    while True:
+        try:
+            yield await anext(values)
+        except StopAsyncIteration, ValidationError:
+            # a value written under an older contract (no ai_marker) ends the progress
+            return
 
 
 @router.get(
@@ -77,7 +88,7 @@ async def check_events(
     if state is None:
         yield last.model_copy(update={"result": await served(jobs, cache, check_id)})
         return
-    async for progress in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):
+    async for progress in _progress(jobs, check_id):
         last = without_early_verdict(progress)
         yield last
     state = await jobs.state(check_id)
