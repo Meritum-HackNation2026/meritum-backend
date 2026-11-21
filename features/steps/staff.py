@@ -11,7 +11,7 @@ from http import HTTPStatus
 from behave import given, then, when
 from behave.runner import Context
 from fastapi import FastAPI
-from features.constants import STAFF_ADMIN, STAFF_MODERATOR
+from features.constants import STAFF_ADMIN, STAFF_MODERATOR, STAFF_TEST_DBOS_URL
 from features.staff_support import csrf, grant_moderator, signed_in
 from meritum_core.checks.contracts import CaseClaim, ModeratorCase
 from meritum_core.moderation import HighRiskTopic
@@ -41,9 +41,7 @@ def _app() -> FastAPI:
         The app; its repositories live as long as it does.
     """
     app = create_app(
-        Settings(
-            database_url="postgresql://x:x@127.0.0.1:1/x", admin_emails=STAFF_ADMIN
-        )
+        Settings(database_url=STAFF_TEST_DBOS_URL, admin_emails=STAFF_ADMIN)
     )
     asyncio.run(app.state.cases.save(CASE))
     return app

@@ -149,3 +149,7 @@ def test_configured_admin_with_unverified_address_is_refused(app: FastAPI) -> No
     assert client.get("/api/v1/auth/me").json()["email_verified"] is False
     assert client.get("/api/v1/staff/me").status_code == 403
     assert client.get("/api/v1/staff").status_code == 403
+
+
+def test_staff_accounts_come_from_core_repositories(app: FastAPI) -> None:
+    assert app.state.staff is app.state.repositories.staff

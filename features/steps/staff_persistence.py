@@ -64,7 +64,7 @@ def grant_and_restart(context: Context) -> None:
     """Grant the role in a backend process that shuts down after the request.
 
     Args:
-        context: the behave context managing the PostgreSQL test schema.
+        context: unused; the given step sets the database environment.
 
     Features:
         US-MOD-05, F-25
@@ -78,7 +78,7 @@ def role_survives_restart(context: Context) -> None:
     """Verify the granted role in a new backend process.
 
     Args:
-        context: the behave context managing the PostgreSQL test schema.
+        context: unused; the given step sets the database environment.
 
     Features:
         US-MOD-05, F-25
