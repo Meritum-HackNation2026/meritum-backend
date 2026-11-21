@@ -19,6 +19,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `POST /api/v1/audio` | nagranie z formularza jako treść żądania (OGG Opus, MP3, M4A albo WAV; format odczytany z bajtów, nie z `Content-Type`); zapisuje plik w `BlobStore` z retencją zapisu sprawdzenia (30 dni) i zwraca 201 z `audio_id` do `POST /api/v1/checks`; odmowa ma `status: out_of_scope`, klucz z `copy/pl.json` oraz `formats`, `max_mb` i `max_minutes` do wstawienia w tekst: 413 `errors.audio_too_large` (ponad 20 MiB), 422 `errors.audio_too_long` (ponad 10 min), 415 `status_hint.out_of_scope_audio_format`; 10 wysyłek na minutę i 30 na dobę z jednego adresu |
 | `GET /api/v1/checks/{check_id}` | `AnalysisStatus`: kroki i, po zakończeniu, `result` (`CheckResult` z `ai_disclosure: true` i nagłówkiem `AI-Disclosure: mode=ai-originated`) |
 | `GET /api/v1/checks/{check_id}/events` | postęp sprawdzenia jako Server-Sent Events: każda wartość strumienia `progress` workflowu (`JobQueue.stream`) to jedno zdarzenie `AnalysisStatus`; `result` pojawia się dopiero po kroku `verify_citations` (`done` albo `skipped`), więc wersja wstępna nie niesie werdyktu; po zakończeniu ostatnie zdarzenie ma pełny `CheckResult` i strumień się zamyka; rozłączenie nie przerywa workflowu, a ponowne połączenie odtwarza kroki od początku (404 dla nieznanego id) |
+| `DELETE /api/v1/sessions/{session_id}/checks` | „Usuń moje sprawdzenia” sesji przeglądarki: od razu usuwa zapisy sprawdzeń, powiadomienia i powiązania ze sprawami moderatora, zleca workflow `delete_subject` (dane DBOS i pliki usuwa worker), zwraca 202 i `deleted`; nagłówek `X-Meritum-Session`, jeśli jest, musi wskazywać tę samą sesję (inaczej 403); identyfikator w postaci skrótu kanału albo za krótki daje 400 |
 | `POST /api/v1/discord/interactions` | kanał Discord: interakcje HTTP podpisane kluczem Ed25519 aplikacji (401 przy złym podpisie, 404 gdy środowisko nie ma aplikacji Discord) |
 | `GET /api/v1/auth/login/{google,microsoft}` | logowanie OIDC: przekierowanie do dostawcy (404, gdy dostawca nie jest skonfigurowany) |
 | `GET /api/v1/auth/callback/{google,microsoft}` | powrót od dostawcy: sprawdza `state` i token ID, zakłada sesję, przekierowuje na `/` (400 przy złym `state` albo tokenie) |
@@ -54,6 +55,23 @@ DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... uv run python scripts/register_
 ```
 
 Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discorda); limit per użytkownik Discorda dojdzie razem ze sprawdzaniem.
+
+## Usuwanie danych
+
+Obywatel usuwa swoje sprawdzenia w każdym kanale (US-BEZ-05, F-20). Przeglądarka i wtyczka wołają `DELETE /api/v1/sessions/{session_id}/checks`; losowy identyfikator sesji zna tylko jej właściciel, więc nie jest potrzebne logowanie. Discord, SMS i MCP nie mają sesji przeglądarki i wołają `delete_subject(kind, value, eraser, jobs)` z `src/meritum_backend/privacy/api.py` ze skrótem z solą (`channel_user_hash`), a zalogowane konto z `user_id`. Surowego identyfikatora kanału funkcja nie przyjmie.
+
+Funkcja najpierw zleca workflow `delete_subject` (worker usuwa dane workflowów w tabelach DBOS i pliki w `BlobStore`, a tabele aplikacji czyści drugi raz), potem w jednej transakcji usuwa zapisy, powiadomienia i powiązania ze sprawami moderatora (`SubjectEraser` z core). Sprawa moderatora zostaje dla innych pytających.
+
+Repozytoria aplikacji buduje core (`build_app_repositories`) ze zmiennych `MERITUM_DATABASE_PROVIDER` (`memory` domyślnie, `postgres`) i `MERITUM_DATABASE_URL`. Przy `postgres` adres musi mieć `search_path` schematu aplikacji (`app_dev`, `app_prd`).
+
+Test na prawdziwej bazie, lokalnie:
+
+```bash
+docker run -d --rm --name app-db -e POSTGRES_PASSWORD=test -e POSTGRES_DB=meritum -p 55433:5432 postgres:18
+export MERITUM_TEST_DATABASE_URL=postgresql://postgres:test@localhost:55433/meritum
+uv run dbos migrate -s "$MERITUM_TEST_DATABASE_URL" --schema worker_local   # tabele DBOS bez workera
+uv run pytest -m integration tests/privacy
+```
 
 ## Logowanie (OIDC)
 
