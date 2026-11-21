@@ -1,6 +1,6 @@
 """Fixtures of the checks tests: the app on core's InMemoryJobQueue."""
 
-from collections.abc import Callable
+from typing import Protocol
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,9 +16,16 @@ from meritum_backend.limits import (
 )
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
-from meritum_backend.settings import Settings
+from meritum_backend.settings import Settings, get_settings
 
-type MakeClient = Callable[[InMemoryJobQueue], TestClient]
+
+class MakeClient(Protocol):
+    def __call__(
+        self, jobs: InMemoryJobQueue, settings: Settings | None = None
+    ) -> TestClient: ...
+
+
+OFFLINE_DB = "postgresql://x:x@127.0.0.1:1/x"
 
 
 @pytest.fixture
@@ -28,8 +35,10 @@ def gate() -> CheckGate:
 
 @pytest.fixture
 def make_client(gate: CheckGate, make_probe: MakeProbe) -> MakeClient:
-    def make(jobs: InMemoryJobQueue) -> TestClient:
-        app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
+    def make(jobs: InMemoryJobQueue, settings: Settings | None = None) -> TestClient:
+        settings = settings or Settings(database_url=OFFLINE_DB)
+        app = create_app(settings)
+        app.dependency_overrides[get_settings] = lambda: settings
         app.dependency_overrides[get_jobs] = lambda: jobs
         app.dependency_overrides[get_check_gate] = lambda: gate
         # own queue: the readiness job stays out of `jobs.enqueued`

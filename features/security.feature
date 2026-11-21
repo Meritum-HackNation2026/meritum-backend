@@ -41,3 +41,13 @@ Feature: Bezpieczeństwo danych wejściowych
     Given żądanie z adresu IP
     When licznik limitu zapisuje klucz
     Then klucz to HMAC-SHA256 adresu z tajnym kluczem z sekretów, a wiersze znikają po zakończeniu okna limitu
+
+  Scenario: sprawdzenie z makiety Discorda
+    Given POST /api/v1/checks z channel "discord" i identyfikatorem użytkownika "1234567890"
+    When API zleca workflow
+    Then wejście workflowu ma channel_user_hash równy session_id, a "1234567890" nie ma w kolejce, bazie ani logach
+
+  Scenario: ten sam użytkownik, dwa wejścia
+    Given dwa żądania z tym samym identyfikatorem użytkownika Discorda
+    When API liczy skrót
+    Then oba mają ten sam channel_user_hash

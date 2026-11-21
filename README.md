@@ -106,6 +106,8 @@ Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `e
 
 Domyślne wartości są w `src/meritum_backend/limits/constants.py`. Test licznika na prawdziwym PostgreSQL: `docker compose up -d --wait db`, potem `uv run pytest -m integration tests/limits`.
 
+Discord, SMS i MCP nie mają sesji przeglądarki. Ich adapter wysyła `POST /api/v1/checks` z `channel_user_id` (identyfikator Discorda, numer telefonu albo identyfikator klienta MCP), a API od razu liczy HMAC-SHA-256 z `<kanał>:<identyfikator>` z solą `MERITUM_CHANNEL_HASH_SALT`, więc ten sam identyfikator w dwóch kanałach to dwie osoby (`meritum_backend.channels.channel_user_hash`). Skrót jest jednocześnie `session_id` i `channel_user_hash` wejścia workflowu; surowy identyfikator nie trafia do kolejki, bazy ani logów. Bez soli takie sprawdzenie dostaje 503, a bez `channel_user_id` 400. Kanały `web` i `extension` z `channel_user_id` dostają 422. Pusta sól liczy się jak brak soli. Ta sama sól jest kluczem liczników limitów, więc jej zmiana daje każdej osobie z Discorda, SMS i MCP nowy `session_id`, a starych zapisów nie da się już połączyć z jej skrótem.
+
 ## Logowanie (OIDC)
 
 Personel panelu i obywatel logują się kontem Google albo Microsoft. Backend prowadzi przepływ authorization code z PKCE przez Authlib (`starlette_client`) i sprawdza token ID: podpis kluczem z JWKS dostawcy, wystawcę, odbiorcę (nasz identyfikator klienta), czas ważności i `nonce`. Samo logowanie nie nadaje roli; rolę personelu nadaje administrator według listy adresów (#22). Microsoft nie weryfikuje adresu w claimie `email` (przy dzierżawie `common` użytkownik może go ustawić sam), dlatego rolę dostaje tylko adres z `email_verified: true`.

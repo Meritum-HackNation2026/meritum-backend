@@ -67,10 +67,11 @@ NO_SESSION_DETAIL: Final = f"send the {SESSION_HEADER} header"
 BAD_SESSION_DETAIL: Final = f"send a valid {SESSION_HEADER} header (8 to 64 characters)"
 """400 detail: the session id has the wrong length."""
 
-SESSIONLESS_DETAIL: Final = (
-    "Discord, SMS and MCP checks come through their channel adapter"
-)
-"""400 detail: these channels need a hashed channel user id (backend#27)."""
+NO_CHANNEL_USER_DETAIL: Final = "Discord, SMS and MCP checks send channel_user_id"
+"""400 detail: a sessionless channel sent no user id to hash (a client bug)."""
+
+NO_SALT_DETAIL: Final = "channel user hashing is not configured"
+"""503 detail: MERITUM_CHANNEL_HASH_SALT is unset, so no sessionless check starts."""
 
 NOT_FOUND_DETAIL: Final = "check not found"
 """404 detail: no check workflow has this id."""
