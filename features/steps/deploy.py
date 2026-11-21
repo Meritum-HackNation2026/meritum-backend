@@ -19,6 +19,8 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_backend.checks.constants import SESSION_HEADER
 from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -44,6 +46,8 @@ def _prepare(context: Context, report: ReadinessReport | None) -> None:
     app = create_app(Settings())
     app.dependency_overrides[get_jobs] = lambda: context.jobs
     app.dependency_overrides[get_readiness] = lambda: context.probe
+    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+    app.dependency_overrides[get_check_gate] = lambda: gate
     context.client = TestClient(app)
 
 

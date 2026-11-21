@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
@@ -8,9 +9,21 @@ from tests.conftest import FakeClock, MakeProbe, worker_report
 
 from meritum_backend.health import readiness
 from meritum_backend.health.api import get_readiness
+from meritum_backend.health.readiness import ReadinessProbe
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
+
+
+def app_with(probe: ReadinessProbe) -> FastAPI:
+    app = create_app(Settings())
+    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+    app.dependency_overrides[get_check_gate] = lambda: gate
+    app.dependency_overrides[get_readiness] = lambda: probe
+    return app
+
 
 SESSION = {"X-Meritum-Session": "session-0123456789"}
 CHECK = {"channel": "web", "text": "Czy jutro jest strajk generalny?"}
@@ -20,9 +33,8 @@ def client_with(
     make_probe: MakeProbe, jobs: InMemoryJobQueue, missing: str
 ) -> TestClient:
     probe = make_probe(InMemoryJobQueue(), report=worker_report([missing]))
-    app = create_app(Settings())
+    app = app_with(probe)
     app.dependency_overrides[get_jobs] = lambda: jobs
-    app.dependency_overrides[get_readiness] = lambda: probe
     return TestClient(app)
 
 
@@ -55,9 +67,8 @@ def test_fixed_worker_lets_checks_through_without_an_api_restart(
     clock = FakeClock()
     queue = InMemoryJobQueue()
     probe = make_probe(queue, report=worker_report(["LLM_KEY"]), clock=clock)
-    app = create_app(Settings())
+    app = app_with(probe)
     app.dependency_overrides[get_jobs] = InMemoryJobQueue
-    app.dependency_overrides[get_readiness] = lambda: probe
     client = TestClient(app)
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 503
     clock.now = 61.0  # the report is due: the API enqueues a new workflow
@@ -72,9 +83,8 @@ def test_fixed_worker_lets_checks_through_without_an_api_restart(
 
 def post_without_worker_report(make_probe: MakeProbe) -> int:
     probe = make_probe(InMemoryJobQueue())  # the worker never answered
-    app = create_app(Settings())
+    app = app_with(probe)
     app.dependency_overrides[get_jobs] = InMemoryJobQueue
-    app.dependency_overrides[get_readiness] = lambda: probe
     return (
         TestClient(app).post("/api/v1/checks", json=CHECK, headers=SESSION).status_code
     )

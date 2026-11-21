@@ -27,15 +27,11 @@ def gate() -> CheckGate:
 
 
 @pytest.fixture
-def make_client(gate: CheckGate) -> MakeClient:
+def make_client(gate: CheckGate, make_probe: MakeProbe) -> MakeClient:
     def make(jobs: InMemoryJobQueue) -> TestClient:
         app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
         app.dependency_overrides[get_jobs] = lambda: jobs
         app.dependency_overrides[get_check_gate] = lambda: gate
-def make_client(make_probe: MakeProbe) -> MakeClient:
-    def make(jobs: InMemoryJobQueue) -> TestClient:
-        app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
-        app.dependency_overrides[get_jobs] = lambda: jobs
         # own queue: the readiness job stays out of `jobs.enqueued`
         probe = make_probe(InMemoryJobQueue(), report=worker_report())
         app.dependency_overrides[get_readiness] = lambda: probe

@@ -26,10 +26,11 @@ _BODY = {"channel": "web", "text": "Czy szczepionki powodują autyzm?"}
 _HEADERS = {SESSION_HEADER: "session-0123456789"}
 
 
-def _client(jobs: InMemoryJobQueue, gate: CheckGate) -> TestClient:
+def _client(context: Context, gate: CheckGate) -> TestClient:
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
-    app.dependency_overrides[get_jobs] = lambda: jobs
+    app.dependency_overrides[get_jobs] = lambda: context.jobs
     app.dependency_overrides[get_check_gate] = lambda: gate
+    context.use_ready_probe(app)
     return TestClient(app)
 
 
@@ -40,7 +41,7 @@ def _instances(context: Context, count: int, pending: int = 0) -> None:
         CheckGate(counter, FixedPendingChecks(pending), context.limits)
         for _ in range(count)
     ]
-    context.clients = [_client(context.jobs, gate) for gate in gates]
+    context.clients = [_client(context, gate) for gate in gates]
 
 
 def _post(client: TestClient) -> int:

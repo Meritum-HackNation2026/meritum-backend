@@ -4,7 +4,6 @@ The app runs with core's InMemoryJobQueue in place of DBOS, so no database.
 """
 
 import logging
-from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import override
 
@@ -12,12 +11,10 @@ from behave import given, then, when
 from behave.runner import Context
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, AnalysisStep, CheckResult
-from meritum_core.jobs.constants import PROGRESS_KEY, READINESS_KEY
-from meritum_core.jobs.contracts import ReadinessReport
+from meritum_core.jobs.constants import PROGRESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
 
 from meritum_backend.checks.constants import SESSION_HEADER
-from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import (
     CheckGate,
@@ -29,7 +26,6 @@ from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
 SESSION = "session-0123456789"
-NOW = datetime.now(UTC)
 
 
 class _Records(logging.Handler):
@@ -56,9 +52,7 @@ def _prepare(context: Context, body: dict[str, str]) -> None:
     app.dependency_overrides[get_jobs] = lambda: context.jobs
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     app.dependency_overrides[get_check_gate] = lambda: gate
-    app.dependency_overrides[get_readiness] = lambda: context.probe
-    report = ReadinessReport(missing_env=[], unavailable_providers=[], checked_at=NOW)
-    context.readiness_jobs.set_event(context.probe.workflow_id, READINESS_KEY, report)
+    context.use_ready_probe(app)
     context.client = TestClient(app)
     context.body = body
 
