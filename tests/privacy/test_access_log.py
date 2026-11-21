@@ -46,3 +46,14 @@ def test_building_the_app_twice_installs_one_filter() -> None:
     create_app(Settings(database_url=DB))
     filters = logging.getLogger(ACCESS_LOGGER).filters
     assert sum(isinstance(f, SessionIdFilter) for f in filters) == 1
+
+
+@pytest.mark.parametrize("query", ["?session={s}", "?a=1&session={s}&b=2"])
+def test_session_id_in_the_notification_stream_query_is_masked(
+    caplog: pytest.LogCaptureFixture, query: str
+) -> None:
+    create_app(Settings(database_url=DB))
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER):
+        log_access("/api/v1/notifications/stream" + query.format(s=SESSION))
+    assert SESSION not in caplog.text
+    assert "session={session_id}" in caplog.text
