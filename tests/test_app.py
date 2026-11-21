@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from meritum_core.jobs.contracts import WorkflowSpec
+from meritum_core.jobs.contracts import CONTRACT_VERSION, WorkflowSpec
 from meritum_core.jobs.ports import JobState
 from pydantic import BaseModel
 
@@ -63,7 +63,9 @@ def test_health_reports_unreachable_database(client: TestClient) -> None:
 def test_ping_enqueues_and_reads_state(client: TestClient, jobs: FakeJobs) -> None:
     response = client.post("/api/v1/jobs/ping", json={"message": "hej"})
     assert response.status_code == 202
-    assert jobs.enqueued == [("ping", {"contract_version": 1, "message": "hej"})]
+    assert jobs.enqueued == [
+        ("ping", {"contract_version": CONTRACT_VERSION, "message": "hej"})
+    ]
     assert client.get("/api/v1/jobs/wf-1").json()["status"] == "SUCCESS"
     assert client.get("/api/v1/jobs/nope").status_code == 404
 
