@@ -134,3 +134,18 @@ def test_topics_round_trip(app: FastAPI) -> None:
 def test_too_long_topic_name_is_rejected(app: FastAPI) -> None:
     admin = signed_in(app, ADMIN)
     assert admin.delete(f"/api/v1/moderation/topics/{'x' * 81}").status_code == 422
+
+
+def test_configured_admin_with_unverified_address_is_refused(app: FastAPI) -> None:
+    app.dependency_overrides[get_login] = lambda: FakeLogin(
+        "sub", ADMIN, email_verified=False
+    )
+    client = TestClient(app, base_url="https://testserver", follow_redirects=False)
+    location = client.get("/api/v1/auth/login/microsoft").headers["location"]
+    state = parse_qs(urlparse(location).query)["state"][0]
+    client.get(
+        "/api/v1/auth/callback/microsoft", params={"code": FAKE_CODE, "state": state}
+    )
+    assert client.get("/api/v1/auth/me").json()["email_verified"] is False
+    assert client.get("/api/v1/staff/me").status_code == 403
+    assert client.get("/api/v1/staff").status_code == 403

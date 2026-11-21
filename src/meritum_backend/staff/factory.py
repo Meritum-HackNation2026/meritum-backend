@@ -8,7 +8,7 @@ def build_staff() -> StaffRepository:
     """Build the staff account store.
 
     shortcut: accounts live in memory and go with a restart (configured admins
-    stay); move them to PostgreSQL with the core/031 adapters.
+    stay); switch to the core repository of meritum-core#72 when it ships.
 
     Returns:
         The in-memory store.

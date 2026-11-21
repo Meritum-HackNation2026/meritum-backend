@@ -80,7 +80,7 @@ Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i ekspor
 | `GET /api/v1/moderation/topics` | każda rola (lista jest jawna dla personelu) |
 | `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
 
-Konta personelu, sprawy i tematy są na razie w pamięci procesu (giną przy restarcie, worker ich nie widzi); przejdą do PostgreSQL razem z adapterami z core/031.
+Konta personelu, sprawy i tematy są na razie w pamięci procesu: giną przy restarcie, a worker ich nie widzi. Sprawy i tematy przejdą do PostgreSQL z adapterami z meritum-core#38, konta personelu z repozytorium z meritum-core#72.
 
 ## Praca lokalna
 
