@@ -5,11 +5,18 @@ Features:
 """
 
 import logging
+from time import time
 
 from dbos import DBOSClient
 
-from meritum_backend.limits.adapters import DbosPendingChecks, PostgresRateCounter
+from meritum_backend.constants import LOCAL_ENV
+from meritum_backend.limits.adapters import (
+    DbosPendingChecks,
+    MemoryRateCounter,
+    PostgresRateCounter,
+)
 from meritum_backend.limits.gate import CheckGate
+from meritum_backend.limits.ports import RateCounter
 from meritum_backend.limits.settings import LimitSettings
 from meritum_backend.settings import Settings
 
@@ -36,3 +43,20 @@ def build_check_gate(
         _log.warning("MERITUM_CHANNEL_HASH_SALT unset: per-process counter keys")
     counter = PostgresRateCounter(settings.database_url)
     return CheckGate(counter, DbosPendingChecks(client, settings.env), limits)
+
+
+def build_rate_counter(settings: Settings) -> RateCounter:
+    """Count in this process locally, in the shared PostgreSQL table elsewhere.
+
+    Args:
+        settings: the app settings (database URL, environment).
+
+    Returns:
+        A rate counter for the environment.
+
+    Features:
+        US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
+    """
+    if settings.env == LOCAL_ENV:
+        return MemoryRateCounter(time)
+    return PostgresRateCounter(settings.database_url)

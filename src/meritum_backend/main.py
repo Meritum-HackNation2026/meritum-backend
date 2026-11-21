@@ -26,6 +26,8 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
+from meritum_backend.jury.api import router as jury_router
+from meritum_backend.jury.factory import build_jury
 from meritum_backend.limits import (
     CheckRefusedError,
     LimitSettings,
@@ -100,6 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     mask_sessions_in_access_log()
     app.state.limiter = limiter
+    (app.state.jury_links, app.state.jury_rate_counter, app.state.jury_rate_secret) = (
+        build_jury(settings)
+    )
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
@@ -126,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(checks_router)
     app.include_router(staff_router)
+    app.include_router(jury_router)
     app.include_router(moderation_router)
     app.include_router(check_events_router)
     app.include_router(audio_router)

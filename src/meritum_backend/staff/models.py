@@ -23,7 +23,8 @@ class StaffMember(BaseModel):
     """The signed-in person and their role in the panel.
 
     Attributes:
-        email: the verified address from the ID token.
+        email: the verified address from the ID token, absent for jury.
+        read_only: whether the member has a jury session.
         role: the role from the configuration or from an administrator.
 
     Features:
@@ -32,5 +33,6 @@ class StaffMember(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    email: str
+    email: str | None
     role: StaffRole
+    read_only: bool = False

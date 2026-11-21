@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from meritum_core.checks.contracts import StaffRole
 
 from meritum_backend.auth.api import CsrfUser, CurrentUser
+from meritum_backend.jury.constants import JURY_PROVIDER
 from meritum_backend.staff import StaffAccount, StaffMember, StaffRepository, role_of
 from meritum_backend.staff.constants import ADMIN_ONLY, EVERY_ROLE
 from meritum_backend.staff.models import StaffEmail
@@ -42,13 +43,17 @@ class StaffGate:
 
     Args:
         roles: the roles allowed through.
+        allow_jury: opt in only for jury-visible read endpoints.
 
     Features:
         US-MOD-05, F-25
     """
 
-    def __init__(self, roles: AbstractSet[StaffRole]) -> None:
+    def __init__(
+        self, roles: AbstractSet[StaffRole], *, allow_jury: bool = False
+    ) -> None:
         self._roles = roles
+        self._allow_jury = allow_jury
 
     async def __call__(
         self, request: Request, account: CurrentUser, staff: Staff
@@ -69,18 +74,24 @@ class StaffGate:
         Features:
             US-MOD-05, F-25
         """
-        member = await role_of(account, request.app.state.admin_emails, staff)
+        if account.provider == JURY_PROVIDER:
+            member = StaffMember(email=None, role="analyst", read_only=True)
+            if not self._allow_jury:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, "read-only session")
+        else:
+            member = await role_of(account, request.app.state.admin_emails, staff)
         if member is None or member.role not in self._roles:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "no access to the panel")
         return member
 
 
 AnyStaff = Annotated[StaffMember, Depends(StaffGate(EVERY_ROLE))]
+PanelMember = Annotated[StaffMember, Depends(StaffGate(EVERY_ROLE, allow_jury=True))]
 Admin = Annotated[StaffMember, Depends(StaffGate(ADMIN_ONLY))]
 
 
-@router.get("/me")
-async def me(member: AnyStaff) -> StaffMember:
+@router.get("/me", response_model_exclude_defaults=True)
+async def me(member: PanelMember) -> StaffMember:
     """The signed-in member's role; 403 tells the panel the person has none.
 
     Args:

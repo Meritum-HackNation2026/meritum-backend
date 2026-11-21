@@ -157,6 +157,27 @@ Scenariusz restartu uruchom lokalnie po ustawieniu `MERITUM_TEST_DATABASE_URL` n
 uv run behave --tags=@integration features/moderation.feature
 ```
 
+## Jednorazowy link jury (#32)
+
+1. Administrator wysyła `POST /api/v1/staff/jury-links` z sesją i nagłówkiem
+   `X-CSRF-Token`. Odpowiedź 201 zawiera `url` i `expires_at`. Opcjonalny parametr
+   `expires_at` to koniec okresu oceny: data ze strefą czasową najwyżej 7 dni naprzód.
+   Bez niego link wygasa po 24 godzinach.
+2. Strona `/panel/jury` pobiera token z fragmentu adresu, usuwa fragment z paska
+   adresu i wysyła `POST /api/v1/auth/jury-links/redeem` z JSON `{"token": "..."}`.
+   Fragment nie trafia do logów dostępu. API zwraca 303 do `/panel/eval`, 404 dla
+   nieznanego lub zużytego linku, 410 dla wygasłego, 429 po 10 próbach na minutę z IP.
+3. Sesja jury ma rolę `analyst` i `read_only: true` w `GET /api/v1/staff/me`
+   (pole pojawia się tylko dla sesji jury; brak pola znaczy `false`).
+   `csrf_user` (każda zmiana stanu z sesją) odrzuca ją z 403 `read-only session`;
+   wylogowanie (też z CSRF) ją przyjmuje. Publiczne trasy bez sesji
+   (np. sprawdzenie obywatela) działają dla jurora jak dla każdego. Odczyt w panelu wymaga jawnego
+   `StaffGate(..., allow_jury=True)`. API przebiegów i mierników powstaje w #35.
+
+Na dev i prd skróty SHA-256 oraz terminy ważności są w tabeli `jury_links` w
+schemacie API. Realizacja usuwa wiersz w transakcji. Lokalnie adapter trzyma go
+w pamięci. Sesja wygasa najpóźniej w chwili wygaśnięcia linku.
+
 ## Praca lokalna
 
 Potrzebujesz `uv`, Dockera i klucza SSH z dostępem do organizacji (core jest prywatną zależnością git).
