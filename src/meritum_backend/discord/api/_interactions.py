@@ -3,6 +3,9 @@
 Discord signs every request with the app's Ed25519 key; unsigned or badly signed
 requests get 401 (Discord itself probes this and drops endpoints that accept them).
 Without MERITUM_DISCORD_PUBLIC_KEY the endpoint does not exist (404).
+
+Features:
+    US-WTY-06, US-BEZ-07, F-03, F-21, ADR-08
 """
 
 import json
@@ -169,6 +172,8 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid request signature")
     interaction = json.loads(body)
+    if not isinstance(interaction, dict):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "unsupported interaction")
     if interaction.get("type") == PING:
         return {"type": PONG}
     if interaction.get("type") != APPLICATION_COMMAND:

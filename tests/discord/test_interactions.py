@@ -194,3 +194,11 @@ def test_too_short_text_is_explained(client: TestClient) -> None:
 def test_commands_match_the_handler() -> None:
     names = {c["name"] for c in COMMANDS}
     assert names == {CHECK, CHECK_MESSAGE}
+
+
+def test_signed_body_that_is_not_an_object_is_rejected(client: TestClient) -> None:
+    body = b"[1]"
+    timestamp = "1795265000"
+    signature = KEY.sign(timestamp.encode() + body).hex()
+    headers = {"X-Signature-Ed25519": signature, "X-Signature-Timestamp": timestamp}
+    assert client.post(URL, content=body, headers=headers).status_code == 400

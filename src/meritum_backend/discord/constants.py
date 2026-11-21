@@ -1,6 +1,9 @@
 """Discord constants: application commands and interaction codes.
 
 ``COMMANDS`` is registered by scripts/register_discord_commands.py.
+
+Features:
+    US-WTY-06, US-BEZ-07, F-03, F-21
 """
 
 from typing import Any, Final

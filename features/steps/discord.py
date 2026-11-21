@@ -126,7 +126,7 @@ def _first_command(context: Context, text: str) -> None:
 
 
 @when('bot dostaje wynik sprawdzenia z kanałem "discord"')
-def _getscheck_result(context: Context) -> None:
+def _gets_result(context: Context) -> None:
     context.jobs.finished = True
     context.answer = _command(context)
     assert context.jobs.enqueued[0].payload.request.channel == "discord"
@@ -149,7 +149,7 @@ def _summary(context: Context) -> None:
     "potem bot wysyła po jednej wiadomości na twierdzenie: werdykt, jeden"
     " najważniejszy cytat albo ocenę fact-checkera ze źródłem i siłę"
 )
-def _perclaim_result(context: Context) -> None:
+def _per_claim(context: Context) -> None:
     rest = context.discord.sent[1:]
     assert [kind for kind, _ in rest] == ["follow_up", "follow_up"]
     assert all(text.startswith("Fałszywe: ") for _, text in rest)

@@ -110,3 +110,15 @@ def test_split_keeps_lines_whole_and_under_limit() -> None:
 def test_split_cuts_a_line_longer_than_a_message() -> None:
     parts = split_text("x" * 4500)
     assert [len(p) for p in parts] == [2000, 2000, 500]
+
+
+def test_result_without_claims_still_links_the_card() -> None:
+    empty = CheckResult(
+        check_id="c1",
+        status="out_of_scope",
+        message="To nie jest twierdzenie o faktach.",
+        corpus_version="test",
+    )
+    texts = reply_messages(empty, CARD, first_contact=False)
+    summary = f"Wynik sprawdzenia: 0 twierdzeń. Pełna karta: {CARD}"
+    assert texts == [summary + "\nTo nie jest twierdzenie o faktach."]

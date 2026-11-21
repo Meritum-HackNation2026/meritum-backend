@@ -72,6 +72,8 @@ def _summary(result: CheckResult, card_url: str, *, first_contact: bool) -> str:
         SUMMARY_LINE.format(verdict=VERDICTS[c.verdict], claim=c.claim)
         for c in result.claims
     )
+    if result.message is not None:
+        lines.append(result.message)
     escalation = result.escalation
     if escalation is not None and escalation.case_id is not None:
         text = ESCALATION.get(escalation.state)
@@ -88,7 +90,8 @@ def split_text(text: str) -> list[str]:
 
     Returns:
         Messages of at most MESSAGE_MAX_CHARS each; a single line longer than
-        that (never a quote) is cut into pieces.
+        that is cut into pieces; no reply line is that long (a quote line
+            holds at most 600 + 120 characters of fragment and publisher).
 
     Features:
         US-WTY-06, F-03
@@ -117,7 +120,7 @@ def reply_messages(
     """The Discord messages answering one check, in sending order.
 
     Args:
-        result: the finished check's result; None when it failed or timed out.
+        result: the finished check's result; None when it did not finish in time.
         card_url: the full result card in the web app.
         first_contact: the user hash has no earlier checks: the AI notice goes first.
 
@@ -128,7 +131,7 @@ def reply_messages(
     Features:
         US-WTY-06, US-BEZ-07, F-03, F-21
     """
-    if result is None or not result.claims:
+    if result is None:
         return [AI_NOTICE + "\n" + FAILURE_TEXT if first_contact else FAILURE_TEXT]
     texts = [_summary(result, card_url, first_contact=first_contact)]
     texts.extend(_claim_text(claim) for claim in result.claims)
