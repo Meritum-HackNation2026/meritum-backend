@@ -2,14 +2,15 @@
 
 import time
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from meritum_backend.auth.adapters import FakeLogin
-from meritum_backend.auth.api import get_login
+from meritum_backend.auth.api import csrf_user, get_login
 from meritum_backend.auth.constants import FAKE_CODE
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
@@ -50,11 +51,11 @@ def member(app: FastAPI, role: str | None) -> TestClient:
 @pytest.mark.parametrize(
     ("method", "path", "body"),
     [
-        ("POST", "/api/v1/jobs/ping", None),
         ("POST", "/api/v1/staff/jury-links", None),
         ("POST", "/api/v1/staff", {"email": "x@example.com", "role": "admin"}),
+        ("DELETE", "/api/v1/staff/x@example.com", None),
+        ("POST", "/api/v1/moderation/topics", {"name": "a", "keywords": ["a"]}),
         ("DELETE", "/api/v1/moderation/topics/wybory", None),
-        ("DELETE", "/api/v1/sessions/test-session-id/checks", None),
     ],
 )
 def test_jury_cannot_change_state_even_with_valid_csrf(
@@ -168,3 +169,41 @@ def test_jury_session_ends_at_the_link_deadline(
     later = deadline.timestamp() + 60
     monkeypatch.setattr(time, "time", lambda: later)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
     assert juror.get("/api/v1/auth/me").status_code == 401
+
+
+def test_csrf_check_refuses_a_jury_session(app: FastAPI) -> None:
+    # every state change with a session goes through csrf_user, not only StaffGate's
+    @app.post("/api/v1/test-write")
+    def write(_account: Annotated[object, Depends(csrf_user)]) -> None: ...
+
+    juror = redeemed(
+        app, signed_in(app, ADMIN).post("/api/v1/staff/jury-links").json()["url"]
+    )
+    csrf = juror.get("/api/v1/auth/me").json()["csrf_token"]
+    response = juror.post("/api/v1/test-write", headers={"X-CSRF-Token": csrf})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "read-only session"
+
+
+def test_juror_can_redeem_a_new_link_over_an_expired_session(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    admin = signed_in(app, ADMIN)
+    deadline = datetime.now(UTC) + timedelta(hours=1)
+    path = "/api/v1/staff/jury-links"
+    juror = redeemed(
+        app, admin.post(path, params={"expires_at": deadline.isoformat()}).json()["url"]
+    )
+    fresh = urlparse(admin.post(path).json()["url"]).fragment
+    later = deadline.timestamp() + 60
+    monkeypatch.setattr(time, "time", lambda: later)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
+    assert juror.get("/api/v1/auth/me").status_code == 401
+    again = juror.post("/api/v1/auth/jury-links/redeem", json={"token": fresh})
+    assert again.status_code == 303
+
+
+def redeemed(app: FastAPI, url: str) -> TestClient:
+    juror = TestClient(app, base_url="https://testserver", follow_redirects=False)
+    token = urlparse(url).fragment
+    juror.post("/api/v1/auth/jury-links/redeem", json={"token": token})
+    return juror

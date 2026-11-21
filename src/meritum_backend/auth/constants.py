@@ -76,6 +76,3 @@ SESSION_EXPIRES: Final = "expires"
 
 SESSION_READ_ONLY: Final = "read_only"
 """Signed session flag for accounts that may only read evaluation data."""
-
-LOGOUT_PATH: Final = "/api/v1/auth/logout"
-"""Clearing a browser session requires CSRF even for a read-only juror."""

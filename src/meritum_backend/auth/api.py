@@ -25,6 +25,7 @@ from meritum_backend.auth.constants import (
     SESSION_EXPIRES,
     SESSION_MAX_AGE,
     SESSION_PENDING,
+    SESSION_READ_ONLY,
     SESSION_SINCE,
     TOKEN_BYTES,
 )
@@ -89,28 +90,25 @@ def csrf_user(
         The account.
 
     Raises:
-        HTTPException: 403 when the header does not match the session's token.
+        HTTPException: 403 on a CSRF mismatch or for a read-only (jury) session.
 
     Features:
-        US-MOD-05, US-SPR-10, F-25
+        US-MOD-05, US-SPR-10, US-OBS-06, F-25, F-28
     """
-    expected = str(request.session.get(SESSION_CSRF, ""))
-    sent = request.headers.get(CSRF_HEADER, "")
-    if not expected or not _same(expected, sent):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "missing or bad CSRF token")
+    _check_csrf(request)
+    if request.session.get(SESSION_READ_ONLY):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "read-only session")
     return account
 
 
+def _check_csrf(request: Request) -> None:
+    expected = str(request.session.get(SESSION_CSRF, ""))
+    if not expected or not _same(expected, request.headers.get(CSRF_HEADER, "")):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "missing or bad CSRF token")
+
+
 def _same(expected: str, sent: str) -> bool:
-    """Compare in constant time; bytes, so non-ASCII input is a mismatch, not a 500.
-
-    Args:
-        expected: the value kept in the session.
-        sent: the value from the request.
-
-    Returns:
-        Whether both are equal.
-    """
+    # constant time; bytes, so non-ASCII input is a mismatch, not a 500
     return secrets.compare_digest(expected.encode(), sent.encode())
 
 
@@ -236,14 +234,17 @@ async def me(request: Request, account: CurrentUser) -> Me:
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request, _account: CsrfUser) -> None:
+async def logout(request: Request, _account: CurrentUser) -> None:
     """End the session: the cookie is replaced by an expired one.
+
+    A read-only (jury) session may log out too, so this skips ``CsrfUser``.
 
     Args:
         request: the request whose session is cleared.
-        _account: the signed-in account (CSRF checked).
+        _account: the signed-in account (CSRF checked here, 403 on mismatch).
 
     Features:
         US-MOD-05, US-SPR-10, F-25
     """
+    _check_csrf(request)
     request.session.clear()

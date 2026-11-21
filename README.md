@@ -167,8 +167,11 @@ uv run behave --tags=@integration features/moderation.feature
    adresu i wysyła `POST /api/v1/auth/jury-links/redeem` z JSON `{"token": "..."}`.
    Fragment nie trafia do logów dostępu. API zwraca 303 do `/panel/eval`, 404 dla
    nieznanego lub zużytego linku, 410 dla wygasłego, 429 po 10 próbach na minutę z IP.
-3. Sesja jury ma rolę `analyst` i `read_only: true` w `GET /api/v1/staff/me`.
-   API odrzuca jej żądania zmiany stanu. Odczyt w panelu wymaga jawnego
+3. Sesja jury ma rolę `analyst` i `read_only: true` w `GET /api/v1/staff/me`
+   (pole pojawia się tylko dla sesji jury; brak pola znaczy `false`).
+   `csrf_user` (każda zmiana stanu z sesją) odrzuca ją z 403 `read-only session`;
+   wylogowanie (też z CSRF) ją przyjmuje. Publiczne trasy bez sesji
+   (np. sprawdzenie obywatela) działają dla jurora jak dla każdego. Odczyt w panelu wymaga jawnego
    `StaffGate(..., allow_jury=True)`. API przebiegów i mierników powstaje w #35.
 
 Na dev i prd skróty SHA-256 oraz terminy ważności są w tabeli `jury_links` w

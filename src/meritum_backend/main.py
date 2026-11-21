@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dbos import DBOSClient
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from meritum_core.jobs.adapters import DbosJobQueue
 from meritum_core.jobs.contracts import APPLICATION_NAME
 from meritum_core.observability import build_app_repositories
@@ -26,7 +26,6 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
-from meritum_backend.jury.api import require_writable_session
 from meritum_backend.jury.api import router as jury_router
 from meritum_backend.jury.factory import build_jury
 from meritum_backend.limits import (
@@ -96,7 +95,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Meritum API",
-        dependencies=[Depends(require_writable_session)],
         lifespan=lifespan,
         openapi_url="/api/v1/openapi.json",
         docs_url="/api/docs",

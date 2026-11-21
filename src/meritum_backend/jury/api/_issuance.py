@@ -1,4 +1,4 @@
-"""Staff issuance of jury links and the read-only guard for jury sessions."""
+"""Staff issuance of jury links."""
 
 import secrets
 from datetime import UTC, datetime
@@ -10,9 +10,7 @@ from pydantic import AwareDatetime, BaseModel
 from meritum_backend.auth.api import CsrfUser
 from meritum_backend.auth.constants import (
     LOCAL_URL,
-    LOGOUT_PATH,
     PUBLIC_URLS,
-    SESSION_READ_ONLY,
     TOKEN_BYTES,
 )
 from meritum_backend.jury.api._redemption import Store
@@ -22,7 +20,6 @@ from meritum_backend.jury.constants import (
     JURY_LINK_MAX_TTL,
     JURY_LINK_TTL,
     NO_STORE,
-    SAFE_METHODS,
 )
 from meritum_backend.jury.ports import JuryUnavailableError
 from meritum_backend.staff.api import Admin
@@ -44,26 +41,6 @@ class IssuedJuryLink(BaseModel):
 
     url: str
     expires_at: datetime
-
-
-def require_writable_session(request: Request) -> None:
-    """Disallow state-changing API requests from a jury session.
-
-    Args:
-        request: current request with the signed session.
-
-    Raises:
-        HTTPException: 403 for an unsafe method from a jury session.
-
-    Features:
-        US-OBS-06, US-MOD-05, F-28, F-25
-    """
-    if (
-        request.method not in SAFE_METHODS
-        and request.url.path != LOGOUT_PATH
-        and request.session.get(SESSION_READ_ONLY)
-    ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "read-only session")
 
 
 @router.post("/staff/jury-links", status_code=status.HTTP_201_CREATED)

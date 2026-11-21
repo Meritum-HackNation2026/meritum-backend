@@ -63,7 +63,9 @@ def jury_is_read_only(context: Context) -> None:
         context.juror.get("/api/v1/moderation/topics").status_code
         == HTTPStatus.FORBIDDEN
     )
-    assert context.juror.post("/api/v1/jobs/ping").status_code == HTTPStatus.FORBIDDEN
+    csrf = {"X-CSRF-Token": context.juror.get("/api/v1/auth/me").json()["csrf_token"]}
+    refused = context.juror.post("/api/v1/staff/jury-links", headers=csrf)
+    assert refused.status_code == HTTPStatus.FORBIDDEN
 
 
 @when("kolejna osoba realizuje ten sam link")

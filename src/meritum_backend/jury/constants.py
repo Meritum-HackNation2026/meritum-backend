@@ -30,9 +30,6 @@ JURY_RATE_SCOPE: Final = "jury-link"
 MAX_REDEMPTION_BYTES: Final = 1024
 """Largest JSON body accepted by the jury redemption endpoint."""
 
-SAFE_METHODS: Final = frozenset({"GET", "HEAD", "OPTIONS"})
-"""HTTP methods allowed on read-only sessions."""
-
 NO_STORE: Final = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
 """Keep link and redemption responses out of caches and referrers."""
 
