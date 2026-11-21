@@ -172,7 +172,7 @@ async def escalate_claim(
     Returns:
         The case created or joined with its number and escalation.created or
         escalation.updated; with 503, escalation recommended (no number) and
-        escalation.recommended when the case was not saved.
+        escalation.not_saved when the case was not saved.
 
     Raises:
         HTTPException: 404 when the check is not finished or has no such claim.

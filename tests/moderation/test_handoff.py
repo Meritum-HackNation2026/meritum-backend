@@ -25,7 +25,7 @@ RESULT = CheckResult.model_validate_json(FIXTURE.read_text(encoding="utf-8"))
 CLAIMS = "/api/v1/checks/chk-1/claims"
 NOT_SAVED = {
     "escalation": {"state": "recommended", "case_id": None},
-    "message_key": "escalation.recommended",
+    "message_key": "escalation.not_saved",
 }
 CREATED = {"escalation": {"state": "created", "case_id": "#S-12"}}
 
