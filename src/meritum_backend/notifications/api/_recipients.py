@@ -13,9 +13,9 @@ from meritum_backend.auth import Account
 from meritum_backend.auth.api import current_user
 from meritum_backend.checks import SESSION_HEADER
 from meritum_backend.notifications.constants import (
+    NO_RECIPIENT_DETAIL,
     SESSION_ID_MAX,
     SESSION_ID_MIN,
-    NO_RECIPIENT_DETAIL,
     SESSION_QUERY,
 )
 
