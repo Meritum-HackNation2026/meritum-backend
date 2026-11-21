@@ -142,6 +142,7 @@ SUBSTANTIVE_FIELDS: Final = (
     "status",
     "claims",
     "message",
+    "out_of_scope_code",
     "limitations",
     "limitation_codes",
     "transcript",

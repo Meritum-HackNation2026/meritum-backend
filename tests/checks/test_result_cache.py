@@ -135,3 +135,17 @@ def test_a_hit_carries_the_ai_marker_of_the_check_that_wrote_it(
     first = channels.check("web", TEXT, "session-aaaaaaaaaa")
     hit = channels.check("extension", TEXT, "session-bbbbbbbbbb")
     assert first.ai_marker == hit.ai_marker == RESULT.ai_marker
+
+
+def test_a_hit_keeps_the_out_of_scope_code(make_client: MakeClient) -> None:
+    question = CheckResult(
+        check_id="x",
+        status="out_of_scope",
+        message="To nie jest pytanie o informację.",
+        out_of_scope_code="not_informational",
+        corpus_version=RESULT.corpus_version,
+    )
+    channels = Channels(make_client, FinishedWorker(question))
+    channels.check("web", TEXT, "session-aaaaaaaaaa")
+    hit = channels.check("extension", TEXT, "session-bbbbbbbbbb")
+    assert hit.out_of_scope_code == "not_informational"
