@@ -67,6 +67,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Deploy
+        env:
+          # Public key of this env's Discord app (repo variables; not a secret).
+          DISCORD_PUBLIC_KEY: ${{ github.ref_name == 'main' && vars.DISCORD_PUBLIC_KEY_PRD || vars.DISCORD_PUBLIC_KEY_DEV }}
         run: |
           export CORE_KEY_FILE="$RUNNER_TEMP/core_key"
           install -m 600 /dev/null "$CORE_KEY_FILE" && printf '%s\n' "$CORE_KEY" >"$CORE_KEY_FILE"

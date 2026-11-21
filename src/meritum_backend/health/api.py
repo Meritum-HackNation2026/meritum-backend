@@ -6,18 +6,9 @@ import psycopg
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from meritum_backend.settings import Settings
+from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
-
-
-def get_settings() -> Settings:
-    """Settings dependency (overridden in tests).
-
-    Returns:
-        Settings read from the environment.
-    """
-    return Settings()
 
 
 @router.get("/live")

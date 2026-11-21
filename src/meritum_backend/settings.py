@@ -16,3 +16,14 @@ class Settings(BaseSettings):
     # DBOS system tables of the worker (schema worker_<env>), used to enqueue jobs.
     dbos_url: str = LOCAL_DB
     dbos_schema: str = "worker_local"
+    # Discord app public key (hex) of this env; no key, no interactions endpoint.
+    discord_public_key: str | None = None
+
+
+def get_settings() -> Settings:
+    """Settings dependency (overridden in tests).
+
+    Returns:
+        Settings read from the environment.
+    """
+    return Settings()
