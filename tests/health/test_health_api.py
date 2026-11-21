@@ -155,3 +155,17 @@ def test_unanswered_workflow_is_asked_again(make_probe: MakeProbe) -> None:
     body = client.get("/api/v1/health").json()  # enqueues the next one
     assert body["worker"] == "not_reported"
     assert len({job.workflow_id for job in jobs.enqueued}) == 2
+
+
+def test_rare_requests_still_see_a_worker_that_came_back(make_probe: MakeProbe) -> None:
+    clock = FakeClock()
+    jobs = InMemoryJobQueue()
+    client = client_for(make_probe(jobs, clock=clock))
+    seen = []
+    for now in (0.0, 61.0, 200.0, 300.0, 400.0, 500.0):  # less than once a minute
+        clock.now = now
+        seen.append(client.get("/api/v1/health").json()["worker"])
+        if now >= 100.0:  # the worker is back and answers what was enqueued
+            for job in jobs.enqueued:
+                jobs.set_event(job.workflow_id, READINESS_KEY, worker_report())
+    assert seen[-1] == "ok"

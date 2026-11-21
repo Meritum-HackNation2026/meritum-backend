@@ -76,7 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.blobs = build_blobs(settings)
         except Exception:
             # name the missing variables before a misconfigured deploy stops (#19)
-            await app.state.readiness.log_startup(worker_wait=0)
+            app.state.readiness.log_unstartable()
             raise
         app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
         startup_log = asyncio.create_task(app.state.readiness.log_startup())

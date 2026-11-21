@@ -49,4 +49,5 @@ DATABASE_CONNECT_TIMEOUT_SECONDS: Final = 3
 
 WORKER_REFRESH_SECONDS: Final = 60.0
 """Age of the worker report that triggers a new `readiness` workflow; also how long
-the worker has to answer it before it counts as not reported."""
+an enqueued one may stay unanswered before it is enqueued again and the last report
+stops counting."""
