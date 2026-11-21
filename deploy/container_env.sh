@@ -42,3 +42,18 @@ files_mount() {
   [ -n "$volume" ] && [ -n "$dir" ] || return 0
   mount_args+=(-v "$volume:$dir")
 }
+
+# `gcp_mounts <envfile>` fills gcp_args with `-v <entry>` per space-separated entry of
+# MERITUM_GCP_MOUNTS (`host:container:ro`, written by the platform, infra#28): the
+# Workload Identity Federation files GOOGLE_APPLICATION_CREDENTIALS points to. Empty
+# when the platform did not write it. Only paths are read, never the credentials.
+gcp_mounts() {
+  local entry entries
+  gcp_args=()
+  read -ra entries <<<"$(sed -n 's/^MERITUM_GCP_MOUNTS=//p' "$1" | tail -n 1)"
+  for entry in "${entries[@]}"; do
+    # credentials are never mounted writable
+    [[ $entry == *:ro ]] || { echo "::warning title=GCP mount skipped::$entry is not :ro" >&2; continue; }
+    gcp_args+=(-v "$entry")
+  done
+}
