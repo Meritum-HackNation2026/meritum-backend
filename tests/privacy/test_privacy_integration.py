@@ -4,31 +4,42 @@ Run with ``uv run pytest -m integration tests/privacy``. Needs
 ``MERITUM_TEST_DATABASE_URL`` (a PostgreSQL the user may create schemas in) and
 the DBOS system tables in ``worker_local`` of the same database: start the worker
 once, or run ``uv run dbos migrate -s "$URL" --schema worker_local``. The DBOS
-rows themselves are deleted by the worker's ``delete_subject`` workflow and
-checked in meritum-worker (worker/024).
+rows go when the worker runs ``delete_subject`` (worker/024): with the worker
+running on the same database, ``MERITUM_TEST_WORKER=1`` also checks that no DBOS
+row names the session; without it that test stops after the enqueue.
 """
 
 import asyncio
 import os
+import time
 import uuid
 from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import psycopg
 import pytest
 from dbos import DBOSClient
+from meritum_core.checks import CheckRequest
 from meritum_core.jobs.adapters import DbosJobQueue
-from meritum_core.jobs.contracts import APPLICATION_NAME
+from meritum_core.jobs.contracts import (
+    APPLICATION_NAME,
+    CHECK,
+    DELETE_SUBJECT,
+    CheckInput,
+)
 from meritum_core.observability import build_app_repositories
 from meritum_core.shared.database import DatabaseProvider, DatabaseSettings
 from meritum_core.shared.database.adapters import apply_migrations
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from meritum_backend.privacy.api import delete_subject
+from meritum_backend.privacy import delete_subject
 
 from .conftest import ALL, SESSION, Remaining, Seed
 
 APP_TABLES = ("check_records", "moderator_cases", "notifications")
+DBOS_SCHEMA = "worker_local"
+WORKER_WAIT_SECONDS = 60
 
 
 @pytest.fixture
@@ -51,39 +62,79 @@ def app_url(admin_url: str) -> Iterator[str]:
         conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
 
 
-def rows_naming(url: str, value: str) -> int:
+def rows_naming(url: str, value: str, tables: list[sql.Identifier]) -> int:
     with psycopg.connect(url) as conn:
         return sum(
             conn.execute(
                 sql.SQL("SELECT count(*) FROM {} t WHERE t::text LIKE %s").format(
-                    sql.Identifier(table)
+                    table
                 ),
                 (f"%{value}%",),
             ).fetchone()[0]  # ty: ignore[not-subscriptable]  # count(*) returns one row
-            for table in APP_TABLES
+            for table in tables
         )
 
 
+def app_rows(url: str, value: str) -> int:
+    return rows_naming(url, value, [sql.Identifier(t) for t in APP_TABLES])
+
+
+def dbos_rows(url: str, value: str) -> int:
+    with psycopg.connect(url) as conn:
+        names = conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s",
+            (DBOS_SCHEMA,),
+        ).fetchall()
+    return rows_naming(url, value, [sql.Identifier(DBOS_SCHEMA, n) for (n,) in names])
+
+
+@pytest.fixture
+def dbos(admin_url: str) -> Iterator[DBOSClient]:
+    client = DBOSClient(
+        system_database_url=admin_url,
+        dbos_system_schema=DBOS_SCHEMA,
+        application_name=APPLICATION_NAME,
+    )
+    yield client
+    client.destroy()
+
+
 @pytest.mark.integration
-def test_nothing_names_the_session_after_deletion(
-    admin_url: str, app_url: str, seed: Seed, remaining: Remaining
+def test_no_app_table_names_the_session_after_deletion(
+    app_url: str, dbos: DBOSClient, seed: Seed, remaining: Remaining
 ) -> None:
     settings = DatabaseSettings(provider=DatabaseProvider.POSTGRES, url=app_url)
     repos = build_app_repositories(settings)
     seed(repos)
-    assert rows_naming(app_url, SESSION) > 0
-    client = DBOSClient(
-        system_database_url=admin_url,
-        dbos_system_schema="worker_local",
-        application_name=APPLICATION_NAME,
-    )
-    try:
-        before = len(client.list_workflows(name="delete_subject"))
-        jobs = DbosJobQueue(client, app_version="local")
-        asyncio.run(delete_subject("session_id", SESSION, repos.eraser, jobs))
-        after = len(client.list_workflows(name="delete_subject"))
-    finally:
-        client.destroy()
-    assert rows_naming(app_url, SESSION) == 0
+    assert app_rows(app_url, SESSION) > 0
+    before = len(dbos.list_workflows(name=DELETE_SUBJECT.name))
+    jobs = DbosJobQueue(dbos, app_version="local")
+    asyncio.run(delete_subject("session_id", SESSION, repos.eraser, jobs))
+    assert app_rows(app_url, SESSION) == 0
     assert remaining(repos) == ALL - {"c_s"}
-    assert after == before + 1
+    assert len(dbos.list_workflows(name=DELETE_SUBJECT.name)) == before + 1
+
+
+@pytest.mark.integration
+def test_no_dbos_row_names_the_session_once_the_worker_ran(
+    admin_url: str, dbos: DBOSClient
+) -> None:
+    session = str(uuid.uuid4())  # fresh, so rows of earlier runs do not count
+    jobs = DbosJobQueue(dbos, app_version="local")
+    request = CheckRequest(channel="web", text="Czy we Włoszech był strajk generalny?")
+    payload = CheckInput(
+        request=request, session_id=session, received_at=datetime.now(UTC)
+    )
+    asyncio.run(jobs.enqueue(CHECK, payload))
+    assert dbos_rows(admin_url, session) > 0
+    eraser = build_app_repositories(DatabaseSettings()).eraser
+    asyncio.run(delete_subject("session_id", session, eraser, jobs))
+    if os.environ.get("MERITUM_TEST_WORKER", "") == "":
+        pytest.skip(
+            "DBOS rows go when the worker runs delete_subject (worker#24); "
+            "start it and set MERITUM_TEST_WORKER=1"
+        )
+    deadline = time.monotonic() + WORKER_WAIT_SECONDS
+    while dbos_rows(admin_url, session) and time.monotonic() < deadline:
+        time.sleep(1)
+    assert dbos_rows(admin_url, session) == 0

@@ -13,8 +13,10 @@ from pydantic import ValidationError
 
 from meritum_backend.checks.constants import SESSION_HEADER
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import limiter
 from meritum_backend.main import create_app
-from meritum_backend.privacy.api import delete_subject
+from meritum_backend.privacy import delete_subject
+from meritum_backend.privacy.constants import DELETE_LIMIT_PER_MINUTE
 from meritum_backend.settings import Settings
 
 from .conftest import ALL, HASH, SESSION, USER, Remaining
@@ -62,6 +64,7 @@ def test_delete_subject_refuses_a_raw_channel_id_and_deletes_nothing(
 
 
 def client_on(repos: AppRepositories, jobs: InMemoryJobQueue) -> TestClient:
+    limiter.reset()  # counters are module-level; every client starts from zero
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
     app.state.repositories = repos
     app.dependency_overrides[get_jobs] = lambda: jobs
@@ -98,3 +101,13 @@ def test_unreachable_queue_is_503_and_deletes_nothing(
     response = client_on(repos, jobs).delete(f"/api/v1/sessions/{SESSION}/checks")
     assert response.status_code == 503
     assert remaining(repos) == ALL
+
+
+def test_deletion_is_limited_per_client_address(repos: AppRepositories) -> None:
+    client = client_on(repos, InMemoryJobQueue())
+    codes = [
+        client.delete(f"/api/v1/sessions/{SESSION}/checks").status_code
+        for _ in range(DELETE_LIMIT_PER_MINUTE + 1)
+    ]
+    assert codes[:-1] == [202] * DELETE_LIMIT_PER_MINUTE
+    assert codes[-1] == 429
