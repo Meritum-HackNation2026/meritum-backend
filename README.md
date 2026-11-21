@@ -81,7 +81,7 @@ Drugi test zleca workflow `check` dla świeżej sesji i sprawdza, że trafił do
 
 Przed zleceniem workflowu API sprawdza też, ile sprawdzeń czeka w kolejce DBOS tego środowiska. Gdy osiągną próg, nowe dostają 429. Limit współbieżności kolejki zostaje w workerze.
 
-Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `errors.rate_limited` z `Retry-After: 60` albo `errors.busy` z `Retry-After: 300`. Gdy baza liczników albo DBOS nie odpowiada, limit przepuszcza żądanie (ostrzeżenie w logu), a przed API zostają reguły Cloudflare.
+Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `errors.rate_limited` z `Retry-After: 60` albo `errors.busy` z `Retry-After: 300`. Limity slowapi (`/jobs/ping`, `POST /api/v1/audio`) liczą nadal w pamięci procesu; ich 429 ma `message_key` `errors.rate_limited`, a po wyczerpaniu limitu dobowego (30 nagrań na dobę) `errors.rate_limited_daily`. Gdy baza liczników albo DBOS nie odpowiada, limit przepuszcza żądanie (ostrzeżenie w logu), a przed API zostają reguły Cloudflare.
 
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |

@@ -39,6 +39,12 @@ MAX_PENDING_CHECKS: Final = 100
 RATE_LIMITED_KEY: Final = "errors.rate_limited"
 """copy/pl.json key: too many checks in a short time; try again in a minute."""
 
+RATE_LIMITED_DAILY_KEY: Final = "errors.rate_limited_daily"
+"""copy/pl.json key: a daily limit is used up (e.g. audio uploads, backend#23)."""
+
+DAY_SECONDS: Final = 24 * 60 * 60
+"""A limit window this long or longer is a daily limit (RATE_LIMITED_DAILY_KEY)."""
+
 BUSY_KEY: Final = "errors.busy"
 """copy/pl.json key: too many pending checks; try again in a few minutes."""
 
