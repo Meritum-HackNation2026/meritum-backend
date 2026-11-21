@@ -1,0 +1,27 @@
+# Local development: PostgreSQL with pgvector, the same image as on dellpromaxgb10.
+#   docker compose up -d --wait db
+#   uv run uvicorn --factory meritum_backend.main:create_app --reload   # API on :8000
+#   meritum-frontend: pnpm dev (Vite on :5173 proxies /api to :8000)
+# Locally one owner role does everything; on the host every app and env has
+# its own role and schema (meritum-infra, onprem/dellpromaxgb10/platform).
+name: meritum
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg18-trixie
+    environment:
+      POSTGRES_USER: meritum
+      POSTGRES_PASSWORD: meritum
+      POSTGRES_DB: meritum
+    ports:
+      - "127.0.0.1:${MERITUM_DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meritum -d meritum"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
