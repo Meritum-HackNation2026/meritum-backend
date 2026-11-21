@@ -18,7 +18,7 @@ from meritum_backend.checks.constants import (
     INVALID_URL_KEY,
     MARKER_OPEN,
     MARKERS,
-    TEXT_FIELD,
+    TEXT_FIELDS,
     TEXT_MAX_CHARS,
     TOO_LONG_ERROR,
     TOO_LONG_KEY,
@@ -42,7 +42,7 @@ def message_key(errors: Sequence[ErrorDetails]) -> str:
     fields = [(error["loc"][-1] if error["loc"] else "", error) for error in errors]
     if any(field in URL_FIELDS for field, _ in fields):
         return INVALID_URL_KEY
-    if any(f == TEXT_FIELD and e["type"] == TOO_LONG_ERROR for f, e in fields):
+    if any(f in TEXT_FIELDS and e["type"] == TOO_LONG_ERROR for f, e in fields):
         return TOO_LONG_KEY
     return EMPTY_KEY
 

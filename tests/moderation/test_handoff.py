@@ -181,3 +181,16 @@ def test_a_masked_reason_never_outgrows_the_contract() -> None:
     sent = job.payload.model_dump()["justification_masked"]
     assert len(sent) <= 1000
     assert sent.rstrip().endswith("[e-mail]")  # cut before a marker, never inside one
+
+
+def test_a_reason_over_4000_characters_is_too_long() -> None:
+    worker = _saved()
+    client = _client(worker)
+    phone = "600 700 800 "
+    ok = client.post(f"{CLAIMS}/1/dispute", json={"justification": "x" * 4000})
+    assert ok.json()["message_key"] == "result.report_error_done"
+    body = {"justification": phone + "x" * 3989}
+    response = client.post(f"{CLAIMS}/1/dispute", json=body)
+    assert response.status_code == 422
+    assert response.json() == {"message_key": "errors.too_long"}
+    assert len(worker.enqueued) == 1

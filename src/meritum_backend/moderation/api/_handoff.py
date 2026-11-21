@@ -69,8 +69,8 @@ class Dispute(BaseModel):
 
     Attributes:
         justification: what the person thinks is wrong, optional (a blank one
-            counts as none); masked, then cut to MAX_JUSTIFICATION_CHARS
-            before any marker the cut would split.
+            counts as none, over JUSTIFICATION_INPUT_MAX_CHARS is refused);
+            masked, then cut to MAX_JUSTIFICATION_CHARS before any marker.
 
     Features:
         US-MOD-06, F-24
