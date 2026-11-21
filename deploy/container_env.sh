@@ -30,3 +30,15 @@ container_env() {
     env_args+=(-e "$name")
   done
 }
+
+# `files_mount <envfile>` fills mount_args with `-v MERITUM_FILES_VOLUME:MERITUM_FILES_DIR`
+# (ADR-31: uploaded files on a volume shared with the worker of the env); empty when
+# the platform did not write them. The env file is read, never sourced.
+files_mount() {
+  local volume dir
+  volume=$(sed -n 's/^MERITUM_FILES_VOLUME=//p' "$1" | tail -n 1)
+  dir=$(sed -n 's/^MERITUM_FILES_DIR=//p' "$1" | tail -n 1)
+  mount_args=()
+  [ -n "$volume" ] && [ -n "$dir" ] || return 0
+  mount_args+=(-v "$volume:$dir")
+}

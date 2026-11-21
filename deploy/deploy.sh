@@ -3,7 +3,7 @@
 #   deploy/deploy.sh <main|develop> [git-sha]
 # Runs on the self-hosted runner `dellpromaxgb10` (on the host itself).
 # Needs the platform (meritum-infra: onprem/dellpromaxgb10/platform/setup.sh):
-# network `meritum`, meritum-postgres and ~/meritum/envs/api-<env>.env.
+# network `meritum`, meritum-postgres, volume meritum-files-<env> and ~/meritum/envs/api-<env>.env.
 # Env: CORE_KEY_FILE, a read-only deploy key of meritum-core (BuildKit --ssh);
 #      SECRETS_JSON, VARS_JSON: repo secrets and variables; container_env.sh picks
 #      the ones the container gets.
@@ -30,8 +30,9 @@ exec 9>"$state/deploy.lock"
 flock 9  # one change at a time on this host (shared with the platform and other repos)
 docker rm -f "$container" >/dev/null 2>&1 || true
 container_env "$env"
+files_mount "$envfile"
 docker run -d --name "$container" --network meritum --restart unless-stopped \
-  "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "$image" >/dev/null
+  "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "${mount_args[@]}" "$image" >/dev/null
 log "started $container"
 
 get() { docker exec "$container" python -c "import sys, urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000$1', timeout=5).read().decode())"; }
