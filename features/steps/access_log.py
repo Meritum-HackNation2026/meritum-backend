@@ -30,7 +30,7 @@ def deletion_request(context: Context) -> None:
     """The app is built, so its access log filter is installed.
 
     Args:
-        context: the behave context; gets ``path`` and ``lines``.
+        context: the behave context; gets ``path``, ``lines`` and ``level``.
 
     Features:
         US-BEZ-05, F-20
@@ -39,6 +39,7 @@ def deletion_request(context: Context) -> None:
     context.path = f"/api/v1/sessions/{SESSION}/checks"
     context.lines = _Lines()
     access = logging.getLogger(ACCESS_LOGGER)
+    context.level = access.level
     access.setLevel(logging.INFO)
     access.addHandler(context.lines)
 
@@ -68,12 +69,14 @@ def log_has_no_session(context: Context) -> None:
     """The line names the path pattern, not the session.
 
     Args:
-        context: the behave context with ``lines``.
+        context: the behave context with ``lines`` and ``level``.
 
     Features:
         US-BEZ-05, F-20
     """
-    logging.getLogger(ACCESS_LOGGER).removeHandler(context.lines)
+    access = logging.getLogger(ACCESS_LOGGER)
+    access.removeHandler(context.lines)
+    access.setLevel(context.level)
     [line] = context.lines.lines
     assert SESSION not in line
     assert "/api/v1/sessions/{session_id}/checks" in line

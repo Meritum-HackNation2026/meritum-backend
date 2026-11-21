@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from meritum_backend.main import create_app
+from meritum_backend.privacy.access_log import SessionIdFilter
 from meritum_backend.privacy.constants import ACCESS_LOGGER
 from meritum_backend.settings import Settings
 
@@ -20,15 +21,17 @@ def log_access(path: str) -> None:
     )
 
 
-@pytest.mark.parametrize("query", ["", "?x=1"])
+@pytest.mark.parametrize(
+    ("prefix", "suffix"), [("", ""), ("", "?x=1"), ("/meritum", "/")]
+)
 def test_session_id_in_the_deletion_path_is_masked(
-    caplog: pytest.LogCaptureFixture, query: str
+    caplog: pytest.LogCaptureFixture, prefix: str, suffix: str
 ) -> None:
     create_app(Settings(database_url=DB))
     with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER):
-        log_access(f"/api/v1/sessions/{SESSION}/checks{query}")
+        log_access(f"{prefix}/api/v1/sessions/{SESSION}/checks{suffix}")
     assert SESSION not in caplog.text
-    assert f"/api/v1/sessions/{{session_id}}/checks{query}" in caplog.text
+    assert f"{prefix}/api/v1/sessions/{{session_id}}/checks{suffix}" in caplog.text
 
 
 def test_other_paths_are_logged_as_sent(caplog: pytest.LogCaptureFixture) -> None:
@@ -42,4 +45,4 @@ def test_building_the_app_twice_installs_one_filter() -> None:
     create_app(Settings(database_url=DB))
     create_app(Settings(database_url=DB))
     filters = logging.getLogger(ACCESS_LOGGER).filters
-    assert len(filters) == 1
+    assert sum(isinstance(f, SessionIdFilter) for f in filters) == 1

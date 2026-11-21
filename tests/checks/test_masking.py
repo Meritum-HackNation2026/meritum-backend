@@ -179,6 +179,7 @@ def test_text_goes_through_the_app_gate_before_the_queue(
     assert job.payload.request.text == "[osoba], tel. [telefon]"
 
 
-def test_app_uses_the_null_gate_by_default() -> None:
+def test_app_uses_the_null_gate_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MERITUM_PII_GATE", raising=False)
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
     assert isinstance(app.state.pii_gate, NullPiiGate)

@@ -26,6 +26,7 @@ from meritum_backend.limits import limiter
 from meritum_backend.privacy.constants import (
     BAD_SUBJECT_DETAIL,
     DELETE_LIMIT_PER_MINUTE,
+    DELETE_LIMIT_SCOPE,
     NOT_OWN_SESSION_DETAIL,
     UNAVAILABLE_DETAIL,
 )
@@ -98,7 +99,7 @@ router = APIRouter(prefix="/api/v1/sessions", tags=["privacy"])
     status_code=status.HTTP_202_ACCEPTED,
     response_model=DeletedChecks,
 )
-@limiter.limit(f"{DELETE_LIMIT_PER_MINUTE}/minute")  # ty: ignore[dynamic-function-decorator-return]
+@limiter.shared_limit(f"{DELETE_LIMIT_PER_MINUTE}/minute", scope=DELETE_LIMIT_SCOPE)  # ty: ignore[dynamic-function-decorator-return]
 async def delete_session_checks(
     request: Request,  # ruff: ignore[unused-function-argument] (slowapi reads the client address)
     session_id: str,

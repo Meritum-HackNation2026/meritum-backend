@@ -14,7 +14,7 @@ from meritum_backend.privacy.constants import (
     ACCESS_LOGGER,
     ACCESS_PATH_ARG,
     SESSION_IN_PATH,
-    SESSION_PLACEHOLDER,
+    SESSION_REPLACEMENT,
 )
 
 
@@ -40,7 +40,7 @@ class SessionIdFilter(logging.Filter):
             return True
         path = args[ACCESS_PATH_ARG]
         if isinstance(path, str):
-            masked = SESSION_IN_PATH.sub(SESSION_PLACEHOLDER, path)
+            masked = SESSION_IN_PATH.sub(SESSION_REPLACEMENT, path)
             record.args = (
                 *args[:ACCESS_PATH_ARG],
                 masked,

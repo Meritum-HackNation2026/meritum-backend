@@ -17,7 +17,7 @@ def get_pii_gate(request: Request) -> PiiGatePort:
         request: the current request (holds the app state).
 
     Returns:
-        The app's PII gate; the null gate unless ``MERITUM_PII_GATE`` names one.
+        The app's PII gate; the null gate unless ``MERITUM_PII_*`` names one.
 
     Features:
         US-BEZ-04, F-20

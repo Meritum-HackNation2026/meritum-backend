@@ -20,6 +20,10 @@ DELETE_LIMIT_PER_MINUTE: Final = 10
 """Deletions one client address may request per minute (429 above that); each one
 starts a ``delete_subject`` workflow, so the endpoint is not an open queue."""
 
+DELETE_LIMIT_SCOPE: Final = "delete_session_checks"
+"""One rate-limit bucket for every session id: slowapi keys a plain limit by URL,
+which would give each id its own bucket and put the id in its 429 log line."""
+
 ACCESS_LOGGER: Final = "uvicorn.access"
 """The logger uvicorn writes one access line per response to."""
 
@@ -27,8 +31,9 @@ ACCESS_PATH_ARG: Final = 2
 """Index of the path in the access record's args: uvicorn (h11 and httptools)
 logs ``'%s - "%s %s HTTP/%s" %d'`` with client, method, path, version, status."""
 
-SESSION_IN_PATH: Final = re.compile(r"^(/api/v1/sessions/)[^/?]+(/checks)")
-"""The deletion path; its middle segment is a session id, which works as a key."""
+SESSION_IN_PATH: Final = re.compile(r"(/api/v1/sessions/)[^/?]+(/checks)")
+"""The deletion path, also behind a root path; its middle segment is a session
+id, which works as a key."""
 
-SESSION_PLACEHOLDER: Final = r"\1{session_id}\2"
-"""What the access log shows instead of the session id."""
+SESSION_REPLACEMENT: Final = r"\1{session_id}\2"
+"""Regex replacement: the access log shows ``{session_id}`` instead of the id."""
