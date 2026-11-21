@@ -6,13 +6,16 @@ Features:
 """
 
 from meritum_backend.checks.api._events import router as events_router
-from meritum_backend.checks.api._pii import get_pii_gate
-from meritum_backend.checks.api._status import router
+from meritum_backend.checks.api._pii import PiiGate, get_pii_gate
+from meritum_backend.checks.api._status import InvalidCheck, KeyedErrorsRoute, router
 from meritum_backend.checks.api._uploads import AudioRejected, get_blobs
 from meritum_backend.checks.api._uploads import router as audio_router
 
 __all__ = [
     "AudioRejected",
+    "InvalidCheck",
+    "KeyedErrorsRoute",
+    "PiiGate",
     "audio_router",
     "events_router",
     "get_blobs",

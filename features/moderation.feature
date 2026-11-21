@@ -30,3 +30,19 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given administrator dodaje temat "wybory" ze słowami kluczowymi
     When kolejne twierdzenie bez odpowiedzi dotyczy wyborów
     Then rozpoznawanie tematów używa nowej listy bez restartu usługi
+
+  Scenario: zalecenie zamienione w przekazanie
+    Given wynik ma twierdzenie z werdyktem "brak wystarczających dowodów" i Escalation ze stanem "recommended" bez numeru
+    When obywatel wysyła POST /api/v1/checks/{id}/claims/{n}/escalate
+    Then odpowiedź ma Escalation ze stanem "created" i numerem "#S-12" albo, przy dołączeniu do podobnej sprawy, ze stanem "updated" i jej numerem
+
+  Scenario: zgłoszenie błędu z uzasadnieniem
+    Given wynik z werdyktem "fałszywe"
+    When obywatel wysyła POST /api/v1/checks/{id}/claims/{n}/dispute z uzasadnieniem zawierającym numer telefonu
+    Then sprawa ma powód "user_dispute", uzasadnienie jest zamaskowane, a obywatel dostaje numer sprawy
+    And wynik dla innych pytających się nie zmienia
+
+  Scenario: dołączenie nie zdradza innych pytających
+    Given podobne twierdzenie jest już w otwartej sprawie od innej sesji
+    When obywatel przekazuje swoje twierdzenie
+    Then komunikat nie mówi, że ktoś inny pytał o to samo
