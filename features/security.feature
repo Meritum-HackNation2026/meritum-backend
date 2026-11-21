@@ -36,3 +36,8 @@ Feature: Bezpieczeństwo danych wejściowych
     Given żądanie DELETE /api/v1/sessions/<session_id>/checks
     When serwer zapisuje log dostępu
     Then w logu ścieżka ma zamaskowany identyfikator sesji
+
+  Scenario: licznik nie przechowuje odwracalnego skrótu IP
+    Given żądanie z adresu IP
+    When licznik limitu zapisuje klucz
+    Then klucz to HMAC-SHA256 adresu z tajnym kluczem z sekretów, a wiersze znikają po zakończeniu okna limitu

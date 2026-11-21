@@ -79,11 +79,11 @@ Drugi test zleca workflow `check` dla świeżej sesji i sprawdza, że trafił do
 
 ## Limity zapytań
 
-`POST /api/v1/checks` liczy każde poprawne sprawdzenie (po walidacji i maskowaniu, także te, które potem dostaną 429) na adres IP klienta, kraj (nagłówek `CF-IPCountry` od Cloudflare, bez niego `XX`) i kanał, w oknach jednominutowych. Liczniki są wspólne dla wszystkich instancji API (ADR-18): tabela `rate_limit_hits` w schemacie API, zakładana przy pierwszym użyciu. Klucze są skrótami SHA-256 bez soli, czyli adresami pseudonimizowanymi, nie anonimowymi. Każde kolejne sprawdzenie usuwa wiersze zakończonych okien. Kod limitów nie zapisuje adresów IP w logach; logi dostępu uvicorna i bramy to osobna sprawa polityki prywatności.
+`POST /api/v1/checks` liczy każde poprawne sprawdzenie (po walidacji i maskowaniu, także te, które potem dostaną 429) na adres IP klienta, kraj (nagłówek `CF-IPCountry` od Cloudflare, bez niego `XX`) i kanał, w oknach jednominutowych. Liczniki są wspólne dla wszystkich instancji API (ADR-18): tabela `rate_limit_hits` w schemacie API, zakładana przy pierwszym użyciu. Klucze to HMAC-SHA-256 z sekretem `MERITUM_CHANNEL_HASH_SALT` (ten sam co skrót identyfikatora kanału, #24), więc bez sekretu nie da się ich odwrócić, sprawdzając wszystkie adresy IPv4. Bez sekretu (lokalnie, w testach) proces losuje własny klucz i zapisuje ostrzeżenie; instancje liczą wtedy osobno. Każde kolejne sprawdzenie usuwa wiersze zakończonych okien. Kod limitów nie zapisuje adresów IP w logach; logi dostępu uvicorna i bramy to osobna sprawa polityki prywatności.
 
 Przed zleceniem workflowu API sprawdza też, ile sprawdzeń czeka w kolejce DBOS tego środowiska. Gdy osiągną próg, nowe dostają 429. Limit współbieżności kolejki zostaje w workerze.
 
-Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `errors.rate_limited` z `Retry-After: 60` albo `errors.busy` z `Retry-After: 300`. Limity slowapi (`/jobs/ping`, `POST /api/v1/audio`) liczą nadal w pamięci procesu; ich 429 ma `message_key` `errors.rate_limited`, a po wyczerpaniu limitu dobowego (30 nagrań na dobę) `errors.rate_limited_daily`. Gdy baza liczników albo DBOS nie odpowiada, limit przepuszcza żądanie (ostrzeżenie w logu), a przed API zostają reguły Cloudflare.
+Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `errors.rate_limited` z `Retry-After: 60` albo `errors.busy` z `Retry-After: 300`. Limity slowapi (`/jobs/ping`, `POST /api/v1/audio`) liczą nadal w pamięci procesu; ich 429 ma `message_key` `errors.rate_limited`, a po wyczerpaniu limitu dobowego (30 nagrań na dobę) `errors.rate_limited_daily`. Gdy baza liczników albo DBOS nie odpowiada, limit przepuszcza żądanie (fail-open, decyzja zespołu w #66; ostrzeżenie w logu bez adresu IP), a przed API zostają reguły Cloudflare.
 
 | Zmienna | Domyślnie | Opis |
 | --- | --- | --- |
@@ -179,7 +179,7 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 | Zmienna w kontenerze | Sekret lub zmienna repo | Zgłoszenie |
 |---|---|---|
 | `MERITUM_DISCORD_PUBLIC_KEY` | `DISCORD_PUBLIC_KEY_{DEV,PRD}` (zmienna) | kanał Discord |
-| `MERITUM_CHANNEL_HASH_SALT` | `MERITUM_CHANNEL_HASH_SALT_{DEV,PRD}` (sekret) | #24 |
+| `MERITUM_CHANNEL_HASH_SALT` | `MERITUM_CHANNEL_HASH_SALT_{DEV,PRD}` (sekret) | #24, #66 (klucze licznika limitów) |
 | `MERITUM_SESSION_SECRET` | `MERITUM_SESSION_SECRET_{DEV,PRD}` (sekret) | #15 |
 | `MERITUM_GOOGLE_CLIENT_ID` | `GOOGLE_CLIENT_ID_{DEV,PRD}` (zmienna) | #15 |
 | `MERITUM_GOOGLE_CLIENT_SECRET` | `GOOGLE_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |

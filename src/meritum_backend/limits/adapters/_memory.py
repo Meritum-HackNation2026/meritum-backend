@@ -33,10 +33,20 @@ class MemoryRateCounter:
             Hits of ``key`` in the current window, this one included.
         """
         window = int(self._clock() // window_seconds)
-        seen_window, hits = self._hits.get(key, (window, 0))
-        hits = hits + 1 if seen_window == window else 1
+        # Like the PostgreSQL table: a finished window's keys are gone.
+        self._hits = {k: v for k, v in self._hits.items() if v[0] == window}
+        hits = self._hits.get(key, (window, 0))[1] + 1
         self._hits[key] = (window, hits)
         return hits
+
+    @property
+    def keys(self) -> frozenset[str]:
+        """The keys stored now (tests check what the table would hold).
+
+        Returns:
+            The keys of the current window.
+        """
+        return frozenset(self._hits)
 
 
 class FixedPendingChecks:

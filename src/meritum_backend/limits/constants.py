@@ -75,6 +75,9 @@ EVENTS_SCOPE: Final = "events"
 RETRY_AFTER_HEADER: Final = "Retry-After"
 """Header with the seconds a refused client should wait."""
 
+KEY_SECRET_BYTES: Final = 32
+"""Length of the per-process HMAC key used when no secret is configured."""
+
 REGION_HEADER: Final = "CF-IPCountry"
 """Cloudflare's header with the client's ISO 3166 country code."""
 
