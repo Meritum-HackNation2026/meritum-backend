@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 
 from meritum_core.checks import CheckResult
 from meritum_core.checks.contracts import (
+    AiMarker,
     Citation,
     ClaimResult,
     EvidenceStrength,
@@ -69,4 +70,9 @@ def check_result(check_id: str, claims: list[ClaimResult]) -> CheckResult:
         claims=claims,
         limitations=["Korpus obejmuje tylko źródła polskie."],
         corpus_version="test",
+        ai_marker=AiMarker(
+            provider="stub",
+            model="stub",
+            generated_at=datetime(2026, 11, 21, tzinfo=UTC),
+        ),
     )
