@@ -1,4 +1,4 @@
-"""deploy/container_env.sh: repo secrets reach `docker run` by name only."""
+"""deploy/container_env.sh: secrets by name, files volume mounted in `docker run`."""
 
 import json
 import os
@@ -62,3 +62,36 @@ def test_login_secrets_reach_the_container() -> None:
         "MERITUM_GOOGLE_CLIENT_SECRET",
         "MERITUM_GOOGLE_CLIENT_ID",
     } <= set(args)
+
+
+def mount(envfile: Path) -> list[str]:
+    done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed command, test data only
+        [
+            BASH,
+            "-c",
+            'source "$1"; files_mount "$2"; printf "%s\\n" "${mount_args[@]}"',
+            "test",
+            str(HELPER),
+            str(envfile),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={"PATH": os.environ["PATH"]},
+    )
+    return done.stdout.split()
+
+
+def test_files_volume_of_the_env_file_is_mounted(tmp_path: Path) -> None:
+    envfile = tmp_path / "api-dev.env"
+    envfile.write_text(
+        "MERITUM_DATABASE_URL=x\nMERITUM_FILES_VOLUME=meritum-files-dev\n"
+        "MERITUM_FILES_DIR=/var/lib/meritum/files\n"
+    )
+    assert mount(envfile) == ["-v", "meritum-files-dev:/var/lib/meritum/files"]
+
+
+def test_env_file_without_files_volume_mounts_nothing(tmp_path: Path) -> None:
+    envfile = tmp_path / "api-dev.env"
+    envfile.write_text("MERITUM_DATABASE_URL=x\n")
+    assert mount(envfile) == []
