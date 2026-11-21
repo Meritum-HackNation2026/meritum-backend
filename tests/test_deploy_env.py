@@ -95,3 +95,42 @@ def test_env_file_without_files_volume_mounts_nothing(tmp_path: Path) -> None:
     envfile = tmp_path / "api-dev.env"
     envfile.write_text("MERITUM_DATABASE_URL=x\n")
     assert mount(envfile) == []
+
+
+def gcp(envfile: Path) -> list[str]:
+    done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed command, test data only
+        [
+            BASH,
+            "-c",
+            'source "$1"; gcp_mounts "$2"; printf "%s\\n" "${gcp_args[@]}"',
+            "test",
+            str(HELPER),
+            str(envfile),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={"PATH": os.environ["PATH"]},
+    )
+    return done.stdout.split()
+
+
+def test_each_gcp_mount_of_the_env_file_is_mounted(tmp_path: Path) -> None:
+    envfile = tmp_path / "api-dev.env"
+    envfile.write_text(
+        "GOOGLE_APPLICATION_CREDENTIALS=/etc/meritum/gcp/meritum-backend/wif.json\n"
+        "MERITUM_GCP_MOUNTS=/home/m/meritum/gcp/meritum-backend:/etc/meritum/gcp/"
+        "meritum-backend:ro /home/m/meritum/gcp/pki:/etc/meritum/pki:ro\n"
+    )
+    assert gcp(envfile) == [
+        "-v",
+        "/home/m/meritum/gcp/meritum-backend:/etc/meritum/gcp/meritum-backend:ro",
+        "-v",
+        "/home/m/meritum/gcp/pki:/etc/meritum/pki:ro",
+    ]
+
+
+def test_env_file_without_gcp_mounts_mounts_nothing(tmp_path: Path) -> None:
+    envfile = tmp_path / "api-dev.env"
+    envfile.write_text("MERITUM_DATABASE_URL=x\n")
+    assert gcp(envfile) == []
