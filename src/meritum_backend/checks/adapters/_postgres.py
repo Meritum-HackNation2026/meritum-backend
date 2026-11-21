@@ -1,7 +1,7 @@
 """ResultCache on PostgreSQL tables, shared by every API instance (ADR-22).
 
 Features:
-    US-WTY-03, F-05, ADR-22
+    US-WTY-03, US-MOD-03, F-05, ADR-22
 """
 
 import logging
@@ -21,6 +21,7 @@ from meritum_backend.checks.constants import (
     LINK_CHECK,
     LOCK_CACHE_TABLES,
     LOOKUP_CACHE,
+    PRUNE_ENTRIES,
     PRUNE_LINKS,
 )
 
@@ -38,7 +39,7 @@ class PostgresResultCache:
         conninfo: the API role's database URL.
 
     Features:
-        US-WTY-03, F-05, ADR-22
+        US-WTY-03, US-MOD-03, F-05, ADR-22
     """
 
     def __init__(self, conninfo: str) -> None:
@@ -57,15 +58,20 @@ class PostgresResultCache:
         """
         return await self._entry(LOOKUP_CACHE, {"key": key, "now": now})
 
-    async def link(self, check_id: str, key: str) -> None:
+    async def link(
+        self, check_id: str, key: str, served: CachedResult | None = None
+    ) -> None:
         """Remember the key of ``check_id`` (see the port).
 
         Args:
             check_id: the check's id.
             key: its input key.
+            served: for a cache hit, the entry it got.
         """
-        params = {"check_id": check_id, "key": key}
-        await self._run((LINK_CHECK, params), (PRUNE_LINKS, {}))
+        snapshot = None if served is None else served.model_dump_json()
+        params = {"check_id": check_id, "key": key, "served": snapshot}
+        prune = (PRUNE_LINKS, {}), (PRUNE_ENTRIES, {})
+        await self._run((LINK_CHECK, params), *prune)
 
     async def fill(self, check_id: str, entry: CachedResult) -> None:
         """Store ``entry`` under the check's key (see the port).

@@ -28,7 +28,7 @@ def input_key(request: CheckRequest) -> str | None:
         The cache key; None for a recording, whose text only the worker knows.
 
     Features:
-        US-WTY-03, F-05, ADR-19
+        US-WTY-03, US-MOD-03, F-05, ADR-19
     """
     url = None if request.url is None else str(request.url)
     text = request.text or ""
@@ -48,7 +48,7 @@ def cache_entry(result: CheckResult, now: datetime) -> CachedResult | None:
         The entry, living RESULT_CACHE_TTL; None for a technical failure.
 
     Features:
-        US-WTY-03, F-05, ADR-22
+        US-WTY-03, US-MOD-03, F-05, ADR-22
     """
     if result.status == "technical_failure":
         return None
@@ -90,7 +90,7 @@ def unanswered(entry: CachedResult) -> list[int]:
         The claim indexes with the insufficient_evidence verdict.
 
     Features:
-        US-MOD-03
+        US-WTY-03, US-MOD-03, F-05
     """
     claims = enumerate(entry.claims)
     return [i for i, claim in claims if claim.verdict == UNANSWERED_VERDICT]

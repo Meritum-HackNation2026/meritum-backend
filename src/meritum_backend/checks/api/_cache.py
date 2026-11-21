@@ -41,7 +41,7 @@ def get_result_cache(request: Request) -> ResultCache:
         The app's ResultCache.
 
     Features:
-        US-WTY-03, F-05
+        US-WTY-03, US-MOD-03, F-05
     """
     # the app state is untyped; create_app stores a ResultCache there
     return cast("ResultCache", request.app.state.result_cache)
@@ -57,7 +57,7 @@ def get_records(request: Request) -> CheckRecordRepository:
         The app's CheckRecordRepository.
 
     Features:
-        US-WTY-03, US-OBS-01
+        US-WTY-03, US-MOD-03, F-05, US-OBS-01
     """
     return cast("CheckRecordRepository", request.app.state.repositories.records)
 
@@ -100,7 +100,7 @@ async def serve_from_cache(
     if entry is None:
         return None
     check_id = uuid4().hex
-    await cache.link(check_id, key)
+    await cache.link(check_id, key, entry)
     await records.save(hit_record(check_id, session, entry, payload))
     for index in unanswered(entry):
         job = EscalateClaimInput(
@@ -120,7 +120,7 @@ async def link_miss(cache: ResultCache, check_id: str, payload: CheckInput) -> N
         payload: its masked request.
 
     Features:
-        US-WTY-03, F-05
+        US-WTY-03, US-MOD-03, F-05
     """
     if (key := input_key(payload.request)) is not None:
         await cache.link(check_id, key)
@@ -135,7 +135,7 @@ async def fill(cache: ResultCache, result: CheckResult, now: datetime) -> None:
         now: when it is stored.
 
     Features:
-        US-WTY-03, F-05, ADR-22
+        US-WTY-03, US-MOD-03, F-05, ADR-22
     """
     if (entry := cache_entry(result, now)) is not None:
         await cache.fill(result.check_id, entry)

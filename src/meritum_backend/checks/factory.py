@@ -63,6 +63,6 @@ def build_result_cache(settings: Settings) -> ResultCache:
         The PostgreSQL adapter; an unreachable database makes every lookup a miss.
 
     Features:
-        US-WTY-03, F-05, ADR-22
+        US-WTY-03, US-MOD-03, F-05, ADR-22
     """
     return PostgresResultCache(settings.database_url)

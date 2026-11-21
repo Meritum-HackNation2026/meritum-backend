@@ -156,11 +156,12 @@ CREATE_CACHE_TABLES: Final[tuple[LiteralString, ...]] = (
     CREATE TABLE IF NOT EXISTS result_cache_checks (
         check_id text PRIMARY KEY,
         key text NOT NULL,
+        served jsonb,
         linked_at timestamptz NOT NULL DEFAULT now()
     )
     """,
 )
-"""The cached results by input key and the key of each check that reads or fills one."""
+"""Cached results by input key; each check's key and, for a hit, what it was served."""
 
 LOCK_CACHE_TABLES: Final[LiteralString] = (
     "SELECT pg_advisory_xact_lock(hashtext('meritum.result_cache'))"
@@ -173,15 +174,21 @@ LOOKUP_CACHE: Final[LiteralString] = (
 """The live entry of one input key."""
 
 LINK_CHECK: Final[LiteralString] = (
-    "INSERT INTO result_cache_checks (check_id, key) VALUES (%(check_id)s, %(key)s)"
+    "INSERT INTO result_cache_checks (check_id, key, served)"
+    " VALUES (%(check_id)s, %(key)s, %(served)s::jsonb)"
     " ON CONFLICT (check_id) DO NOTHING"
 )
-"""Remember the input key of one check."""
+"""Remember the input key of one check and, for a hit, the entry it got."""
 
 PRUNE_LINKS: Final[LiteralString] = (
     "DELETE FROM result_cache_checks WHERE linked_at < now() - interval '1 day'"
 )
 """Forget check keys older than any check still being polled."""
+
+PRUNE_ENTRIES: Final[LiteralString] = (
+    "DELETE FROM result_cache WHERE expires_at < now() - interval '1 day'"
+)
+"""Drop entries a day past expiry; a fill would replace them anyway."""
 
 FILL_CACHE: Final[LiteralString] = """
     INSERT INTO result_cache (key, entry, expires_at)
@@ -194,7 +201,7 @@ FILL_CACHE: Final[LiteralString] = """
 """Store a check's result under its key, unless a live entry is already there."""
 
 ENTRY_OF_CHECK: Final[LiteralString] = (
-    "SELECT c.entry FROM result_cache_checks k JOIN result_cache c USING (key)"
-    " WHERE k.check_id = %(check_id)s"
+    "SELECT served FROM result_cache_checks"
+    " WHERE check_id = %(check_id)s AND served IS NOT NULL"
 )
-"""The entry a check was served from (or filled), expired or not."""
+"""The entry a cache hit got; kept with the hit, so a later refill never changes it."""

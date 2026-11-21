@@ -1,7 +1,7 @@
 """Adapters of the result cache: in memory and on PostgreSQL.
 
 Features:
-    US-WTY-03, F-05, ADR-22
+    US-WTY-03, US-MOD-03, F-05, ADR-22
 """
 
 from meritum_backend.checks.adapters._memory import MemoryResultCache

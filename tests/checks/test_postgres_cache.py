@@ -28,7 +28,7 @@ def test_two_instances_share_one_entry_until_it_expires() -> None:
         await writer.link(first_id, key)
         await writer.fill(first_id, entry)
         assert await reader.lookup(key, now) == entry
-        await reader.link(hit_id, key)
+        await reader.link(hit_id, key, entry)
         assert await reader.entry_of(hit_id) == entry
         assert await reader.lookup(key, now + timedelta(hours=2)) is None
 

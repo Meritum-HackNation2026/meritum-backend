@@ -14,7 +14,7 @@ class ResultCache(Protocol):
     """Keeps the substantive part of finished checks by normalised input (port).
 
     Features:
-        US-WTY-03, F-05, ADR-22
+        US-WTY-03, US-MOD-03, F-05, ADR-22
     """
 
     async def lookup(self, key: str, now: datetime) -> CachedResult | None:
@@ -29,12 +29,15 @@ class ResultCache(Protocol):
         """
         ...
 
-    async def link(self, check_id: str, key: str) -> None:
-        """Remember the input key of a check, so its result can be filled or read.
+    async def link(
+        self, check_id: str, key: str, served: CachedResult | None = None
+    ) -> None:
+        """Remember the input key of a check, so its result can fill the cache.
 
         Args:
             check_id: the check's id.
             key: its input key.
+            served: for a cache hit, the entry it got; kept with the check.
         """
         ...
 
@@ -50,12 +53,12 @@ class ResultCache(Protocol):
         ...
 
     async def entry_of(self, check_id: str) -> CachedResult | None:
-        """Read the entry under the key linked to ``check_id``, expired or not.
+        """Read the entry a cache hit was served.
 
         Args:
             check_id: a check served from the cache.
 
         Returns:
-            The entry, or None when there is none.
+            The entry, or None for a check that ran a workflow or is unknown.
         """
         ...
