@@ -9,7 +9,7 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
-from meritum_backend.health.models import Readiness
+from meritum_backend.health.models import NotReady, Readiness
 from meritum_backend.health.readiness import ReadinessProbe
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
@@ -32,6 +32,19 @@ def get_readiness(request: Request) -> ReadinessProbe:
 
 
 Ready = Annotated[ReadinessProbe, Depends(get_readiness)]
+
+
+def not_ready_response() -> JSONResponse:
+    """The 503 a check gets while the service is not ready; it names no keys.
+
+    Returns:
+        503 with NotReady (technical_failure, not_ready, a copy key).
+
+    Features:
+        US-WDR-08, US-BEZ-03, F-30
+    """
+    body = NotReady().model_dump()
+    return JSONResponse(body, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @router.get("/live")
