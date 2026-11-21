@@ -147,12 +147,22 @@ def test_a_dispute_without_a_reason_goes_without_one(
     assert job.payload.model_dump()["justification_masked"] is None
 
 
-def test_a_too_long_reason_is_refused_without_echo() -> None:
+def test_a_too_long_reason_is_cut_and_masked() -> None:
     worker = _saved()
-    body = {"justification": "600 700 800 " + "x" * 1000}
+    body = {"justification": "Dzwoń: 600 700 800. " + "x" * 2000}
     response = _client(worker).post(f"{CLAIMS}/1/dispute", json=body)
+    assert response.json()["message_key"] == "result.report_error_done"
+    [job] = worker.enqueued
+    sent = job.payload.model_dump()["justification_masked"]
+    assert sent.startswith("Dzwoń: [telefon]. ")
+    assert len(sent) <= 1000
+
+
+def test_a_reason_that_is_not_text_is_refused_without_echo() -> None:
+    worker = _saved()
+    response = _client(worker).post(f"{CLAIMS}/1/dispute", json={"justification": 5})
     assert response.status_code == 422
-    assert "600" not in response.text
+    assert response.json() == {"message_key": "errors.empty"}
     assert worker.enqueued == []
 
 
