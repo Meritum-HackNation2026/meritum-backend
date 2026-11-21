@@ -42,11 +42,26 @@ get() { docker exec "$container" python -c "import sys, urllib.request; print(ur
 post() { docker exec "$container" python -c "import urllib.request; print(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000$1', data=b'', method='POST'), timeout=5).read().decode())"; }
 
 for i in $(seq 30); do
-  if get /api/v1/health >/dev/null 2>&1; then break; fi
-  [ "$i" = 30 ] && { log "health check failed"; docker logs --tail 50 "$container" >&2; exit 1; }
+  if get /api/v1/health/live >/dev/null 2>&1; then break; fi
+  [ "$i" = 30 ] && { log "liveness check failed"; docker logs --tail 50 "$container" >&2; exit 1; }
   sleep 2
 done
-log "healthy: $(get /api/v1/health)"
+# Readiness (#19) names missing variables and providers (never values); a 503 warns
+# and does not stop the deploy, unless the API's database is unreachable.
+# The database may come up a moment after the container: ask again for up to 60 s.
+for i in $(seq 30); do
+  readiness=$(docker exec "$container" python -c "import urllib.error, urllib.request
+try: print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=10).read().decode())
+except urllib.error.HTTPError as e: print(e.read().decode())" 2>&1 || true)
+  case "$readiness" in *'"database":"unavailable"'*) [ "$i" = 30 ] || { sleep 2; continue; } ;; esac
+  break
+done
+case "$readiness" in
+  *'"status":"ok"'*) log "ready: $readiness" ;;
+  # the database does not depend on the jury's keys: an unreachable one fails the deploy
+  *'"database":"unavailable"'*) log "database unavailable: $readiness"; docker logs --tail 50 "$container" >&2; exit 1 ;;
+  *) echo "::warning title=API not ready::$readiness" ;;
+esac
 
 # Smoke test through the worker of the same env (skipped while it is not deployed yet).
 if [ "$(docker inspect -f '{{.State.Running}}' "meritum-worker-$env" 2>/dev/null || true)" = true ]; then

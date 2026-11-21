@@ -24,6 +24,7 @@ from meritum_backend.checks.api import router as checks_router
 from meritum_backend.checks.factory import build_blobs
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
+from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.limits import (
     CheckRefusedError,
@@ -60,23 +61,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        # lazy: no connection until the first job, so the API starts without the worker.
+        # lazy: no connection until the first job, so the API starts without the worker;
+        # no retries: an unreachable database is a 503, not a request blocked for long.
         client = DBOSClient(
             system_database_url=settings.dbos_url,
             dbos_system_schema=settings.dbos_schema,
             application_name=APPLICATION_NAME,
             lazy=True,
+            retry_connection_errors=False,
         )
         app.state.jobs = DbosJobQueue(client, app_version=settings.env)
-        app.state.blobs = build_blobs(settings)
+        app.state.readiness = build_readiness(settings, app.state.jobs)
+        try:
+            app.state.blobs = build_blobs(settings)
+        except Exception:
+            # name the missing variables before a misconfigured deploy stops (#19)
+            app.state.readiness.log_unstartable()
+            raise
         app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
+        startup_log = asyncio.create_task(app.state.readiness.log_startup())
         pruner = start_pruning(app.state.check_gate)
         try:
             yield
         finally:
-            pruner.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await pruner
+            for task in (pruner, startup_log):
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
             client.destroy()
 
     app = FastAPI(

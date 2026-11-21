@@ -35,6 +35,8 @@ class Settings(BaseSettings):
         dbos_schema: the worker's DBOS system schema.
         discord_public_key: Discord app public key (hex) of this env; no key, no
             interactions endpoint.
+        discord_bot_token: Discord bot token; required when the Discord channel is on.
+        channel_hash_salt: salt of channel user id hashes (readiness reports it).
         session_secret: key that signs the session cookie; a random one per
             process when unset (sessions then end on restart).
         public_url: public address of the API, the base of OIDC callback URLs;
@@ -59,6 +61,8 @@ class Settings(BaseSettings):
     dbos_url: str = LOCAL_DB
     dbos_schema: str = "worker_local"
     discord_public_key: str | None = None
+    discord_bot_token: SecretStr | None = None
+    channel_hash_salt: SecretStr | None = None
     session_secret: SecretStr | None = None
     public_url: str | None = None
     google_client_id: str | None = None

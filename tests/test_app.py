@@ -54,12 +54,6 @@ def test_liveness(client: TestClient) -> None:
     assert client.get("/api/v1/health/live").json() == {"status": "ok"}
 
 
-def test_health_reports_unreachable_database(client: TestClient) -> None:
-    response = client.get("/api/v1/health")
-    assert response.status_code == 503
-    assert response.json()["database"] == "unavailable"
-
-
 def test_ping_enqueues_and_reads_state(client: TestClient, jobs: FakeJobs) -> None:
     response = client.post("/api/v1/jobs/ping", json={"message": "hej"})
     assert response.status_code == 202

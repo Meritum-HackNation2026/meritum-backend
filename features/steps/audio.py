@@ -78,6 +78,7 @@ def _prepare(context: Context, data: bytes, content_type: str) -> None:
     app.dependency_overrides[get_blobs] = lambda: context.blobs
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     app.dependency_overrides[get_check_gate] = lambda: gate
+    context.use_ready_probe(app)
     context.client = TestClient(app)
     context.audio = (data, content_type)
 

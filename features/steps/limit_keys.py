@@ -44,6 +44,7 @@ def request_from_ip(context: Context) -> None:
     jobs = InMemoryJobQueue()
     app.dependency_overrides[get_jobs] = lambda: jobs
     app.dependency_overrides[get_check_gate] = lambda: gate
+    context.use_ready_probe(app)
     context.gate = gate
     context.client = TestClient(app, client=(_IP, 50000))  # the request's address
 

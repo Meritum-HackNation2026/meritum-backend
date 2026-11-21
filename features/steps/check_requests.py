@@ -52,6 +52,7 @@ def _prepare(context: Context, body: dict[str, str]) -> None:
     app.dependency_overrides[get_jobs] = lambda: context.jobs
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     app.dependency_overrides[get_check_gate] = lambda: gate
+    context.use_ready_probe(app)
     context.client = TestClient(app)
     context.body = body
 

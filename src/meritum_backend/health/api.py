@@ -1,14 +1,50 @@
-"""GET /api/v1/health (readiness, checks the database) and /api/v1/health/live."""
+"""GET /api/v1/health (readiness of the API and the worker) and /api/v1/health/live.
 
-from typing import Annotated
+Features:
+    US-WDR-08, US-BEZ-03, F-30
+"""
 
-import psycopg
-from fastapi import APIRouter, Depends
+from typing import Annotated, cast
+
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
-from meritum_backend.settings import Settings, get_settings
+from meritum_backend.health.models import NotReady, Readiness
+from meritum_backend.health.readiness import ReadinessProbe
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
+
+
+def get_readiness(request: Request) -> ReadinessProbe:
+    """The readiness probe the app built at startup (overridden in tests).
+
+    Args:
+        request: the current request (holds the app state).
+
+    Returns:
+        The app's readiness probe.
+
+    Features:
+        US-WDR-08, F-30
+    """
+    # app state is untyped; main.py stores the probe build_readiness returned
+    return cast("ReadinessProbe", request.app.state.readiness)
+
+
+Ready = Annotated[ReadinessProbe, Depends(get_readiness)]
+
+
+def not_ready_response() -> JSONResponse:
+    """The 503 a check gets while the service is not ready; it names no keys.
+
+    Returns:
+        503 with NotReady (technical_failure, not_ready, a copy key).
+
+    Features:
+        US-WDR-08, US-BEZ-03, F-30
+    """
+    body = NotReady().model_dump()
+    return JSONResponse(body, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 @router.get("/live")
@@ -24,25 +60,27 @@ async def live() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("")
-async def health(settings: Annotated[Settings, Depends(get_settings)]) -> JSONResponse:
-    """Readiness: the API's own database role can run a query.
+@router.get(
+    "",
+    response_model=Readiness,
+    responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": Readiness}},
+)
+async def health(probe: Ready) -> JSONResponse:
+    """Readiness: database, the API's variables and the worker's report.
+
+    Lists only names of missing variables and unavailable providers, never values.
 
     Args:
-        settings: the app settings (the database URL).
+        probe: the readiness probe.
 
     Returns:
-        200 with `database: ok`, or 503 with `database: unavailable`.
+        200 when nothing is missing, otherwise 503 with what is missing.
 
     Features:
-        none (infrastructure)
+        US-WDR-08, US-BEZ-03, F-30
     """
-    try:
-        async with await psycopg.AsyncConnection.connect(
-            settings.database_url, connect_timeout=3
-        ) as conn:
-            await conn.execute("SELECT 1")
-    except psycopg.Error:
-        body = {"status": "degraded", "env": settings.env, "database": "unavailable"}
-        return JSONResponse(body, status_code=503)
-    return JSONResponse({"status": "ok", "env": settings.env, "database": "ok"})
+    readiness = await probe.check()
+    code = (
+        status.HTTP_200_OK if readiness.ready else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
+    return JSONResponse(readiness.model_dump(), status_code=code)

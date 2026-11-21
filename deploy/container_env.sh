@@ -10,6 +10,7 @@ set -euo pipefail
 container_vars=(
   "MERITUM_DISCORD_PUBLIC_KEY  DISCORD_PUBLIC_KEY"        # Discord interactions (repo variable)
   "MERITUM_CHANNEL_HASH_SALT   MERITUM_CHANNEL_HASH_SALT" # #24 channel user id hash, #66 rate counter keys
+  "MERITUM_DISCORD_BOT_TOKEN   DISCORD_BOT_TOKEN"         # #19 readiness: Discord bot token
   "MERITUM_SESSION_SECRET           MERITUM_SESSION_SECRET"           # #15 signs the session cookie
   "MERITUM_GOOGLE_CLIENT_ID         GOOGLE_CLIENT_ID"                 # #15 Google login (repo variable)
   "MERITUM_GOOGLE_CLIENT_SECRET     GOOGLE_CLIENT_SECRET"             # #15 Google login
