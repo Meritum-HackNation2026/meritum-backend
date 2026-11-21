@@ -50,7 +50,7 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.health.api import Ready
-from meritum_backend.health.readiness import NotReady
+from meritum_backend.health.models import NotReady
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import CheckRefusedError, ClientOrigin, Gate, TooManyChecks
 
@@ -164,9 +164,6 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         US-SPR-01, US-SPR-07, US-BEZ-04, US-WDR-08, F-01, F-20, F-30
     """
     received_at = datetime.now(UTC)
-    if not await readiness.ready():
-        body = NotReady().model_dump()
-        return JSONResponse(body, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     if is_unsupported_link(request):
         return _invalid(INVALID_URL_KEY)
     if request.channel in SESSIONLESS_CHANNELS:
@@ -181,6 +178,9 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         payload = CheckInput(request=clean, session_id=session, received_at=received_at)
     except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
+    if not await readiness.ready():
+        body = NotReady().model_dump()
+        return JSONResponse(body, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     if (refusal := await gate.refusal(origin, request.channel)) is not None:
         raise CheckRefusedError(refusal)
     try:

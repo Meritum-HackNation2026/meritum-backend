@@ -40,3 +40,6 @@ NOT_READY_CODE: Final = "not_ready"
 
 NOT_READY_KEY: Final = "status_hint.technical_failure"
 """copy/pl.json key shown when the service is not ready; it names no keys."""
+
+DATABASE_CONNECT_TIMEOUT_SECONDS: Final = 3
+"""How long the readiness probe waits to connect to the API's database."""

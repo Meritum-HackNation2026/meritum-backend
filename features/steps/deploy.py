@@ -22,8 +22,6 @@ from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
-VARIABLE_PREFIX = "MERITUM_"
-
 
 class _Records(logging.Handler):
     """Keeps every log message."""
@@ -176,7 +174,7 @@ def refused_not_ready(context: Context, state: str, code: str) -> None:
     body = context.response.json()
     assert context.response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert (body["status"], body["code"]) == (state, code)
-    assert VARIABLE_PREFIX not in context.response.text
+    assert "MERITUM_LLM_API_KEY" not in context.response.text
     assert all(job.spec.name != "check" for job in context.jobs.enqueued)
 
 

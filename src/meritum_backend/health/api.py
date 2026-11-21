@@ -9,7 +9,8 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
-from meritum_backend.health.readiness import Readiness, ReadinessProbe
+from meritum_backend.health.models import Readiness
+from meritum_backend.health.readiness import ReadinessProbe
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
 
@@ -67,8 +68,6 @@ async def health(probe: Ready) -> JSONResponse:
     """
     readiness = await probe.check()
     code = (
-        status.HTTP_200_OK
-        if readiness.status == "ok"
-        else status.HTTP_503_SERVICE_UNAVAILABLE
+        status.HTTP_200_OK if readiness.ready else status.HTTP_503_SERVICE_UNAVAILABLE
     )
     return JSONResponse(readiness.model_dump(), status_code=code)

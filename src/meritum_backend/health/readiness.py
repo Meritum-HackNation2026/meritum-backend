@@ -11,84 +11,26 @@ Features:
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from typing import Literal, NamedTuple
 from uuid import uuid4
 
 from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.contracts import READINESS, ReadinessInput, ReadinessReport
 from meritum_core.jobs.ports import JobQueue
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
 
 from meritum_backend.health.constants import (
     BOT_TOKEN_ENV,
     HEALTH_WORKER_WAIT_SECONDS,
-    NOT_READY_CODE,
-    NOT_READY_KEY,
     READY_CACHE_SECONDS,
     SALT_ENV,
     STARTUP_WORKER_WAIT_SECONDS,
     WORKFLOW_ID_PREFIX,
 )
+from meritum_backend.health.models import Readiness
+from meritum_backend.health.ports import BlobStoreProbe, DatabaseProbe
 from meritum_backend.settings import Settings
 
 _logger = logging.getLogger(__name__)
-
-
-class Problems(NamedTuple):
-    """What one part of the service lacks.
-
-    Attributes:
-        missing_env: names of unset required variables.
-        unavailable_providers: providers that are configured but unusable.
-
-    Features:
-        US-WDR-08, F-30
-    """
-
-    missing_env: list[str]
-    unavailable_providers: list[str]
-
-
-class Readiness(BaseModel):
-    """Body of GET /api/v1/health: what the API and the worker lack.
-
-    Attributes:
-        status: ok when nothing is missing, otherwise degraded.
-        env: the environment name.
-        database: whether the API's database role can run a query.
-        worker: whether the worker published its readiness report.
-        missing_env: names of unset required variables (API and worker).
-        unavailable_providers: providers the API or the worker cannot use.
-
-    Features:
-        US-WDR-08, US-BEZ-03, F-30
-    """
-
-    status: Literal["ok", "degraded"]
-    env: str
-    database: Literal["ok", "unavailable"]
-    worker: Literal["ok", "not_reported"]
-    missing_env: list[str]
-    unavailable_providers: list[str]
-
-
-class NotReady(BaseModel):
-    """503 answer to a check while the service is not ready; names no keys.
-
-    Attributes:
-        status: always technical_failure, which is not a verdict.
-        code: always not_ready.
-        message_key: the copy/pl.json key to show.
-
-    Features:
-        US-WDR-08, US-BEZ-03, F-30
-    """
-
-    status: Literal["technical_failure"] = "technical_failure"
-    # shortcut: a plain string until core contract v4 (core#27) types failure codes.
-    code: str = NOT_READY_CODE
-    message_key: str = NOT_READY_KEY
 
 
 def _unset(secret: SecretStr | None) -> bool:
@@ -109,7 +51,7 @@ class ReadinessProbe:
     Args:
         settings: the app settings.
         jobs: the job queue the worker's report comes through.
-        database: answers whether the API's database role can run a query.
+        database: whether the API's database role can run a query.
         blob_store: what the blob store configuration lacks.
 
     Features:
@@ -120,8 +62,8 @@ class ReadinessProbe:
         self,
         settings: Settings,
         jobs: JobQueue,
-        database: Callable[[], Awaitable[bool]],
-        blob_store: Callable[[], Problems],
+        database: DatabaseProbe,
+        blob_store: BlobStoreProbe,
     ) -> None:
         self._settings = settings
         self._jobs = jobs
@@ -164,8 +106,8 @@ class ReadinessProbe:
         Features:
             US-WDR-08, US-BEZ-03, F-30
         """
-        database_ok = await self._database()
-        blob = self._blob_store()
+        database_ok = await self._database.reachable()
+        blob = self._blob_store.problems()
         worker = await self._worker_report(worker_wait)
         missing = _settings_missing(self._settings) + blob.missing_env
         unavailable = list(blob.unavailable_providers)
@@ -194,8 +136,8 @@ class ReadinessProbe:
             US-WDR-08, US-BEZ-03, F-30
         """
         if self._last and time.monotonic() - self._last[0] < READY_CACHE_SECONDS:
-            return self._last[1].status == "ok"
-        return (await self.check()).status == "ok"
+            return self._last[1].ready
+        return (await self.check()).ready
 
     async def log_startup(self) -> None:
         """Log the report once the worker answered or the startup wait ran out.
@@ -204,7 +146,7 @@ class ReadinessProbe:
             US-WDR-08, US-BEZ-03, F-30
         """
         readiness = await self.check(STARTUP_WORKER_WAIT_SECONDS)
-        if readiness.status == "ok":
+        if readiness.ready:
             _logger.info("ready (env %s)", readiness.env)
             return
         _logger.warning(

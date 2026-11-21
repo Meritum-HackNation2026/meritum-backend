@@ -5,13 +5,20 @@ from behave.runner import Context
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 
-from meritum_backend.health.readiness import Problems, ReadinessProbe
+from meritum_backend.health.models import Problems
+from meritum_backend.health.readiness import ReadinessProbe
 from meritum_backend.limits import limiter
 from meritum_backend.settings import Settings
 
 
-async def _database_ok() -> bool:  # ruff: ignore[unused-async] -- the probe awaits its database check
-    return True
+class _Database:
+    async def reachable(self) -> bool:  # ruff: ignore[no-self-use] -- implements DatabaseProbe
+        return True
+
+
+class _BlobStore:
+    def problems(self) -> Problems:  # ruff: ignore[no-self-use] -- implements BlobStoreProbe
+        return Problems([], [])
 
 
 def before_scenario(context: Context, scenario: Scenario) -> None:
@@ -32,5 +39,5 @@ def before_scenario(context: Context, scenario: Scenario) -> None:
     context.readiness_jobs = InMemoryJobQueue()
     settings = Settings(channel_hash_salt=SecretStr("salt"))
     context.probe = ReadinessProbe(
-        settings, context.readiness_jobs, _database_ok, lambda: Problems([], [])
+        settings, context.readiness_jobs, _Database(), _BlobStore()
     )

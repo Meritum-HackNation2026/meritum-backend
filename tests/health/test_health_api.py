@@ -5,10 +5,11 @@ import pytest
 from fastapi.testclient import TestClient
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
-from tests.conftest import MakeProbe, worker_report
+from tests.conftest import FakeBlobStore, MakeProbe, worker_report
 
 from meritum_backend.health.api import get_readiness
-from meritum_backend.health.readiness import Problems, ReadinessProbe
+from meritum_backend.health.models import Problems
+from meritum_backend.health.readiness import ReadinessProbe
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -63,7 +64,7 @@ def test_api_variables_are_named_without_values(
 
 
 def test_api_and_worker_lists_are_joined(make_probe: MakeProbe) -> None:
-    blob = Problems(["MERITUM_BLOB_PROVIDER"], ["blob_store"])
+    blob = FakeBlobStore(Problems(["MERITUM_BLOB_PROVIDER"], ["blob_store"]))
     report = worker_report(["MERITUM_LLM_API_KEY"])
     probe = make_probe(InMemoryJobQueue(), report=report, blob=blob)
     body = client_for(probe).get("/api/v1/health").json()
