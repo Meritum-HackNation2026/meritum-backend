@@ -1,5 +1,7 @@
 """FastAPI application (meritum-frontend's nginx proxies /api here)."""
 
+import asyncio
+import contextlib
 import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -30,6 +32,7 @@ from meritum_backend.limits import (
     build_check_gate,
     check_refused,
     limiter,
+    start_pruning,
     too_many_requests,
 )
 from meritum_backend.moderation.api import router as moderation_router
@@ -67,9 +70,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.jobs = DbosJobQueue(client, app_version=settings.env)
         app.state.blobs = build_blobs(settings)
         app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
+        pruner = start_pruning(app.state.check_gate)
         try:
             yield
         finally:
+            pruner.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await pruner
             client.destroy()
 
     app = FastAPI(

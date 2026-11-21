@@ -7,6 +7,7 @@ import asyncio
 import time
 from uuid import uuid4
 
+import psycopg
 import pytest
 
 from meritum_backend.constants import LOCAL_DB
@@ -44,3 +45,39 @@ def test_next_window_starts_from_one() -> None:
 def test_unreachable_database_lets_the_request_through() -> None:
     counter = PostgresRateCounter("postgresql://x:x@127.0.0.1:1/x")
     assert asyncio.run(counter.hit("k", 60)) == 0
+
+
+@pytest.mark.integration
+def test_finished_windows_leave_the_table() -> None:
+    old, new = f"test:{uuid4().hex}", f"test:{uuid4().hex}"
+    counter = PostgresRateCounter(LOCAL_DB)
+
+    async def keys_after_window() -> set[str]:
+        await counter.hit(old, 1)
+        await asyncio.sleep(2.1)  # the prune drops windows older than one window
+        await counter.hit(new, 1)
+        async with await psycopg.AsyncConnection.connect(LOCAL_DB) as conn:
+            cur = await conn.execute(
+                "SELECT key FROM rate_limit_hits WHERE key = ANY(%s)", ([old, new],)
+            )
+            return {row[0] for row in await cur.fetchall()}
+
+    assert asyncio.run(keys_after_window()) == {new}
+
+
+@pytest.mark.integration
+def test_forget_finished_clears_old_windows_without_a_new_hit() -> None:
+    key = f"test:{uuid4().hex}"
+    counter = PostgresRateCounter(LOCAL_DB)
+
+    async def keys_left() -> list[str]:
+        await counter.hit(key, 1)
+        await asyncio.sleep(2.1)
+        await counter.forget_finished(1)
+        async with await psycopg.AsyncConnection.connect(LOCAL_DB) as conn:
+            cur = await conn.execute(
+                "SELECT key FROM rate_limit_hits WHERE key = %s", (key,)
+            )
+            return [row[0] for row in await cur.fetchall()]
+
+    assert asyncio.run(keys_left()) == []

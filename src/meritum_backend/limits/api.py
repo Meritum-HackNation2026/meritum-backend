@@ -4,6 +4,8 @@ Features:
     US-BEZ-02, US-WDR-03, F-20, F-23
 """
 
+import asyncio
+import logging
 from typing import Annotated, cast
 
 from fastapi import Depends, Request, status
@@ -11,6 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from meritum_backend.limits.constants import (
+    PRUNE_EVERY_SECONDS,
     REGION_CODE,
     REGION_HEADER,
     RETRY_AFTER_HEADER,
@@ -20,6 +23,8 @@ from meritum_backend.limits.constants import (
 from meritum_backend.limits.errors import CheckRefusedError
 from meritum_backend.limits.gate import CheckGate
 from meritum_backend.limits.models import Origin, Refusal
+
+_log = logging.getLogger(__name__)
 
 
 class TooManyChecks(BaseModel):
@@ -115,3 +120,30 @@ def check_refused(_request: Request, exc: Exception) -> JSONResponse:
     """
     # registered for CheckRefusedError only (main.py)
     return _too_many(cast("CheckRefusedError", exc).refusal)
+
+
+async def _prune_forever(gate: CheckGate, every_seconds: float) -> None:
+    while True:
+        try:
+            await gate.forget_finished()
+        except Exception:  # ruff: ignore[blind-except] -- one failed pass must not end the clean-up for good
+            _log.warning("counter clean-up failed; retrying", exc_info=True)
+        await asyncio.sleep(every_seconds)
+
+
+def start_pruning(
+    gate: CheckGate, every_seconds: float = PRUNE_EVERY_SECONDS
+) -> asyncio.Task[None]:
+    """Drop finished windows in the background for as long as the API runs.
+
+    Args:
+        gate: the app's check gate.
+        every_seconds: pause between two clean-ups.
+
+    Returns:
+        The task; the lifespan cancels it on shutdown.
+
+    Features:
+        US-BEZ-02, F-20
+    """
+    return asyncio.create_task(_prune_forever(gate, every_seconds))

@@ -4,7 +4,7 @@ Features:
     US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
 """
 
-from pydantic import PositiveInt
+from pydantic import PositiveInt, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from meritum_backend.limits.constants import (
@@ -26,6 +26,9 @@ class LimitSettings(BaseSettings):
         event_streams_per_ip_per_minute: progress streams one client address
             may open per minute.
         max_pending_checks: queued checks at which new ones are refused.
+        channel_hash_salt: HMAC key of the counter keys, the same secret as the
+            channel user id hash (MERITUM_CHANNEL_HASH_SALT, backend#24); a
+            random key per process when unset.
 
     Features:
         US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
@@ -40,3 +43,17 @@ class LimitSettings(BaseSettings):
     checks_per_channel_per_minute: PositiveInt = CHECKS_PER_CHANNEL_PER_MINUTE
     event_streams_per_ip_per_minute: PositiveInt = EVENT_STREAMS_PER_IP_PER_MINUTE
     max_pending_checks: PositiveInt = MAX_PENDING_CHECKS
+    channel_hash_salt: SecretStr | None = None
+
+    @field_validator("channel_hash_salt")
+    @classmethod
+    def empty_salt_is_unset(cls, salt: SecretStr | None) -> SecretStr | None:
+        """Treat an empty secret as none: an empty HMAC key protects nothing.
+
+        Args:
+            salt: the secret as read from the environment.
+
+        Returns:
+            The secret, or None when it is missing or empty.
+        """
+        return salt if salt is not None and salt.get_secret_value() else None

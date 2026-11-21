@@ -55,9 +55,22 @@ class PostgresRateCounter:
             _log.warning("rate counter unavailable; request let through", exc_info=True)
             return 0
 
-    async def _count(
-        self, conn: psycopg.AsyncConnection, key: str, window_seconds: int
-    ) -> int:
+    async def forget_finished(self, window_seconds: int) -> None:
+        """Delete the rows of finished windows (the API runs it periodically).
+
+        Args:
+            window_seconds: length of the window.
+        """
+        try:
+            async with await psycopg.AsyncConnection.connect(
+                self._conninfo, connect_timeout=CONNECT_TIMEOUT_SECONDS
+            ) as conn:
+                await self._ensure_table(conn)
+                await conn.execute(PRUNE_RATE_WINDOWS, {"window": window_seconds})
+        except psycopg.Error:
+            _log.warning("rate counter unavailable; old windows stay", exc_info=True)
+
+    async def _ensure_table(self, conn: psycopg.AsyncConnection) -> None:
         if not self._ready:
             # Own transaction, one instance at a time: CREATE INDEX next to a
             # running upsert would deadlock, and parallel CREATE TABLE collides.
@@ -66,6 +79,11 @@ class PostgresRateCounter:
                 await conn.execute(statement)
             await conn.commit()
             self._ready = True
+
+    async def _count(
+        self, conn: psycopg.AsyncConnection, key: str, window_seconds: int
+    ) -> int:
+        await self._ensure_table(conn)
         params = {"key": key, "window": window_seconds}
         row = await (await conn.execute(HIT_RATE_KEY, params)).fetchone()
         await conn.commit()  # the hit holds no row lock while old windows go

@@ -1,7 +1,9 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import cast
 
+import pytest
 from dbos import DBOSClient
 from meritum_core.jobs.contracts import CHECK
 
@@ -51,5 +53,9 @@ def test_counts_only_this_envs_check_workflows_up_to_the_threshold() -> None:
     assert client.filters == Filters(CHECK.name, CHECK.queue, "dev", 100)
 
 
-def test_unreachable_queue_counts_as_empty() -> None:
-    assert count(QueueClient(queued=5, fails=True), 100) == 0
+def test_unreachable_queue_counts_as_empty_and_logs_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        assert count(QueueClient(queued=5, fails=True), 100) == 0
+    assert [r.levelno for r in caplog.records] == [logging.WARNING]
