@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qsl, urlsplit
 
 import pytest
@@ -156,17 +158,19 @@ def test_brackets_the_person_typed_stay(
     assert job.payload.request.text == text
 
 
-class NameGate:
+def name_gate() -> SimpleNamespace:
     """A gate that knows one name, as a DLP service would."""
 
-    async def mask(self, text: str) -> MaskedText:  # ruff: ignore[no-self-use]  # same signature as a real gate
+    def replace(text: str) -> MaskedText:
         return MaskedText(text=text.replace("Jan Kowalski", "[osoba]"), replaced=1)
+
+    return SimpleNamespace(mask=AsyncMock(side_effect=replace))
 
 
 def test_text_goes_through_the_app_gate_before_the_queue(
     client: TestClient, jobs: InMemoryJobQueue
 ) -> None:
-    client.app.dependency_overrides[get_pii_gate] = NameGate  # ty: ignore[missing-attribute]  # TestClient.app is the FastAPI app
+    client.app.dependency_overrides[get_pii_gate] = name_gate  # ty: ignore[missing-attribute]  # TestClient.app is the FastAPI app
     body = {"channel": "web", "text": "Jan Kowalski, tel. 600 700 800"}
     response = client.post("/api/v1/checks", json=body, headers=SESSION)
     assert response.status_code == 202
