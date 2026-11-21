@@ -146,7 +146,9 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
             channel_user_hash=hashed,
             received_at=received_at,
         )
-    except ValidationError:  # the only field left to fail is session_id
+    except (
+        ValidationError
+    ):  # only the session can fail here: its length, or a body id unlike it
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     if not await readiness.ready():
         return not_ready_response()

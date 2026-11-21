@@ -64,8 +64,11 @@ AI_DISCLOSURE_VALUE: Final = "mode=ai-originated"
 NO_SESSION_DETAIL: Final = f"send the {SESSION_HEADER} header"
 """400 detail: a check without a browser session (a client bug, not user copy)."""
 
-BAD_SESSION_DETAIL: Final = f"send a valid {SESSION_HEADER} header (8 to 64 characters)"
-"""400 detail: the session id has the wrong length."""
+BAD_SESSION_DETAIL: Final = (
+    f"send a valid {SESSION_HEADER} header (8 to 64 characters);"
+    " a session_id in the body must equal it"
+)
+"""400 detail: the session id has the wrong length or differs from the body's."""
 
 NO_CHANNEL_USER_DETAIL: Final = "Discord, SMS and MCP checks send channel_user_id"
 """400 detail: a sessionless channel sent no user id to hash (a client bug)."""
