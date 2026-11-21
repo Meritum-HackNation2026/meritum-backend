@@ -5,7 +5,15 @@ Features:
 """
 
 from meritum_backend.checks.constants import SESSION_HEADER
-from meritum_backend.checks.intake import masked, masked_text
+from meritum_backend.checks.intake import masked, masked_text, message_key
+from meritum_backend.checks.ports import ResultCache
 from meritum_backend.checks.progress import check_result
 
-__all__ = ["SESSION_HEADER", "check_result", "masked", "masked_text"]
+__all__ = [
+    "SESSION_HEADER",
+    "ResultCache",
+    "check_result",
+    "masked",
+    "masked_text",
+    "message_key",
+]
