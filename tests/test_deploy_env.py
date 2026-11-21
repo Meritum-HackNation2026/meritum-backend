@@ -146,3 +146,15 @@ def test_gcp_mount_without_read_only_is_skipped(tmp_path: Path) -> None:
     envfile = tmp_path / "api-dev.env"
     envfile.write_text("MERITUM_GCP_MOUNTS=/h/gcp:/etc/gcp /h/pki:/etc/pki:ro\n")
     assert gcp_mount_args(envfile) == ["-v", "/h/pki:/etc/pki:ro"]
+
+
+def test_sms_gateway_secrets_reach_the_container() -> None:
+    names = (
+        "SMS_GATEWAY_USERNAME",
+        "SMS_GATEWAY_PASSWORD",
+        "SMS_GATEWAY_WEBHOOK_SIGNING_KEY",
+        "SMS_GATEWAY_NUMBER",
+    )
+    args, environment = run("dev", {f"{n}_DEV": "v" for n in names}, {})
+    assert {f"MERITUM_{n}" for n in names} <= set(args)
+    assert all(f"MERITUM_{n}=v" in environment for n in names)

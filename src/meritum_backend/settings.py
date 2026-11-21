@@ -51,6 +51,15 @@ class Settings(BaseSettings):
         admin_emails: addresses that are administrators from the start (comma- or
             space-separated); the role needs an address the provider verified.
         files_dir: the files volume shared with the worker (platform, ADR-31).
+        sms_gateway_username: sms-gate.app Cloud API user (Basic Auth).
+        sms_gateway_password: sms-gate.app Cloud API password; with the user,
+            the gateway sender exists.
+        sms_gateway_webhook_signing_key: HMAC key of the gateway's webhooks; no
+            key, no SMS webhook.
+        sms_gateway_number: the gateway phone's own number (E.164); its SMS to
+            itself are acknowledged and never answered.
+        sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
+            per SMS instead of 70).
 
     Features:
         none (infrastructure)
@@ -76,6 +85,11 @@ class Settings(BaseSettings):
         frozenset()
     )
     files_dir: Path | None = None
+    sms_gateway_username: str | None = None
+    sms_gateway_password: SecretStr | None = None
+    sms_gateway_webhook_signing_key: SecretStr | None = None
+    sms_gateway_number: str | None = None
+    sms_gsm7: bool = False
 
 
 def get_settings() -> Settings:

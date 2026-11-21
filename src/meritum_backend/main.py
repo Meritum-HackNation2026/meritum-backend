@@ -44,11 +44,13 @@ from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.privacy.access_log import mask_sessions_in_access_log
 from meritum_backend.privacy.api import router as privacy_router
 from meritum_backend.settings import Settings
+from meritum_backend.sms.api import router as sms_router
+from meritum_backend.sms.factory import build_sms
 from meritum_backend.staff.api import router as staff_router
 from meritum_backend.staff.factory import build_staff
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too-many-statements]  # composition root: one line per slice it wires
     """Build the app: the composition root that wires adapters from settings.
 
     Args:
@@ -108,6 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
+    app.state.sms = build_sms(settings)
     app.state.cases, app.state.topics = build_moderation()
     repositories = build_app_repositories(DatabaseSettings())
     app.state.repositories = repositories
@@ -137,4 +140,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audio_router)
     app.include_router(privacy_router)
     app.include_router(handoff_router)
+    app.include_router(sms_router)
     return app
