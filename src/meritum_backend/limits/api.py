@@ -5,6 +5,7 @@ Features:
 """
 
 import asyncio
+import logging
 from typing import Annotated, cast
 
 from fastapi import Depends, Request, status
@@ -22,6 +23,8 @@ from meritum_backend.limits.constants import (
 from meritum_backend.limits.errors import CheckRefusedError
 from meritum_backend.limits.gate import CheckGate
 from meritum_backend.limits.models import Origin, Refusal
+
+_log = logging.getLogger(__name__)
 
 
 class TooManyChecks(BaseModel):
@@ -121,7 +124,10 @@ def check_refused(_request: Request, exc: Exception) -> JSONResponse:
 
 async def _prune_forever(gate: CheckGate, every_seconds: float) -> None:
     while True:
-        await gate.forget_finished()
+        try:
+            await gate.forget_finished()
+        except Exception:  # ruff: ignore[blind-except] -- one failed pass must not end the clean-up for good
+            _log.warning("counter clean-up failed; retrying", exc_info=True)
         await asyncio.sleep(every_seconds)
 
 

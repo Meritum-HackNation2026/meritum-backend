@@ -1,5 +1,7 @@
 """FastAPI application (meritum-frontend's nginx proxies /api here)."""
 
+import asyncio
+import contextlib
 import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -73,6 +75,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             pruner.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await pruner
             client.destroy()
 
     app = FastAPI(
