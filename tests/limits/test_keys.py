@@ -56,6 +56,7 @@ def test_without_a_secret_the_process_still_counts_one_address_as_one_key() -> N
 def test_an_empty_secret_counts_as_unset() -> None:
     empty = hmac.new(b"", f"ip:{IP}".encode(), hashlib.sha256).hexdigest()
     assert ip_key("") == ip_key(None) != f"ip:{empty}"
+    assert LimitSettings(channel_hash_salt=SecretStr("")).channel_hash_salt is None
 
 
 def test_unreachable_counter_lets_through_and_logs_no_address(

@@ -32,8 +32,7 @@ def build_check_gate(
     Features:
         US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
     """
-    salt = limits.channel_hash_salt
-    if salt is None or not salt.get_secret_value():
+    if limits.channel_hash_salt is None:
         _log.warning("MERITUM_CHANNEL_HASH_SALT unset: per-process counter keys")
     counter = PostgresRateCounter(settings.database_url)
     return CheckGate(counter, DbosPendingChecks(client, settings.env), limits)

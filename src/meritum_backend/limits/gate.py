@@ -98,8 +98,9 @@ class CheckGate:
     def _key(self, scope: str, value: str) -> str:
         # HMAC with the secret, so the shared table holds no reversible address hash.
         salt = self.limits.channel_hash_salt
-        configured = salt.get_secret_value().encode() if salt is not None else b""
-        secret = configured or _process_secret()  # an empty secret counts as unset
+        secret = (
+            salt.get_secret_value().encode() if salt is not None else _process_secret()
+        )
         message = f"{scope}:{value}".encode()
         return f"{scope}:{hmac.new(secret, message, hashlib.sha256).hexdigest()}"
 
