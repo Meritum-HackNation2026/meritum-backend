@@ -49,7 +49,7 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.jobs.api import Jobs
-from meritum_backend.limits import ClientOrigin, Gate, TooManyChecks, too_many_checks
+from meritum_backend.limits import CheckRefusedError, ClientOrigin, Gate, TooManyChecks
 
 
 class InvalidCheck(BaseModel):
@@ -142,13 +142,14 @@ async def start_check(
         session: the random browser session id; no sign-in needed.
 
     Returns:
-        The check id, or 422 with a copy key, or 429 with errors.rate_limited
-        or errors.busy and Retry-After (nothing enqueued).
+        The check id, or 422 with a copy key.
 
     Raises:
         HTTPException: 400 without a valid session or for Discord, SMS and MCP
             (they come through their adapters with a hashed user id, backend#27),
             503 when the job queue is unreachable.
+        CheckRefusedError: over a rate limit or with too many pending checks;
+            answered 429 with Retry-After, nothing enqueued.
 
     Features:
         US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-WDR-03, F-01, F-20, F-23
@@ -169,7 +170,7 @@ async def start_check(
     except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     if (refusal := await gate.refusal(origin, request.channel)) is not None:
-        return too_many_checks(refusal)
+        raise CheckRefusedError(refusal)
     try:
         check_id = await jobs.enqueue(CHECK, payload)
     except Exception as exc:  # DBOS wraps driver errors in its own types

@@ -62,7 +62,7 @@ class CheckGate:
             (_key(CHANNEL_SCOPE, channel), self.limits.checks_per_channel_per_minute),
         )
         for key, limit in limits:
-            if await self.counter.hit(key, WINDOW_SECONDS) > limit:
+            if await self._over(key, limit):
                 return RATE_LIMITED
         most = self.limits.max_pending_checks
         if await self.pending.count(most) >= most:
@@ -82,7 +82,9 @@ class CheckGate:
             RATE_LIMITED, or None when the stream may open.
         """
         key = _key(EVENTS_SCOPE, origin.ip)
-        limit = self.limits.event_streams_per_ip_per_minute
-        if await self.counter.hit(key, WINDOW_SECONDS) > limit:
+        if await self._over(key, self.limits.event_streams_per_ip_per_minute):
             return RATE_LIMITED
         return None
+
+    async def _over(self, key: str, limit: int) -> bool:
+        return await self.counter.hit(key, WINDOW_SECONDS) > limit

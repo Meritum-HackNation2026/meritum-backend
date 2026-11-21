@@ -35,18 +35,7 @@ class TooManyChecks(BaseModel):
     message_key: str
 
 
-def too_many_checks(refusal: Refusal) -> JSONResponse:
-    """Answer a refused check.
-
-    Args:
-        refusal: why the check may not start.
-
-    Returns:
-        429 with the copy key and Retry-After.
-
-    Features:
-        US-BEZ-02, US-WDR-03, F-20, F-23
-    """
+def _too_many(refusal: Refusal) -> JSONResponse:
     body = TooManyChecks(message_key=refusal.message_key).model_dump()
     headers = {RETRY_AFTER_HEADER: str(refusal.retry_after_seconds)}
     return JSONResponse(body, status.HTTP_429_TOO_MANY_REQUESTS, headers)
@@ -125,4 +114,4 @@ def check_refused(_request: Request, exc: Exception) -> JSONResponse:
         US-BEZ-02, F-20
     """
     # registered for CheckRefusedError only (main.py)
-    return too_many_checks(cast("CheckRefusedError", exc).refusal)
+    return _too_many(cast("CheckRefusedError", exc).refusal)

@@ -157,3 +157,16 @@ def test_full_queue_gets_429_busy_and_enqueues_nothing(
     assert response.headers["Retry-After"] == "300"
     assert response.json() == {"message_key": "errors.busy"}
     assert jobs.enqueued == []
+
+
+def test_rejected_input_does_not_use_up_the_budget(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    bad_link = {"channel": "web", "url": "https://user:secret@example.com/a"}
+    for _ in range(11):
+        assert client.post(
+            "/api/v1/checks", json=bad_link, headers=SESSION
+        ).is_client_error
+        assert client.post("/api/v1/checks", json=WEB_TEXT).status_code == 400
+    assert client.post("/api/v1/checks", json=WEB_TEXT, headers=SESSION).is_success
+    assert len(jobs.enqueued) == 1

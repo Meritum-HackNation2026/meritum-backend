@@ -88,7 +88,7 @@ Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `e
 | `MERITUM_CHECKS_PER_IP_PER_MINUTE` | 10 | sprawdzenia z jednego adresu IP na minutę |
 | `MERITUM_CHECKS_PER_REGION_PER_MINUTE` | 3000 | sprawdzenia z jednego kraju na minutę; bezpiecznik na rozproszony zalew, bo prawie cały ruch idzie z `PL` |
 | `MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE` | 6000 | sprawdzenia z jednego kanału na minutę; bezpiecznik jak limit kraju |
-| `MERITUM_EVENT_STREAMS_PER_IP_PER_MINUTE` | 60 | strumienie postępu (`GET /api/v1/checks/{id}/events`) otwarte z jednego adresu IP na minutę, z ponownymi połączeniami; osobna pula, więc śledzenie sprawdzenia nie zużywa limitu nowych |
+| `MERITUM_EVENT_STREAMS_PER_IP_PER_MINUTE` | 60 | strumienie postępu (`GET /api/v1/checks/{id}/events`) otwarte z jednego adresu IP na minutę, z ponownymi połączeniami i z zapytaniami o nieznane id (to też ogranicza zgadywanie id); osobna pula, więc śledzenie sprawdzenia nie zużywa limitu nowych |
 | `MERITUM_MAX_PENDING_CHECKS` | 100 | oczekujące sprawdzenia, od których API odpowiada 429 |
 
 Domyślne wartości są w `src/meritum_backend/limits/constants.py`. Test licznika na prawdziwym PostgreSQL: `docker compose up -d --wait db`, potem `uv run pytest -m integration tests/limits`.
