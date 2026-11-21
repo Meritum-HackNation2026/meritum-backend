@@ -5,6 +5,7 @@ bucket or database.
 """
 
 import asyncio
+from datetime import UTC, datetime
 from http import HTTPStatus
 from typing import override
 
@@ -13,7 +14,8 @@ from behave.runner import Context
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, AnalysisStep
 from meritum_core.checks.transcription import MAX_AUDIO_BYTES
-from meritum_core.jobs.constants import PROGRESS_KEY
+from meritum_core.jobs.constants import PROGRESS_KEY, READINESS_KEY
+from meritum_core.jobs.contracts import ReadinessReport
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.shared.blobs import BlobKind, BlobRef
 from meritum_core.shared.blobs.adapters import MemoryBlobStore
@@ -21,6 +23,7 @@ from pydantic import AwareDatetime
 
 from meritum_backend.checks.api import get_blobs
 from meritum_backend.checks.constants import SESSION_HEADER
+from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
@@ -78,6 +81,11 @@ def _prepare(context: Context, data: bytes, content_type: str) -> None:
     app.dependency_overrides[get_blobs] = lambda: context.blobs
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     app.dependency_overrides[get_check_gate] = lambda: gate
+    app.dependency_overrides[get_readiness] = lambda: context.probe
+    report = ReadinessReport(
+        missing_env=[], unavailable_providers=[], checked_at=datetime.now(UTC)
+    )
+    context.readiness_jobs.set_event(context.probe.workflow_id, READINESS_KEY, report)
     context.client = TestClient(app)
     context.audio = (data, content_type)
 

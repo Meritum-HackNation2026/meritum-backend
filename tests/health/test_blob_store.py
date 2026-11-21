@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from meritum_core.jobs.fakes import InMemoryJobQueue
@@ -16,17 +18,28 @@ BLOB_VARIABLES = (
 
 
 @pytest.mark.parametrize(
-    ("env", "missing"),
+    ("settings", "env", "missing"),
     [
-        ({}, ["MERITUM_BLOB_PROVIDER"]),
-        ({"MERITUM_BLOB_PROVIDER": "filesystem"}, ["MERITUM_BLOB_DIRECTORY"]),
-        ({"MERITUM_BLOB_PROVIDER": "gcs"}, ["MERITUM_BLOB_BUCKET"]),
-        ({"MERITUM_BLOB_PROVIDER": "memory"}, []),
+        (Settings(env="dev"), {}, ["MERITUM_BLOB_PROVIDER"]),
+        (
+            Settings(env="dev"),
+            {"MERITUM_BLOB_PROVIDER": "filesystem"},
+            ["MERITUM_BLOB_DIRECTORY"],
+        ),
+        (
+            Settings(env="dev"),
+            {"MERITUM_BLOB_PROVIDER": "gcs"},
+            ["MERITUM_BLOB_BUCKET"],
+        ),
+        (Settings(env="dev"), {"MERITUM_BLOB_PROVIDER": "memory"}, []),
+        (Settings(env="dev", files_dir=Path("/srv/files")), {}, []),  # the volume
+        (Settings(env="local"), {}, []),  # in-memory store, as the API itself uses
     ],
 )
 def test_health_names_the_missing_blob_store_variable(
     monkeypatch: pytest.MonkeyPatch,
     make_probe: MakeProbe,
+    settings: Settings,
     env: dict[str, str],
     missing: list[str],
 ) -> None:
@@ -35,7 +48,7 @@ def test_health_names_the_missing_blob_store_variable(
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     probe = make_probe(
-        InMemoryJobQueue(), report=worker_report(), blob=BlobStoreConfig()
+        InMemoryJobQueue(), report=worker_report(), blob=BlobStoreConfig(settings)
     )
     app = create_app(Settings())
     app.dependency_overrides[get_readiness] = lambda: probe

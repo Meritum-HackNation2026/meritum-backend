@@ -25,5 +25,5 @@ def build_readiness(settings: Settings, jobs: JobQueue) -> ReadinessProbe:
         US-WDR-08, US-BEZ-03, F-30
     """
     return ReadinessProbe(
-        settings, jobs, PostgresProbe(settings.database_url), BlobStoreConfig()
+        settings, jobs, PostgresProbe(settings.database_url), BlobStoreConfig(settings)
     )
