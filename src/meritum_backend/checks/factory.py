@@ -12,7 +12,7 @@ from meritum_core.shared.blobs import (
 )
 from pydantic import ValidationError
 
-from meritum_backend.checks.constants import LOCAL_ENV
+from meritum_backend.constants import LOCAL_ENV
 from meritum_backend.settings import Settings
 
 

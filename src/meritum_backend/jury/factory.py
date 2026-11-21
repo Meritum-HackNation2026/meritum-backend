@@ -1,10 +1,9 @@
 """Select jury link storage for the environment."""
 
-from time import time
-
+from meritum_backend.constants import LOCAL_ENV
 from meritum_backend.jury.adapters import MemoryJuryLinks, PostgresJuryLinks
 from meritum_backend.jury.ports import JuryLinks
-from meritum_backend.limits.adapters import MemoryRateCounter, PostgresRateCounter
+from meritum_backend.limits.factory import build_rate_counter
 from meritum_backend.limits.ports import RateCounter
 from meritum_backend.settings import Settings
 
@@ -22,9 +21,9 @@ def build_jury(settings: Settings) -> tuple[JuryLinks, RateCounter]:
     Features:
         US-OBS-06, US-MOD-05, F-28, F-25
     """
-    if settings.env == "local":
-        return MemoryJuryLinks(), MemoryRateCounter(time)
-    return (
-        PostgresJuryLinks(settings.database_url),
-        PostgresRateCounter(settings.database_url),
+    links: JuryLinks = (
+        MemoryJuryLinks()
+        if settings.env == LOCAL_ENV
+        else PostgresJuryLinks(settings.database_url)
     )
+    return links, build_rate_counter(settings)

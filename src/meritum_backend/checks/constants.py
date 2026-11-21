@@ -108,9 +108,6 @@ AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
 STORAGE_DETAIL: Final = "file storage unavailable"
 """503 detail: the BlobStore failed (a server fault, not user copy)."""
 
-LOCAL_ENV: Final = "local"
-"""MERITUM_ENV of developer machines and tests; only there uploads stay in memory."""
-
 AUDIO_FORMATS: Final = ("OGG", "MP3", "M4A", "WAV")
 """Formats named to the person ({formats} in form.audio_limits)."""
 
