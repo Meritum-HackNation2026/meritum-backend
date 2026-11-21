@@ -12,6 +12,7 @@ dependencies = [
     "psycopg[binary]>=3.3.9",
     "pydantic>=2.14.4",
     "pydantic-settings>=2.16.3",
+    "slowapi>=0.1.10",
     "uvicorn[standard]>=0.54.0",
 ]
 
@@ -84,7 +85,11 @@ minversion = "9.0"
 testpaths = ["tests"]
 strict = true
 addopts = ["-ra", "--import-mode=importlib"]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # slowapi 0.1.10 still calls asyncio.iscoroutinefunction (deprecated in 3.14).
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:slowapi",
+]
 
 [tool.uv.sources]
 meritum-core = { git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git", branch = "main" }
