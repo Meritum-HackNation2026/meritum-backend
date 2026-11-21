@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from meritum_backend.auth.api import router as auth_router
 from meritum_backend.auth.constants import SESSION_COOKIE, SESSION_MAX_AGE, TOKEN_BYTES
 from meritum_backend.auth.factory import build_login
+from meritum_backend.checks.api import router as checks_router
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
@@ -74,4 +75,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(discord_router)
     app.include_router(auth_router)
+    app.include_router(checks_router)
     return app
