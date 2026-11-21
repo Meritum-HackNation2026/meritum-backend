@@ -1,0 +1,12 @@
+# gitleaks: the default rules plus justified exceptions only.
+[extend]
+useDefault = true
+
+[[allowlists]]
+# generic-api-key matches the type annotation `key: Ed25519PrivateKey = KEY` in the
+# Discord signature test; the key is generated in the test, nothing is committed.
+description = "Key type annotation in the Discord signature test"
+condition = "AND"
+paths = ['''^tests/test_discord\.py$''']
+regexTarget = "line"
+regexes = ['''key: Ed25519PrivateKey = KEY''']
