@@ -14,16 +14,19 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from meritum_core.checks.contracts import CheckRequest
 from pydantic import ValidationError
 
-from meritum_backend.discord.commands import CHECK, CHECK_MESSAGE, TEXT_OPTION
+from meritum_backend.discord.constants import (
+    APPLICATION_COMMAND,
+    CHANNEL_MESSAGE,
+    CHECK,
+    CHECK_MESSAGE,
+    EPHEMERAL,
+    PING,
+    PONG,
+    TEXT_OPTION,
+)
 from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/discord", tags=["discord"])
-
-PING = 1
-APPLICATION_COMMAND = 2
-PONG = 1
-CHANNEL_MESSAGE = 4
-EPHEMERAL = 64  # only the person who asked sees the answer
 
 
 def signature_is_valid(
@@ -31,8 +34,17 @@ def signature_is_valid(
 ) -> bool:
     """Check Discord's Ed25519 signature over timestamp + raw body.
 
+    Args:
+        public_key: the app's public key, hex.
+        signature: the X-Signature-Ed25519 header, hex.
+        timestamp: the X-Signature-Timestamp header.
+        body: the raw request body.
+
     Returns:
         True only for a well-formed, valid signature.
+
+    Features:
+        US-WTY-06
     """
     try:
         key = Ed25519PublicKey.from_public_bytes(bytes.fromhex(public_key))
@@ -45,8 +57,14 @@ def signature_is_valid(
 def command_text(data: dict[str, Any]) -> str:
     """Text the user asked about: the slash command option or the target message.
 
+    Args:
+        data: the interaction's ``data`` object.
+
     Returns:
         The text, empty when there is none.
+
+    Features:
+        US-WTY-06
     """
     if data.get("name") == CHECK:
         options = data.get("options") or []
@@ -63,8 +81,14 @@ def command_text(data: dict[str, Any]) -> str:
 def answer(text: str) -> str:
     """Reply to a check request (bootstrap: the verification core does not exist yet).
 
+    Args:
+        text: the text the user asked about.
+
     Returns:
         The message shown to the user.
+
+    Features:
+        US-WTY-06, US-SPR-06
     """
     try:
         CheckRequest.model_validate({"channel": "discord", "text": text})
@@ -82,12 +106,19 @@ async def interactions(
 ) -> dict[str, Any]:
     """Answer a Discord interaction.
 
+    Args:
+        request: the signed HTTP interaction.
+        settings: the app settings (the Discord public key).
+
     Returns:
         PONG for Discord's PING, else an ephemeral message.
 
     Raises:
         HTTPException: 404 when Discord is not configured, 401 for a bad signature,
             400 for an interaction type Meritum does not handle.
+
+    Features:
+        US-WTY-06, ADR-08
     """
     public_key = settings.discord_public_key
     if public_key is None or not public_key:

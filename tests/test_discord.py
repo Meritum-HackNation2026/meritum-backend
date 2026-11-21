@@ -7,7 +7,12 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
-from meritum_backend.discord.commands import CHECK, CHECK_MESSAGE, COMMANDS, TEXT_OPTION
+from meritum_backend.discord.constants import (
+    CHECK,
+    CHECK_MESSAGE,
+    COMMANDS,
+    TEXT_OPTION,
+)
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings, get_settings
 

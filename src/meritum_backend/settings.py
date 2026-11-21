@@ -2,21 +2,31 @@
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-LOCAL_DB = "postgresql://meritum:meritum@localhost:5432/meritum"
+from meritum_backend.constants import LOCAL_DB
 
 
 class Settings(BaseSettings):
-    """Backend settings; defaults match `docker compose up -d db`."""
+    """Backend settings; defaults match `docker compose up -d db`.
+
+    Attributes:
+        env: the environment name (local, dev, prd).
+        database_url: role meritum_api_<env>; its search_path is the schema api_<env>.
+        dbos_url: DBOS system tables of the worker (schema worker_<env>), used to
+            enqueue jobs.
+        dbos_schema: the worker's DBOS system schema.
+        discord_public_key: Discord app public key (hex) of this env; no key, no
+            interactions endpoint.
+
+    Features:
+        none (infrastructure)
+    """
 
     model_config = SettingsConfigDict(env_prefix="MERITUM_", env_file=".env")
 
     env: str = "local"
-    # Role meritum_api_<env>; its search_path is the schema api_<env>.
     database_url: str = LOCAL_DB
-    # DBOS system tables of the worker (schema worker_<env>), used to enqueue jobs.
     dbos_url: str = LOCAL_DB
     dbos_schema: str = "worker_local"
-    # Discord app public key (hex) of this env; no key, no interactions endpoint.
     discord_public_key: str | None = None
 
 
@@ -25,5 +35,8 @@ def get_settings() -> Settings:
 
     Returns:
         Settings read from the environment.
+
+    Features:
+        none (infrastructure)
     """
     return Settings()

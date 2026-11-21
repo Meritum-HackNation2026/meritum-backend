@@ -16,8 +16,15 @@ limiter = Limiter(key_func=get_remote_address)
 def too_many_requests(_request: Request, _exc: Exception) -> JSONResponse:
     """Answer an exceeded limit.
 
+    Args:
+        _request: the limited request (unused; the handler signature needs it).
+        _exc: the limit error.
+
     Returns:
         429 with a message for people, not a stack of limit details.
+
+    Features:
+        US-BEZ-02
     """
     body = {"detail": "Za dużo zapytań. Spróbuj ponownie za minutę."}
     return JSONResponse(body, status_code=429, headers={"Retry-After": "60"})
