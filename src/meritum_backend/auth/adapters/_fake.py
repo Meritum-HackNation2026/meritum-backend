@@ -3,7 +3,7 @@
 import secrets
 from urllib.parse import urlencode
 
-from meritum_backend.auth.constants import FAKE_CODE, GOOGLE, MICROSOFT
+from meritum_backend.auth.constants import FAKE_CODE, GOOGLE, MICROSOFT, TOKEN_BYTES
 from meritum_backend.auth.errors import LoginError
 from meritum_backend.auth.models import Account, LoginStart, PendingLogin
 
@@ -54,9 +54,9 @@ class FakeLogin:
             raise LoginError(msg)
         pending = PendingLogin(
             provider=provider,
-            state=secrets.token_urlsafe(16),
-            nonce=secrets.token_urlsafe(16),
-            code_verifier=secrets.token_urlsafe(32),
+            state=secrets.token_urlsafe(TOKEN_BYTES),
+            nonce=secrets.token_urlsafe(TOKEN_BYTES),
+            code_verifier=secrets.token_urlsafe(TOKEN_BYTES),
             redirect_uri=redirect_uri,
         )
         query = urlencode({"state": pending.state, "redirect_uri": redirect_uri})

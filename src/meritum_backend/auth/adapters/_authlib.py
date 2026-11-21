@@ -1,6 +1,6 @@
 """OIDC login with Authlib's Starlette client (Google, Microsoft)."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -9,7 +9,12 @@ from authlib.common.errors import AuthlibBaseError
 from authlib.integrations.starlette_client import OAuth, StarletteOAuth2App
 from joserfc.errors import JoseError
 
-from meritum_backend.auth.constants import LEEWAY, SCOPE, TENANT_PLACEHOLDER
+from meritum_backend.auth.constants import (
+    LEEWAY,
+    PKCE_METHOD,
+    SCOPE,
+    TENANT_PLACEHOLDER,
+)
 from meritum_backend.auth.errors import LoginError
 from meritum_backend.auth.models import Account, LoginStart, PendingLogin
 
@@ -31,10 +36,13 @@ class OidcClient:
     client_id: str
     client_secret: str
     metadata_url: str | None = None
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
-def _issuer_check(expected: str) -> Any:  # ruff: ignore[any-type]  # Authlib's hook type is private
+type _ClaimCheck = Callable[[Mapping[str, object], object], bool]
+
+
+def _issuer_check(expected: str) -> _ClaimCheck:
     """Build the ``iss`` validation hook.
 
     Microsoft's multi-tenant issuer has a ``{tenantid}`` placeholder that must
@@ -50,7 +58,7 @@ def _issuer_check(expected: str) -> Any:  # ruff: ignore[any-type]  # Authlib's 
         US-MOD-05, F-25
     """
 
-    def check(claims: Mapping[str, Any], value: object) -> bool:
+    def check(claims: Mapping[str, object], value: object) -> bool:
         issuer = expected.replace(TENANT_PLACEHOLDER, str(claims.get("tid", "")))
         return value in {issuer, issuer.removeprefix("https://")}
 
@@ -74,6 +82,9 @@ class AuthlibLogin:
         US-MOD-05, US-SPR-10, F-25, F-31
     """
 
+    _failures = (AuthlibBaseError, JoseError, httpx2.HTTPError, KeyError, ValueError)
+    """Errors of discovery, code exchange and token checks; all become LoginError."""
+
     def __init__(
         self,
         clients: Mapping[str, OidcClient],
@@ -87,7 +98,8 @@ class AuthlibLogin:
                 client_id=client.client_id,
                 client_secret=client.client_secret,
                 server_metadata_url=client.metadata_url,
-                client_kwargs={"scope": SCOPE, "code_challenge_method": "S256"} | extra,
+                client_kwargs={"scope": SCOPE, "code_challenge_method": PKCE_METHOD}
+                | extra,
                 **client.metadata,
             )
             for name, client in clients.items()

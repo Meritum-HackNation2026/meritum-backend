@@ -62,3 +62,26 @@ class LoginStart(BaseModel):
 
     url: str
     pending: PendingLogin
+
+
+class Me(BaseModel):
+    """The signed-in account and the token for state-changing requests.
+
+    Attributes:
+        provider: the provider name.
+        subject: the provider's account id.
+        email: the e-mail address from the ID token.
+        email_verified: whether the provider verified the address.
+        csrf_token: the value to send in ``X-CSRF-Token``.
+
+    Features:
+        US-MOD-05, US-SPR-10, F-25
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    provider: str
+    subject: str
+    email: str | None
+    email_verified: bool
+    csrf_token: str

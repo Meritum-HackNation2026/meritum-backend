@@ -10,41 +10,24 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from meritum_backend.auth import Account, LoginError, LoginProvider, PendingLogin
 from meritum_backend.auth.constants import (
+    CALLBACK_PATH,
     CSRF_HEADER,
+    HOME,
     LOCAL_URL,
     PUBLIC_URLS,
     SESSION_ACCOUNT,
     SESSION_CSRF,
     SESSION_PENDING,
+    TOKEN_BYTES,
 )
+from meritum_backend.auth.models import Me
 from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-
-
-class Me(BaseModel):
-    """The signed-in account and the token for state-changing requests.
-
-    Attributes:
-        provider: the provider name.
-        subject: the provider's account id.
-        email: the e-mail address from the ID token.
-        email_verified: whether the provider verified the address.
-        csrf_token: the value to send in ``X-CSRF-Token``.
-
-    Features:
-        US-MOD-05, US-SPR-10, F-25
-    """
-
-    provider: str
-    subject: str
-    email: str | None
-    email_verified: bool
-    csrf_token: str
 
 
 def get_login(request: Request) -> LoginProvider:
@@ -103,9 +86,22 @@ def csrf_user(
     """
     expected = str(request.session.get(SESSION_CSRF, ""))
     sent = request.headers.get(CSRF_HEADER, "")
-    if not expected or not secrets.compare_digest(expected, sent):
+    if not expected or not _same(expected, sent):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "missing or bad CSRF token")
     return account
+
+
+def _same(expected: str, sent: str) -> bool:
+    """Compare in constant time; bytes, so non-ASCII input is a mismatch, not a 500.
+
+    Args:
+        expected: the value kept in the session.
+        sent: the value from the request.
+
+    Returns:
+        Whether both are equal.
+    """
+    return secrets.compare_digest(expected.encode(), sent.encode())
 
 
 Login = Annotated[LoginProvider, Depends(get_login)]
@@ -115,7 +111,7 @@ CsrfUser = Annotated[Account, Depends(csrf_user)]
 
 def _callback_url(settings: Settings, provider: str) -> str:
     base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
-    return f"{base.rstrip('/')}/api/v1/auth/callback/{provider}"
+    return base.rstrip("/") + CALLBACK_PATH.format(provider=provider)
 
 
 @router.get("/login/{provider}")
@@ -171,7 +167,7 @@ def _pending(request: Request, state: str) -> PendingLogin | None:
         )
     except ValidationError:
         return None
-    return pending if secrets.compare_digest(pending.state, state) else None
+    return pending if _same(pending.state, state) else None
 
 
 @router.get("/callback/{provider}")
@@ -206,8 +202,8 @@ async def callback(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "login refused") from exc
     request.session.clear()
     request.session[SESSION_ACCOUNT] = account.model_dump()
-    request.session[SESSION_CSRF] = secrets.token_urlsafe(32)
-    return RedirectResponse("/", status.HTTP_303_SEE_OTHER)
+    request.session[SESSION_CSRF] = secrets.token_urlsafe(TOKEN_BYTES)
+    return RedirectResponse(HOME, status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/me")

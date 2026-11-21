@@ -17,7 +17,7 @@ def _client(
     client_id: str | None, secret: SecretStr | None, metadata_url: str
 ) -> OidcClient | None:
     value = secret.get_secret_value() if secret is not None else ""
-    if client_id is None or not client_id or not value:
+    if client_id is None or not (client_id and value):
         return None
     return OidcClient(client_id, value, metadata_url)
 

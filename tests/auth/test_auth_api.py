@@ -1,5 +1,6 @@
 """Auth endpoints through HTTP with the fake login provider."""
 
+import time
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -76,10 +77,10 @@ def test_forged_state_creates_no_session(client: TestClient, state: str) -> None
 
 def test_state_is_single_use(client: TestClient) -> None:
     state = start_login(client)
-    params = {"code": FAKE_CODE, "state": state}
-    assert client.get("/api/v1/auth/callback/google", params=params).status_code == 303
-    client.cookies.clear()
-    assert client.get("/api/v1/auth/callback/google", params=params).status_code == 400
+    wrong = {"code": FAKE_CODE, "state": "wrong"}
+    assert client.get("/api/v1/auth/callback/google", params=wrong).status_code == 400
+    right = {"code": FAKE_CODE, "state": state}
+    assert client.get("/api/v1/auth/callback/google", params=right).status_code == 400
 
 
 def test_refused_code_creates_no_session(client: TestClient) -> None:
@@ -130,3 +131,24 @@ def test_tampered_cookie_is_not_a_session(client: TestClient) -> None:
 def test_factory_registers_only_configured_providers() -> None:
     settings = Settings(google_client_id="id", google_client_secret="s")  # ruff: ignore[hardcoded-password-func-arg] -- fake value
     assert create_app(settings).state.login.providers == frozenset({"google"})
+
+
+def test_non_ascii_state_and_csrf_are_refused_not_crashing(client: TestClient) -> None:
+    start_login(client)
+    response = client.get("/api/v1/auth/callback/google", params={"state": "zażółć"})
+    assert response.status_code == 400
+    sign_in(client)
+    bad = {b"X-CSRF-Token": "zażółć".encode()}
+    assert client.post("/api/v1/auth/logout", headers=bad).status_code == 403
+
+
+def test_session_ends_after_max_age_even_when_used(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    start = time.time()
+    sign_in(client)
+    # the session cookie's timestamp comes from time.time (itsdangerous)
+    monkeypatch.setattr(time, "time", lambda: start + 5 * 60 * 60)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
+    assert client.get("/api/v1/auth/me").status_code == 200  # re-signs the cookie
+    monkeypatch.setattr(time, "time", lambda: start + 9 * 60 * 60)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
+    assert client.get("/api/v1/auth/me").status_code == 401

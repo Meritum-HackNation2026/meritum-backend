@@ -6,8 +6,20 @@ SESSION_COOKIE: Final = "meritum_session"
 """Name of the signed, httpOnly session cookie."""
 
 SESSION_MAX_AGE: Final = 8 * 60 * 60
-"""Session lifetime in seconds (8 h of a moderator's shift), counted from the
-last response: every response re-signs the cookie."""
+"""Session lifetime in seconds (8 h of a moderator's shift), counted from login:
+the cookie is re-signed only when the session changes, never on reads."""
+
+TOKEN_BYTES: Final = 32
+"""Random bytes in the CSRF token and in the fake provider's state and nonce."""
+
+PKCE_METHOD: Final = "S256"
+"""PKCE code challenge method sent to every provider."""
+
+CALLBACK_PATH: Final = "/api/v1/auth/callback/{provider}"
+"""Path of the OIDC callback, appended to the public address."""
+
+HOME: Final = "/"
+"""Where the browser goes after a successful login: the web app's home page."""
 
 CSRF_HEADER: Final = "X-CSRF-Token"
 """Header that state-changing requests repeat the session's CSRF token in."""
