@@ -52,8 +52,11 @@ Kontrole przed PR, te same co w CI:
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run ty check
 uv run python scripts/check_conventions.py && uv run vulture && uv run bandit -c pyproject.toml -r src scripts
-uv run pytest            # z testami architektury (tests/architecture/)
+uv run pytest            # z testami architektury (tests/architecture/), bez testów integracyjnych
+uv run behave            # scenariusze Gherkin z features/
 ```
+
+Scenariusze ze zgłoszeń trafiają do `features/<domena>.feature`, kroki do `features/steps/` (wołają publiczne API, te same kontrole co `src/`). Testy na prawdziwym PostgreSQL albo u prawdziwego dostawcy oznacz `@pytest.mark.integration`: `uv run pytest` i CI je pomijają, lokalnie uruchamia je `uv run pytest -m integration`.
 
 Zasady architektury i to, co je sprawdza: [docs/architecture.md](docs/architecture.md).
 
