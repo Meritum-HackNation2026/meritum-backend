@@ -5,9 +5,12 @@
 # Needs the platform (meritum-infra: onprem/dellpromaxgb10/platform/setup.sh):
 # network `meritum`, meritum-postgres and ~/meritum/envs/api-<env>.env.
 # Env: CORE_KEY_FILE, a read-only deploy key of meritum-core (BuildKit --ssh);
-#      DISCORD_PUBLIC_KEY (optional), the Discord app of this env (no key, no endpoint).
+#      SECRETS_JSON, VARS_JSON: repo secrets and variables; container_env.sh picks
+#      the ones the container gets.
 set -euo pipefail
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=deploy/container_env.sh
+source "$repo/deploy/container_env.sh"
 branch=${1:?usage: deploy.sh <main|develop> [sha]}
 sha=${2:-$(git -C "$repo" rev-parse HEAD)}
 case "$branch" in main) env=prd ;; develop) env=dev ;; *) echo "only main and develop deploy" >&2; exit 1 ;; esac
@@ -26,10 +29,9 @@ log "built $image"
 exec 9>"$state/deploy.lock"
 flock 9  # one change at a time on this host (shared with the platform and other repos)
 docker rm -f "$container" >/dev/null 2>&1 || true
-discord=()
-if [ -n "${DISCORD_PUBLIC_KEY:-}" ]; then discord=(-e "MERITUM_DISCORD_PUBLIC_KEY=$DISCORD_PUBLIC_KEY"); fi
+container_env "$env"
 docker run -d --name "$container" --network meritum --restart unless-stopped \
-  "${labels[@]}" --env-file "$envfile" "${discord[@]}" "$image" >/dev/null
+  "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "$image" >/dev/null
 log "started $container"
 
 get() { docker exec "$container" python -c "import sys, urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000$1', timeout=5).read().decode())"; }
