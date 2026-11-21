@@ -43,10 +43,10 @@ Feature: Kontrole działającego API
     Then odpowiedź ma kod 201 i audio_id
     And POST /api/v1/checks z tym audio_id startuje sprawdzenie z krokiem "transcribe_audio"
 
-  Scenario: nieobsługiwany format
+  Scenario: odrzucony format audio niesie kod, a nie klucz kopii w message
     Given plik "nagranie.xyz"
     When klient wysyła go do sprawdzenia
-    Then wynik ma stan "out_of_scope" z komunikatem, jakie pliki można wysłać
+    Then odpowiedź niesie kod z kontraktu v4, a message nie zaczyna się od "status_hint."
 
   Scenario: za duży plik
     Given plik większy niż limit rozmiaru z core/013

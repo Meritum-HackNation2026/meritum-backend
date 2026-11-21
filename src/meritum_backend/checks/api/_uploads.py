@@ -12,7 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from meritum_core.checks.contracts import CheckStatus
+from meritum_core.checks.contracts import CheckStatus, FailureCode
 from meritum_core.checks.transcription import (
     MAX_AUDIO_BYTES,
     AudioTooLongError,
@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from meritum_backend.checks.constants import (
     AUDIO_CONTENT_TYPES,
-    AUDIO_FORMAT_KEY,
+    AUDIO_FORMAT_FAILURE_CODE,
     AUDIO_FORMATS,
     AUDIO_MAX_MB,
     AUDIO_MAX_MINUTES,
@@ -57,8 +57,8 @@ class AudioRejected(BaseModel):
 
     Attributes:
         status: always ``out_of_scope``, as core's UnsupportedAudioError.
-        message_key: errors.audio_too_large, errors.audio_too_long or
-            status_hint.out_of_scope_audio_format (copy/pl.json).
+        message_key: copy/pl.json key for size and duration limits.
+        failure_code: contract v4 code for an unsupported format.
         formats: the formats that can be sent ({formats} of form.audio_limits).
         max_mb: the size limit ({max_mb} of the copy).
         max_minutes: the length limit ({max_minutes} of the copy).
@@ -68,7 +68,8 @@ class AudioRejected(BaseModel):
     """
 
     status: CheckStatus
-    message_key: str
+    message_key: str | None = None
+    failure_code: FailureCode | None = None
     formats: tuple[str, ...] = AUDIO_FORMATS
     max_mb: int = AUDIO_MAX_MB
     max_minutes: int = AUDIO_MAX_MINUTES
@@ -92,9 +93,18 @@ def get_blobs(request: Request) -> BlobStore:
 Blobs = Annotated[BlobStore, Depends(get_blobs)]
 
 
-def _rejected(code: int, key: str) -> JSONResponse:
-    body = AudioRejected(status=UnsupportedAudioError.check_status, message_key=key)
-    return JSONResponse(body.model_dump(), status_code=code)
+def _rejected(
+    code: int,
+    *,
+    message_key: str | None = None,
+    failure_code: FailureCode | None = None,
+) -> JSONResponse:
+    body = AudioRejected(
+        status=UnsupportedAudioError.check_status,
+        message_key=message_key,
+        failure_code=failure_code,
+    )
+    return JSONResponse(body.model_dump(exclude_none=True), status_code=code)
 
 
 async def _read_capped(request: Request) -> bytes | None:
@@ -158,13 +168,20 @@ async def upload_audio(request: Request, blobs: Blobs) -> AudioAccepted | JSONRe
     """
     data = await _read_capped(request)
     if data is None:
-        return _rejected(status.HTTP_413_CONTENT_TOO_LARGE, AUDIO_TOO_LARGE_KEY)
+        return _rejected(
+            status.HTTP_413_CONTENT_TOO_LARGE, message_key=AUDIO_TOO_LARGE_KEY
+        )
     try:
         info = inspect_audio(data)
     except AudioTooLongError:
-        return _rejected(status.HTTP_422_UNPROCESSABLE_CONTENT, AUDIO_TOO_LONG_KEY)
+        return _rejected(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, message_key=AUDIO_TOO_LONG_KEY
+        )
     except UnsupportedAudioError:  # UnsupportedAudioFormatError and any future kind
-        return _rejected(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, AUDIO_FORMAT_KEY)
+        return _rejected(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            failure_code=AUDIO_FORMAT_FAILURE_CODE,
+        )
     content_type = AUDIO_CONTENT_TYPES[info.format]
     try:
         ref = await blobs.put(

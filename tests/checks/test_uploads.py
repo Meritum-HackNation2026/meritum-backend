@@ -111,7 +111,10 @@ def test_too_long_recording_gets_its_own_copy_key() -> None:
 def test_empty_body_is_an_unsupported_format() -> None:
     response = client_on(Blobs()).post("/api/v1/audio", content=b"")
     assert response.status_code == 415
-    assert response.json()["message_key"] == "status_hint.out_of_scope_audio_format"
+    body = response.json()
+    assert body["failure_code"] == "transcription_failed"
+    assert "message_key" not in body
+    assert not (body.get("message") or "").startswith("status_hint.")
 
 
 def test_storage_failure_is_503_without_details() -> None:
@@ -185,18 +188,28 @@ def test_streamed_oversize_is_413_and_stores_nothing() -> None:
 
 
 @pytest.mark.parametrize(
-    ("error", "code", "key"),
+    ("error", "code", "field", "value"),
     [
-        (AudioTooLongError("any wording"), 422, "errors.audio_too_long"),
+        (
+            AudioTooLongError("any wording"),
+            422,
+            "message_key",
+            "errors.audio_too_long",
+        ),
         (
             UnsupportedAudioFormatError("any wording"),
             415,
-            "status_hint.out_of_scope_audio_format",
+            "failure_code",
+            "transcription_failed",
         ),
     ],
 )
 def test_audio_error_type_decides_the_answer_not_its_message(
-    monkeypatch: pytest.MonkeyPatch, error: Exception, code: int, key: str
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    code: int,
+    field: str,
+    value: str,
 ) -> None:
     def refuse(_: bytes) -> None:
         raise error
@@ -204,4 +217,4 @@ def test_audio_error_type_decides_the_answer_not_its_message(
     monkeypatch.setattr("meritum_backend.checks.api._uploads.inspect_audio", refuse)
     response = client_on(Blobs()).post("/api/v1/audio", content=wav(1))
     assert response.status_code == code
-    assert response.json()["message_key"] == key
+    assert response.json()[field] == value

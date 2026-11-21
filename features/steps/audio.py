@@ -185,21 +185,22 @@ def check_by_audio_id(context: Context, step: str) -> None:
     assert [s.code for s in polled.steps] == [step]
 
 
-@then('wynik ma stan "{state}" z komunikatem, jakie pliki można wysłać')
-def unsupported_format(context: Context, state: str) -> None:
-    """Rejected as out of scope with the formats hint; nothing stored.
+@then(
+    'odpowiedź niesie kod z kontraktu v4, a message nie zaczyna się od "status_hint."'
+)
+def unsupported_format(context: Context) -> None:
+    """Reject with the contract failure code and no copy key in message.
 
     Args:
         context: the behave context with ``response`` and ``blobs``.
-        state: the expected check status.
 
     Features:
-        US-SPR-11, F-08
+        US-SPR-07, F-01
     """
     assert context.response.status_code == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
     body = context.response.json()
-    assert body["status"] == state
-    assert body["message_key"] == "status_hint.out_of_scope_audio_format"
+    assert body["failure_code"] == "transcription_failed"
+    assert not (body.get("message") or "").startswith("status_hint.")
     assert body["formats"] == ["OGG", "MP3", "M4A", "WAV"]
     assert context.blobs.stored == []
 

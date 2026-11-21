@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import Final
 
 from meritum_core.checks import AnalysisStep
+from meritum_core.checks.contracts import FailureCode
 from meritum_core.checks.transcription import (
     MAX_AUDIO_BYTES,
     MAX_AUDIO_SECONDS,
@@ -98,8 +99,8 @@ AUDIO_TOO_LARGE_KEY: Final = "errors.audio_too_large"
 AUDIO_TOO_LONG_KEY: Final = "errors.audio_too_long"
 """copy/pl.json key: the recording is over MAX_AUDIO_SECONDS."""
 
-AUDIO_FORMAT_KEY: Final = "status_hint.out_of_scope_audio_format"
-"""copy/pl.json key: not a supported recording; the form lists the formats."""
+AUDIO_FORMAT_FAILURE_CODE: Final[FailureCode] = "transcription_failed"
+"""Contract v4 failure code returned when the recording format is unsupported."""
 
 AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
 """Uploads per client address; each can keep MAX_AUDIO_BYTES for 30 days."""
