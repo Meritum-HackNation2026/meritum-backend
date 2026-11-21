@@ -24,6 +24,12 @@ INVALID_URL_KEY: Final = "errors.invalid_url"
 TEXT_MAX_CHARS: Final = 4000
 """Longest text, as CheckRequest.text in meritum-core; masking never goes past it."""
 
+MARKER_OPEN: Final = "["
+"""First character of every personal-data marker of meritum-core ("[telefon]")."""
+
+MARKER_CLOSE: Final = "]"
+"""Last character of every personal-data marker."""
+
 TEXT_FIELD: Final = "text"
 """CheckRequest field with the free text."""
 

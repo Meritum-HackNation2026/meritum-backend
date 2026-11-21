@@ -16,6 +16,8 @@ from meritum_backend.checks.constants import (
     EMPTY_KEY,
     FOREIGN_LINK,
     INVALID_URL_KEY,
+    MARKER_CLOSE,
+    MARKER_OPEN,
     TEXT_FIELD,
     TEXT_MAX_CHARS,
     TOO_LONG_ERROR,
@@ -45,24 +47,36 @@ def message_key(errors: Sequence[ErrorDetails]) -> str:
     return EMPTY_KEY
 
 
-def is_foreign_link(request: CheckRequest) -> bool:
-    """Tell whether the text is a lone link with a scheme other than http(s).
+def is_unsupported_link(request: CheckRequest) -> bool:
+    """Tell whether the request carries a link the worker must not fetch.
+
+    That is a text which is a lone link with a scheme other than http(s), or a
+    link with a user name or password in it.
 
     Args:
         request: the validated request.
 
     Returns:
-        True for a text such as ``ftp://example.com/plik``.
+        True for ``ftp://example.com/plik`` as text or ``https://jan:x@x.pl``.
 
     Features:
         US-SPR-07, F-01
     """
     text = (request.text or "").strip()
-    return FOREIGN_LINK.fullmatch(text) is not None
+    links = (request.url, request.page_url)
+    has_credentials = any(link is not None and link.username for link in links)
+    return has_credentials or FOREIGN_LINK.fullmatch(text) is not None
 
 
 def _mask(value: str) -> str:
     return mask_personal_data(value).text
+
+
+def _masked_text(text: str) -> str:
+    cut = _mask(text)[:TEXT_MAX_CHARS]
+    # a marker cut in half would reach the model as noise
+    opened = cut.rfind(MARKER_OPEN)
+    return cut[:opened] if opened > cut.rfind(MARKER_CLOSE) else cut
 
 
 def _masked_link(url: HttpUrl | None) -> str | None:
@@ -71,33 +85,37 @@ def _masked_link(url: HttpUrl | None) -> str | None:
     parts = urlsplit(str(url))
     pairs = parse_qsl(parts.query, keep_blank_values=True)
     masked_pairs = [(_mask(key), _mask(value)) for key, value in pairs]
-    if masked_pairs == pairs:
+    fragment = _mask(parts.fragment)
+    if masked_pairs == pairs and fragment == parts.fragment:
         return str(url)
-    return urlunsplit(parts._replace(query=urlencode(masked_pairs)))
+    query = urlencode(masked_pairs) if masked_pairs != pairs else parts.query
+    return urlunsplit(parts._replace(query=query, fragment=fragment))
 
 
 def masked(request: CheckRequest) -> CheckRequest:
     """Return the request with personal data replaced by markers.
 
-    Masks the text and each query parameter of the links; the path stays as
-    sent, so the worker still fetches the same page. Markers can be longer than
-    what they replace, so the masked text is cut to TEXT_MAX_CHARS: the limit
-    applies to what the person sent.
+    Masks the text, each query parameter and the fragment of the links; the
+    path stays as sent, so the worker still fetches the same page (a query with
+    personal data is re-encoded, so ``;`` stops being a separator there).
+    Markers can be longer than what they replace, so the masked text is cut to
+    TEXT_MAX_CHARS, before any marker the cut would split: the limit applies to
+    what the person sent.
 
     Args:
         request: the validated request.
 
     Returns:
-        A new, validated request.
+        A new request, validated again; pydantic's ValidationError propagates
+        when a masked link grew past the URL length limit.
 
     Features:
         US-BEZ-04, F-20
     """
-    text = None if request.text is None else _mask(request.text)[:TEXT_MAX_CHARS]
-    return CheckRequest(
-        channel=request.channel,
-        text=text,
-        url=_masked_link(request.url),
-        page_url=_masked_link(request.page_url),
-        audio_id=request.audio_id,
-    )
+    update = {
+        "text": None if request.text is None else _masked_text(request.text),
+        "url": _masked_link(request.url),
+        "page_url": _masked_link(request.page_url),
+    }
+    # model_dump keeps every other field, also ones core adds later
+    return CheckRequest.model_validate({**request.model_dump(), **update})

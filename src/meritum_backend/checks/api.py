@@ -41,7 +41,7 @@ from meritum_backend.checks.constants import (
     SESSION_HEADER,
     SESSIONLESS_DETAIL,
 )
-from meritum_backend.checks.intake import is_foreign_link, masked, message_key
+from meritum_backend.checks.intake import is_unsupported_link, masked, message_key
 from meritum_backend.jobs.api import Jobs
 
 
@@ -139,17 +139,19 @@ async def start_check(
         US-SPR-01, US-SPR-07, US-BEZ-04, F-01, F-20
     """
     received_at = datetime.now(UTC)
-    if is_foreign_link(request):
+    if is_unsupported_link(request):
         return _invalid(INVALID_URL_KEY)
     if request.channel in SESSIONLESS_CHANNELS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, SESSIONLESS_DETAIL)
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
     try:
-        payload = CheckInput(
-            request=masked(request), session_id=session, received_at=received_at
-        )
-    except ValidationError:  # the session id is too short or too long
+        clean = masked(request)
+    except ValidationError as exc:
+        return _invalid(message_key(exc.errors()))
+    try:
+        payload = CheckInput(request=clean, session_id=session, received_at=received_at)
+    except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     try:
         check_id = await jobs.enqueue(CHECK, payload)
@@ -216,7 +218,7 @@ async def check_status(jobs: Jobs, check_id: str, response: Response) -> Analysi
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     latest = await _latest_progress(jobs, check_id)
     steps = latest.steps if latest else [RECEIVED]
-    result = latest.result if latest else _output_result(state)
+    result = (latest.result if latest else None) or _output_result(state)
     if result is not None:
         response.headers[AI_DISCLOSURE_HEADER] = AI_DISCLOSURE_VALUE
     return AnalysisStatus(check_id=check_id, steps=steps, result=result)
