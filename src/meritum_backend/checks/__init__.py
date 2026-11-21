@@ -5,7 +5,7 @@ Features:
     ADR-08
 """
 
-from meritum_backend.checks._uploads import get_blobs
+from meritum_backend.checks._uploads import AudioRejected, get_blobs
 from meritum_backend.checks._uploads import router as audio_router
 
-__all__ = ["audio_router", "get_blobs"]
+__all__ = ["AudioRejected", "audio_router", "get_blobs"]

@@ -9,7 +9,11 @@ from datetime import timedelta
 from typing import Final
 
 from meritum_core.checks import AnalysisStep
-from meritum_core.checks.transcription import AudioFormat
+from meritum_core.checks.transcription import (
+    MAX_AUDIO_BYTES,
+    MAX_AUDIO_SECONDS,
+    AudioFormat,
+)
 from meritum_core.security.constants import EMAIL_MARKER, PESEL_MARKER, PHONE_MARKER
 
 SESSION_HEADER: Final = "X-Meritum-Session"
@@ -105,3 +109,15 @@ AUDIO_UPLOAD_LIMIT: Final = "10/minute"
 
 STORAGE_DETAIL: Final = "file storage unavailable"
 """503 detail: the BlobStore failed (a server fault, not user copy)."""
+
+LOCAL_ENV: Final = "local"
+"""MERITUM_ENV of developer machines and tests; only there uploads stay in memory."""
+
+AUDIO_FORMATS: Final = ("OGG", "MP3", "M4A", "WAV")
+"""Formats named to the person ({formats} in form.audio_limits)."""
+
+AUDIO_MAX_MB: Final = MAX_AUDIO_BYTES // (1024 * 1024)
+"""{max_mb} of the copy: MAX_AUDIO_BYTES in MiB."""
+
+AUDIO_MAX_MINUTES: Final = MAX_AUDIO_SECONDS // 60
+"""{max_minutes} of the copy: MAX_AUDIO_SECONDS in minutes."""

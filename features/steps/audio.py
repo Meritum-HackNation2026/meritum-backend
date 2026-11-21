@@ -192,10 +192,10 @@ def unsupported_format(context: Context, state: str) -> None:
         US-SPR-11, F-08
     """
     assert context.response.status_code == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
-    assert context.response.json() == {
-        "status": state,
-        "message_key": "status_hint.out_of_scope_audio_format",
-    }
+    body = context.response.json()
+    assert body["status"] == state
+    assert body["message_key"] == "status_hint.out_of_scope_audio_format"
+    assert body["formats"] == ["OGG", "MP3", "M4A", "WAV"]
     assert context.blobs.stored == []
 
 
@@ -211,6 +211,7 @@ def too_large(context: Context) -> None:
     """
     assert context.response.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
     body = context.response.json()
-    assert body == {"status": "out_of_scope", "message_key": "errors.audio_too_large"}
+    assert body["status"] == "out_of_scope"
+    assert body["message_key"] == "errors.audio_too_large"
     assert "verdict" not in body
     assert context.blobs.stored == []

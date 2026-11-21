@@ -52,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             lazy=True,
         )
         app.state.jobs = DbosJobQueue(client, app_version=settings.env)
+        app.state.blobs = build_blobs(settings)
         try:
             yield
         finally:
@@ -69,7 +70,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.admin_emails = settings.admin_emails
     app.state.staff = build_staff()
     app.state.cases, app.state.topics = build_moderation()
-    app.state.blobs = build_blobs(settings)
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(

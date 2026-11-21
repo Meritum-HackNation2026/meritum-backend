@@ -24,6 +24,9 @@ from pydantic import BaseModel
 from meritum_backend.checks.constants import (
     AUDIO_CONTENT_TYPES,
     AUDIO_FORMAT_KEY,
+    AUDIO_FORMATS,
+    AUDIO_MAX_MB,
+    AUDIO_MAX_MINUTES,
     AUDIO_RETENTION,
     AUDIO_TOO_LARGE_KEY,
     AUDIO_TOO_LONG_ERROR,
@@ -56,6 +59,9 @@ class AudioRejected(BaseModel):
         status: always ``out_of_scope``, as core's UnsupportedAudioError.
         message_key: errors.audio_too_large, errors.audio_too_long or
             status_hint.out_of_scope_audio_format (copy/pl.json).
+        formats: the formats that can be sent ({formats} of form.audio_limits).
+        max_mb: the size limit ({max_mb} of the copy).
+        max_minutes: the length limit ({max_minutes} of the copy).
 
     Features:
         US-SPR-11, F-08
@@ -63,6 +69,9 @@ class AudioRejected(BaseModel):
 
     status: CheckStatus
     message_key: str
+    formats: tuple[str, ...] = AUDIO_FORMATS
+    max_mb: int = AUDIO_MAX_MB
+    max_minutes: int = AUDIO_MAX_MINUTES
 
 
 def get_blobs(request: Request) -> BlobStore:
@@ -92,14 +101,19 @@ async def _read_capped(request: Request) -> bytes | None:
     """Read the body, giving up past MAX_AUDIO_BYTES so memory stays bounded.
 
     Returns:
-        The body, or None when it is over MAX_AUDIO_BYTES.
+        The body, or None when it is (or says it is) over MAX_AUDIO_BYTES.
     """
-    data = bytearray()
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_AUDIO_BYTES:
+        return None
+    chunks: list[bytes] = []
+    size = 0
     async for chunk in request.stream():
-        data += chunk
-        if len(data) > MAX_AUDIO_BYTES:
+        size += len(chunk)
+        if size > MAX_AUDIO_BYTES:
             return None
-    return bytes(data)
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _unsupported(error: UnsupportedAudioError) -> JSONResponse:
