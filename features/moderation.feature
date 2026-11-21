@@ -42,6 +42,12 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Then sprawa ma powód "user_dispute", uzasadnienie jest zamaskowane, a obywatel dostaje numer sprawy
     And wynik dla innych pytających się nie zmienia
 
+  Scenario: nieudany zapis sprawy zwraca osobny komunikat
+    Given repozytorium spraw moderatora nie przyjmuje zapisu
+    When obywatel przekazuje sprawdzenie moderatorom albo zgłasza błąd
+    Then API odpowiada 503 z kluczem "escalation.not_saved"
+    And odpowiedź nie zawiera numeru sprawy
+
   Scenario: dołączenie nie zdradza innych pytających
     Given podobne twierdzenie jest już w otwartej sprawie od innej sesji
     When obywatel przekazuje swoje twierdzenie

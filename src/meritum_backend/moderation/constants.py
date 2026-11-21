@@ -29,8 +29,8 @@ SUCCESS_STATUS: Final = "SUCCESS"
 NOT_SAVED: Final = Escalation(state="recommended")
 """What the citizen gets when no case was saved: no number, still only recommended."""
 
-NOT_SAVED_KEY: Final = "escalation.recommended"
-"""copy/pl.json key: the case suits a moderator but was not handed over yet."""
+NOT_SAVED_KEY: Final = "escalation.not_saved"
+"""copy/pl.json key: the hand-off failed and no case was saved."""
 
 ESCALATION_KEY_PREFIX: Final = "escalation."
 """copy/pl.json prefix of escalation.created and escalation.updated."""
