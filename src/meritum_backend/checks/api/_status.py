@@ -4,8 +4,8 @@ Every channel (web form, extension, Discord, SMS, MCP) calls this one API, so th
 result does not depend on the channel (ADR-08).
 
 Features:
-    US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-BEZ-07, US-WDR-03, F-01, F-20,
-    F-21, F-23, ADR-08
+    US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-03, US-BEZ-04, US-BEZ-07, US-WDR-03,
+    US-WDR-08, F-01, F-20, F-21, F-23, F-30, ADR-08
 """
 
 import asyncio
@@ -160,8 +160,8 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
             answered 429 with Retry-After, nothing enqueued.
 
     Features:
-        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-WDR-03, F-01, F-20, F-23
-        US-SPR-01, US-SPR-07, US-BEZ-04, US-WDR-08, F-01, F-20, F-30
+        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-03, US-BEZ-04, US-WDR-03, US-WDR-08,
+        F-01, F-20, F-23, F-30
     """
     received_at = datetime.now(UTC)
     if is_unsupported_link(request):

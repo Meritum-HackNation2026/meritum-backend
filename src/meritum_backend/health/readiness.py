@@ -77,7 +77,6 @@ class ReadinessProbe:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._settings = settings
-        self._jobs = jobs
         self._database = database
         self._blob_store = blob_store
         self._clock = clock
