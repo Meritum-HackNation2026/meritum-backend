@@ -1,6 +1,6 @@
 """In-memory jury link storage for local development and tests."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from secrets import compare_digest
 from threading import Lock
 
@@ -17,7 +17,7 @@ class MemoryJuryLinks:
         self._lock = Lock()
 
     async def save(self, token_hash: bytes, expires_at: datetime) -> None:
-        """Persist a link.
+        """Persist a link and drop the ones already past their deadline.
 
         Args:
             token_hash: SHA-256 digest of the link token.
@@ -26,7 +26,9 @@ class MemoryJuryLinks:
         Features:
             US-OBS-06, US-MOD-05, F-28, F-25
         """
+        now = datetime.now(UTC)
         with self._lock:
+            self._links = {k: v for k, v in self._links.items() if v > now}
             self._links[token_hash] = expires_at
 
     async def consume(self, token_hash: bytes, now: datetime) -> datetime | None:

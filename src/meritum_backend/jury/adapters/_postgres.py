@@ -12,6 +12,7 @@ from meritum_backend.jury.constants import (
     GET_JURY_LINK,
     INSERT_JURY_LINK,
     LOCK_JURY_SCHEMA,
+    PURGE_EXPIRED_JURY_LINKS,
 )
 from meritum_backend.jury.ports import JuryUnavailableError
 
@@ -31,7 +32,7 @@ class PostgresJuryLinks:
         self._ready = False
 
     async def save(self, token_hash: bytes, expires_at: datetime) -> None:
-        """Persist the digest and expiry.
+        """Persist the digest and expiry, dropping links past their deadline.
 
         Args:
             token_hash: SHA-256 digest of the link token.
@@ -48,6 +49,7 @@ class PostgresJuryLinks:
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT
             ) as conn:
                 await self._ensure_table(conn)
+                await conn.execute(PURGE_EXPIRED_JURY_LINKS)
                 await conn.execute(INSERT_JURY_LINK, (token_hash, expires_at))
         except psycopg.Error:
             raise JuryUnavailableError from None

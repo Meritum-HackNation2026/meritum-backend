@@ -61,3 +61,9 @@ SELECT token_hash, expires_at FROM jury_links WHERE token_hash = %s FOR UPDATE
 
 DELETE_JURY_LINK: Final = "DELETE FROM jury_links WHERE token_hash = %s"
 """Consume the locked digest inside the same transaction."""
+
+PURGE_EXPIRED_JURY_LINKS: Final = "DELETE FROM jury_links WHERE expires_at <= now()"
+"""Drop links past their deadline when a new one is issued, so the table stays small."""
+
+JSON_MEDIA_TYPE: Final = "application/json"
+"""The only body type redemption accepts: a cross-site form cannot send it."""

@@ -24,6 +24,7 @@ from meritum_backend.auth.constants import (
 from meritum_backend.constants import MINUTE_SECONDS
 from meritum_backend.jury.constants import (
     EVALUATION_PAGE,
+    JSON_MEDIA_TYPE,
     JURY_LINK_ATTEMPTS,
     JURY_PROVIDER,
     JURY_RATE_SCOPE,
@@ -85,6 +86,10 @@ async def _admit(request: Request, ip: str) -> None:
 
 
 async def _read_token(request: Request) -> str:
+    # a text/plain cross-site form could otherwise log a victim into a jury session
+    media_type = request.headers.get("content-type", "").split(";")[0].strip()
+    if media_type.lower() != JSON_MEDIA_TYPE:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, headers=NO_STORE)
     body = bytearray()
     async for chunk in request.stream():
         if len(body) + len(chunk) > MAX_REDEMPTION_BYTES:

@@ -42,3 +42,16 @@ def test_expired_link_is_reported_and_not_consumed() -> None:
 
     deadline = now - timedelta(seconds=1)
     assert asyncio.run(redeem_twice()) == [deadline, deadline]
+
+
+@pytest.mark.integration
+def test_issuing_a_link_drops_expired_ones() -> None:
+    old, now = _digest(), datetime.now(UTC)
+    links = PostgresJuryLinks(LOCAL_DB)
+
+    async def run() -> datetime | None:
+        await links.save(old, now - timedelta(seconds=1))
+        await links.save(_digest(), now + timedelta(hours=1))
+        return await links.consume(old, now)
+
+    assert asyncio.run(run()) is None
