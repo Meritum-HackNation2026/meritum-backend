@@ -5,7 +5,7 @@ Features:
 """
 
 from collections.abc import Sequence
-from urllib.parse import unquote_plus, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from meritum_core.checks import CheckRequest
 from meritum_core.security import mask_personal_data
@@ -17,6 +17,7 @@ from meritum_backend.checks.constants import (
     FOREIGN_LINK,
     INVALID_URL_KEY,
     TEXT_FIELD,
+    TEXT_MAX_CHARS,
     TOO_LONG_ERROR,
     TOO_LONG_KEY,
     URL_FIELDS,
@@ -60,35 +61,43 @@ def is_foreign_link(request: CheckRequest) -> bool:
     return FOREIGN_LINK.fullmatch(text) is not None
 
 
+def _mask(value: str) -> str:
+    return mask_personal_data(value).text
+
+
 def _masked_link(url: HttpUrl | None) -> str | None:
     if url is None:
         return None
     parts = urlsplit(str(url))
-    query = mask_personal_data(unquote_plus(parts.query))
-    if not query.replaced:
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    masked_pairs = [(_mask(key), _mask(value)) for key, value in pairs]
+    if masked_pairs == pairs:
         return str(url)
-    return urlunsplit(parts._replace(query=query.text))
+    return urlunsplit(parts._replace(query=urlencode(masked_pairs)))
 
 
 def masked(request: CheckRequest) -> CheckRequest:
     """Return the request with personal data replaced by markers.
 
-    Masks the text and the query strings of the links; the rest of a link stays
-    as sent, so the worker still fetches the same page.
+    Masks the text and each query parameter of the links; the path stays as
+    sent, so the worker still fetches the same page. Markers can be longer than
+    what they replace, so the masked text is cut to TEXT_MAX_CHARS: the limit
+    applies to what the person sent.
 
     Args:
         request: the validated request.
 
     Returns:
-        A new request, validated again: pydantic's ValidationError propagates
-        when the markers made the text longer than allowed.
+        A new, validated request.
 
     Features:
         US-BEZ-04, F-20
     """
-    text = None if request.text is None else mask_personal_data(request.text).text
-    links = {
-        "url": _masked_link(request.url),
-        "page_url": _masked_link(request.page_url),
-    }
-    return CheckRequest.model_validate({**request.model_dump(), "text": text, **links})
+    text = None if request.text is None else _mask(request.text)[:TEXT_MAX_CHARS]
+    return CheckRequest(
+        channel=request.channel,
+        text=text,
+        url=_masked_link(request.url),
+        page_url=_masked_link(request.page_url),
+        audio_id=request.audio_id,
+    )

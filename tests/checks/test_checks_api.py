@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from typing import override
+from urllib.parse import parse_qsl, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -125,6 +126,30 @@ def test_personal_data_in_a_link_query_is_masked(
     assert "jan" not in url
 
 
+def test_masking_a_link_keeps_its_parameters(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    sent = "https://example.com/a?q=a%26b%3Dc+d&mail=jan%40x.pl"
+    body = {"channel": "web", "url": sent}
+    assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
+    [job] = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    query = parse_qsl(urlsplit(str(job.payload.request.url)).query)
+    assert query == [("q", "a&b=c d"), ("mail", "[e-mail]")]
+
+
+def test_text_within_the_limit_stays_accepted_after_masking(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    body = {"channel": "web", "text": "a@b.pl " + "x" * 3993}
+    assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
+    [job] = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    assert job.payload.request.text is not None
+    assert job.payload.request.text.startswith("[e-mail] ")
+    assert len(job.payload.request.text) == 4000
+
+
 def test_link_is_enqueued_as_sent(client: TestClient, jobs: InMemoryJobQueue) -> None:
     body = {"channel": "web", "url": "https://example.com/a?b=1"}
     assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
@@ -134,10 +159,11 @@ def test_link_is_enqueued_as_sent(client: TestClient, jobs: InMemoryJobQueue) ->
 
 
 @pytest.mark.parametrize(
-    ("body", "headers"),
+    ("body", "headers", "detail"),
     [
-        ({"channel": "web", "text": "Czy to prawda?"}, {}),
-        ({"channel": "discord", "text": "Czy to prawda?"}, SESSION),
+        ({"channel": "web", "text": "Czy to prawda?"}, {}, SESSION_HEADER),
+        ({"channel": "web", "text": "Czy to prawda?"}, {SESSION_HEADER: "x"}, "valid"),
+        ({"channel": "discord", "text": "Czy to prawda?"}, SESSION, "adapter"),
     ],
 )
 def test_without_a_browser_session_nothing_starts(
@@ -145,8 +171,11 @@ def test_without_a_browser_session_nothing_starts(
     jobs: InMemoryJobQueue,
     body: dict[str, str],
     headers: dict[str, str],
+    detail: str,
 ) -> None:
-    assert client.post("/api/v1/checks", json=body, headers=headers).status_code == 400
+    response = client.post("/api/v1/checks", json=body, headers=headers)
+    assert response.status_code == 400
+    assert detail in response.json()["detail"]
     assert jobs.enqueued == []
 
 

@@ -17,20 +17,29 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from meritum_core.checks import AnalysisStatus, CheckRequest
+from meritum_core.checks import (
+    SESSIONLESS_CHANNELS,
+    AnalysisStatus,
+    CheckRequest,
+    CheckResult,
+)
 from meritum_core.jobs.constants import PROGRESS_KEY
 from meritum_core.jobs.contracts import CHECK, CheckInput, CheckOutput
-from meritum_core.jobs.ports import JobQueue
+from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
 from pydantic_core import ErrorDetails
 
 from meritum_backend.checks.constants import (
     AI_DISCLOSURE_HEADER,
     AI_DISCLOSURE_VALUE,
+    BAD_SESSION_DETAIL,
     INVALID_URL_KEY,
+    NO_SESSION_DETAIL,
+    NOT_FOUND_DETAIL,
     PROGRESS_WAIT_SECONDS,
     RECEIVED,
     SESSION_HEADER,
+    SESSIONLESS_DETAIL,
 )
 from meritum_backend.checks.intake import is_foreign_link, masked, message_key
 from meritum_backend.jobs.api import Jobs
@@ -122,8 +131,9 @@ async def start_check(
         The check id, or 422 with a copy key.
 
     Raises:
-        HTTPException: 400 without a session (Discord, SMS and MCP use their own
-            adapters), 503 when the job queue is unreachable.
+        HTTPException: 400 without a valid session or for Discord, SMS and MCP
+            (they come through their adapters with a hashed user id, backend#27),
+            503 when the job queue is unreachable.
 
     Features:
         US-SPR-01, US-SPR-07, US-BEZ-04, F-01, F-20
@@ -131,16 +141,16 @@ async def start_check(
     received_at = datetime.now(UTC)
     if is_foreign_link(request):
         return _invalid(INVALID_URL_KEY)
+    if request.channel in SESSIONLESS_CHANNELS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, SESSIONLESS_DETAIL)
+    if session is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
     try:
         payload = CheckInput(
             request=masked(request), session_id=session, received_at=received_at
         )
-    except ValidationError as exc:
-        if exc.title == CheckRequest.__name__:
-            return _invalid(message_key(exc.errors()))
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, f"send a valid {SESSION_HEADER} header"
-        ) from None
+    except ValidationError:  # the session id is too short or too long
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     try:
         check_id = await jobs.enqueue(CHECK, payload)
     except Exception as exc:  # DBOS wraps driver errors in its own types
@@ -159,6 +169,15 @@ async def _latest_progress(jobs: JobQueue, check_id: str) -> AnalysisStatus | No
             async for value in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):
                 latest = value
     return latest
+
+
+def _output_result(state: JobState) -> CheckResult | None:
+    if state.output is None:
+        return None
+    try:
+        return CheckOutput.model_validate(state.output).result
+    except ValidationError:  # another workflow's id, e.g. a ping
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL) from None
 
 
 @router.get(
@@ -194,15 +213,10 @@ async def check_status(jobs: Jobs, check_id: str, response: Response) -> Analysi
     """
     state = await jobs.state(check_id)
     if state is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "check not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     latest = await _latest_progress(jobs, check_id)
     steps = latest.steps if latest else [RECEIVED]
-    result = latest.result if latest else None
-    if result is None and state.output is not None:
-        try:
-            result = CheckOutput.model_validate(state.output).result
-        except ValidationError:  # another workflow's id, e.g. a ping
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "check not found") from None
+    result = latest.result if latest else _output_result(state)
     if result is not None:
         response.headers[AI_DISCLOSURE_HEADER] = AI_DISCLOSURE_VALUE
     return AnalysisStatus(check_id=check_id, steps=steps, result=result)
