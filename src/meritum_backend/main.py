@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from meritum_core.jobs.adapters import DbosJobQueue
 from meritum_core.jobs.contracts import APPLICATION_NAME
 
+from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
 from meritum_backend.limits import RateLimitExceeded, limiter, too_many_requests
@@ -48,4 +49,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, too_many_requests)
     app.include_router(health_router)
     app.include_router(jobs_router)
+    app.include_router(discord_router)
     return app

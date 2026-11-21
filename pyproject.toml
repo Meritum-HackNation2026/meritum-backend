@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [{ name = "Cyprian Gburek" }]
 requires-python = ">=3.14"
 dependencies = [
+    "cryptography>=50.0.2",
     "dbos>=3.6.0",
     "fastapi>=0.165.0",
     "meritum-core",
@@ -55,6 +56,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["assert", "magic-value-comparison", "D", "DOC"]
+"scripts/**/*.py" = ["implicit-namespace-package"]  # standalone scripts, not a package
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

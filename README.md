@@ -15,7 +15,25 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `GET /api/v1/health/live` | żywotność procesu, bez bazy (healthcheck Dockera) |
 | `POST /api/v1/jobs/ping` | zleca workflow `ping` (test dymny po deployu), zwraca `workflow_id` |
 | `GET /api/v1/jobs/{workflow_id}` | stan zadania: `status`, `output`, `error` |
+| `POST /api/v1/discord/interactions` | kanał Discord: interakcje HTTP podpisane kluczem Ed25519 aplikacji (401 przy złym podpisie, 404 gdy środowisko nie ma aplikacji Discord) |
 | `GET /api/docs` | Swagger UI, schemat w `/api/v1/openapi.json` |
+
+## Kanał Discord
+
+Discord to kanał wejściowy jak formularz i wtyczka: interakcje HTTP (bez bota z trwałym połączeniem) trafiają do `POST /api/v1/discord/interactions`. Komendy:
+
+- `/sprawdz tekst:<tekst albo link>`,
+- „Sprawdź w Meritum” w menu Aplikacje przy dowolnej wiadomości.
+
+Aplikację da się dodać do serwera albo do własnego konta, a odpowiedź widzi tylko pytający. W bootstrapie odpowiedź mówi, że rdzeń weryfikacji jest w budowie; tekst przechodzi walidację `CheckRequest` z kanałem `discord`.
+
+Każde środowisko ma własną aplikację Discord. Jej klucz publiczny jest w zmiennych repo `DISCORD_PUBLIC_KEY_DEV` i `DISCORD_PUBLIC_KEY_PRD` (deploy przekazuje go jako `MERITUM_DISCORD_PUBLIC_KEY`), a w ustawieniach aplikacji jako Interactions Endpoint URL wpisany jest `https://meritum-dev.gburek.app/api/v1/discord/interactions` albo `https://meritum.gburek.app/...`. Komendy rejestruje:
+
+```bash
+DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... uv run python scripts/register_discord_commands.py
+```
+
+Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discorda); limit per użytkownik Discorda dojdzie razem ze sprawdzaniem.
 
 ## Praca lokalna
 

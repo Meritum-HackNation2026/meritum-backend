@@ -4,7 +4,8 @@
 # Runs on the self-hosted runner `dellpromaxgb10` (on the host itself).
 # Needs the platform (meritum-infra: onprem/dellpromaxgb10/platform/setup.sh):
 # network `meritum`, meritum-postgres and ~/meritum/envs/api-<env>.env.
-# Env: CORE_KEY_FILE, a read-only deploy key of meritum-core (BuildKit --ssh).
+# Env: CORE_KEY_FILE, a read-only deploy key of meritum-core (BuildKit --ssh);
+#      DISCORD_PUBLIC_KEY (optional), the Discord app of this env (no key, no endpoint).
 set -euo pipefail
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 branch=${1:?usage: deploy.sh <main|develop> [sha]}
@@ -25,8 +26,10 @@ log "built $image"
 exec 9>"$state/deploy.lock"
 flock 9  # one change at a time on this host (shared with the platform and other repos)
 docker rm -f "$container" >/dev/null 2>&1 || true
+discord=()
+if [ -n "${DISCORD_PUBLIC_KEY:-}" ]; then discord=(-e "MERITUM_DISCORD_PUBLIC_KEY=$DISCORD_PUBLIC_KEY"); fi
 docker run -d --name "$container" --network meritum --restart unless-stopped \
-  "${labels[@]}" --env-file "$envfile" "$image" >/dev/null
+  "${labels[@]}" --env-file "$envfile" "${discord[@]}" "$image" >/dev/null
 log "started $container"
 
 get() { docker exec "$container" python -c "import sys, urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000$1', timeout=5).read().decode())"; }
