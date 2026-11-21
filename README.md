@@ -23,7 +23,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | `POST /api/v1/checks/{check_id}/claims/{n}/escalate` | „Przekaż moderatorom”: zleca workflow `escalate_claim` (powód `recommended_clicked`) i czeka na zapis sprawy; 200 z `Escalation` `created` albo `updated` z numerem i kluczem `escalation.created`/`escalation.updated`; gdy sprawy nie zapisano, 503 z `Escalation` `recommended` bez numeru i kluczem `escalation.not_saved`; 404 dla nieukończonego sprawdzenia albo nieznanego twierdzenia |
 | `POST /api/v1/checks/{check_id}/claims/{n}/dispute` | „Zgłoś błąd”: opcjonalnie `{"justification": "..."}` (maskowane jak pytanie; do 4000 znaków, dłuższe daje 422 `errors.too_long`; po zamaskowaniu przycinane do 1000 przed znacznikiem), powód `user_dispute`, odpowiedzi jak wyżej z kluczem `result.report_error_done`; uzasadnienie jest opcjonalne (brak treści albo same spacje wysyła spór bez niego); wynik sprawdzenia się nie zmienia |
 | `POST /api/v1/discord/interactions` | kanał Discord: interakcje HTTP podpisane kluczem Ed25519 aplikacji (401 przy złym podpisie, 404 gdy środowisko nie ma aplikacji Discord) |
-| `POST /api/v1/sms/webhook` | kanał SMS: zdarzenie `sms:received` bramki sms-gate.app podpisane HMAC (401 przy złym podpisie albo znaczniku czasu spoza ±5 min, 404 gdy środowisko nie ma bramki); zawsze szybkie 202, sprawdzenie idzie do kolejki jobów (patrz „Kanał SMS”) |
+| `POST /api/v1/sms/webhook` | kanał SMS: zdarzenia `sms:received` i `mms:downloaded` bramki sms-gate.app podpisane HMAC (401 przy złym podpisie albo znaczniku czasu spoza ±5 min, 404 gdy środowisko nie ma bramki); zawsze szybkie 202, sprawdzenie idzie do kolejki jobów (patrz „Kanał SMS”) |
 | `GET /api/v1/auth/login/{google,microsoft}` | logowanie OIDC: przekierowanie do dostawcy (404, gdy dostawca nie jest skonfigurowany) |
 | `GET /api/v1/auth/callback/{google,microsoft}` | powrót od dostawcy: sprawdza `state` i token ID, zakłada sesję, przekierowuje na `/` (400 przy złym `state` albo tokenie) |
 | `GET /api/v1/auth/me` | zalogowane konto: dostawca, identyfikator konta, e-mail i `csrf_token` (401 bez sesji) |
@@ -77,18 +77,28 @@ Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discor
 
 Bramką jest telefon z Androidem (polska karta prepaid) z aplikacją SMS Gateway for Android w trybie Cloud ([sms-gate.app](https://docs.sms-gate.app/)). W tym trybie treść SMS-ów przechodzi przez serwery sms-gate.app. Usługa jest bezpłatna; operator nadawcy może pobrać standardową opłatę za SMS według jego taryfy.
 
-- Odbiór: bramka wysyła `POST /api/v1/sms/webhook` z nagłówkami `X-Signature` (hex `HMAC_SHA256(klucz, surowe body + X-Timestamp)`) i `X-Timestamp`. Zły podpis albo znacznik czasu starszy lub nowszy niż 5 minut daje 401. Bramka ponawia zdarzenie do ok. 2 dni, dopóki nie dostanie 2xx, więc identyfikator workflowu to `sms-<deviceId>-<id>`: powtórzone zdarzenie nie startuje drugiego sprawdzenia.
+- Odbiór: bramka wysyła `POST /api/v1/sms/webhook` z nagłówkami `X-Signature` (hex `HMAC_SHA256(klucz, surowe body + X-Timestamp)`) i `X-Timestamp`. Zły podpis albo znacznik czasu starszy lub nowszy niż 5 minut daje 401. Bramka ponawia zdarzenie do ok. 2 dni, dopóki nie dostanie 2xx, więc identyfikator workflowu to `sms-` i 32 znaki hex SHA-256 z `<deviceId>-<id>` (prawdziwe identyfikatory bramki przekraczają 40 znaków `check_id`): powtórzone zdarzenie nie startuje drugiego sprawdzenia.
 - Numer nadawcy najpierw trafia do formatu E.164 (`600 700 800`, `0048600700800` i `+48 600 700 800` to ten sam `+48600700800`), a potem od razu zamienia się w skrót z solą (`MERITUM_CHANNEL_HASH_SALT`, ta sama funkcja co w backend#24), który jest `session_id` i `channel_user_hash`. Surowy numer zostaje tylko w pamięci zadania, które po zakończeniu sprawdzenia wysyła odpowiedź; restart procesu gubi odpowiedź, ale numer nigdzie nie trafia.
 - Odpowiedź to werdykt głównego twierdzenia, bez linku (operatorzy filtrują linki), najwyżej 70 znaków UCS-2 na SMS. Pierwszy SMS do numeru bez wcześniejszych sprawdzeń poprzedza informacja, że odpowiada system AI. `MERITUM_SMS_GSM7=true` zamienia polskie litery na litery bez ogonków i pozwala na 160 znaków. Sprawdzenie, które nie skończy się w 10 minut, dostaje tekst o niepowodzeniu.
 - SMS o treści `USUN` (także `USUŃ`, wielkość liter bez znaczenia) usuwa zapisy sprawdzeń dla skrótu tego numeru (`delete_subject`, backend#20).
 - Sprawdzenie z SMS-a przechodzi przez te same limity co formularz (kanał `sms` i próg oczekujących sprawdzeń); skrót numeru zastępuje w nich adres IP, bo wszystkie webhooki przychodzą z serwerów sms-gate.app. Odmowa daje 202 `refused` bez odpowiedzi SMS, więc nie kosztuje SMS-a z karty bramki.
 - SMS bramki do samej siebie (numer `MERITUM_SMS_GATEWAY_NUMBER`) dostaje 202 bez sprawdzenia i bez odpowiedzi, żeby nie zapętlić odpowiedzi.
 
+- Wiadomość z telefonu z włączonym RCS („czat” w Wiadomościach Google) bramka widzi jako MMS i wysyła [`mms:downloaded`](https://docs.sms-gate.app/features/mms/#mms-webhook-events) zamiast `sms:received`. Jej pole `body` idzie tą samą ścieżką co tekst SMS-a (podpis, deduplikacja, skrót numeru, `USUN`); załączniki są pomijane i nigdzie nie trafiają. MMS bez tekstu dostaje 202 `ignored`.
+
 Webhook `sms:received` jest zarejestrowany tylko dla dev; dev i prd korzystają z tego samego telefonu, więc prd dostanie własny webhook dopiero po decyzji zespołu (każdy SMS trafiłby wtedy do obu środowisk i oba by odpowiedziały). Rejestracja (stały `id` nadpisuje webhook zamiast tworzyć drugi; webhooków `web-dashboard-*` nie usuwaj):
 
 ```bash
 curl -X POST -u "$SMS_GATEWAY_USERNAME:$SMS_GATEWAY_PASSWORD" -H "Content-Type: application/json" \
   -d '{"id":"meritum-dev-sms-received","url":"https://meritum-dev.gburek.app/api/v1/sms/webhook","event":"sms:received"}' \
+  https://api.sms-gate.app/3rdparty/v1/webhooks
+```
+
+Drugi webhook, dla wiadomości RCS/MMS, na ten sam adres:
+
+```bash
+curl -X POST -u "$SMS_GATEWAY_USERNAME:$SMS_GATEWAY_PASSWORD" -H "Content-Type: application/json" \
+  -d '{"id":"meritum-dev-mms-downloaded","url":"https://meritum-dev.gburek.app/api/v1/sms/webhook","event":"mms:downloaded"}' \
   https://api.sms-gate.app/3rdparty/v1/webhooks
 ```
 

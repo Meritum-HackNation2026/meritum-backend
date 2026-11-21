@@ -8,10 +8,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReceivedSms(BaseModel):
-    """The ``payload`` of an ``sms:received`` event (fields Meritum reads).
+    """The ``payload`` of an ``sms:received`` or ``mms:downloaded`` event.
+
+    Only the fields Meritum reads; MMS attachments are never parsed or kept.
 
     Attributes:
         message: the SMS text.
+        body: the MMS text (RCS chats arrive as MMS); None when it has no text.
         sender: the sender's number (E.164); hashed before anything keeps it.
 
     Features:
@@ -21,6 +24,7 @@ class ReceivedSms(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     message: str = ""
+    body: str | None = None
     sender: str = Field(min_length=1, max_length=32)
 
 
@@ -31,7 +35,7 @@ class GatewayEvent(BaseModel):
         device_id: the gateway phone.
         event: the event type, e.g. ``sms:received``.
         id: the event id; a retry repeats it.
-        payload: the SMS, for ``sms:received``.
+        payload: the message, for ``sms:received`` and ``mms:downloaded``.
 
     Features:
         US-WTY-07, F-32
