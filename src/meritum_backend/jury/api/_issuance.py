@@ -3,8 +3,9 @@
 import secrets
 from datetime import UTC, datetime
 from hashlib import sha256
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import AwareDatetime, BaseModel
 
 from meritum_backend.auth.api import CsrfUser
@@ -22,6 +23,7 @@ from meritum_backend.jury.constants import (
     NO_STORE,
 )
 from meritum_backend.jury.ports import JuryUnavailableError
+from meritum_backend.settings import Settings, get_settings
 from meritum_backend.staff.api import Admin
 
 router = APIRouter(prefix="/api/v1", tags=["jury"])
@@ -45,19 +47,19 @@ class IssuedJuryLink(BaseModel):
 
 @router.post("/staff/jury-links", status_code=status.HTTP_201_CREATED)
 async def issue_jury_link(
-    request: Request,
     response: Response,
     _admin: Admin,
     _csrf: CsrfUser,
     store: Store,
+    settings: Annotated[Settings, Depends(get_settings)],
     expires_at: AwareDatetime | None = None,
 ) -> IssuedJuryLink:
     """Issue a short-lived link that can be redeemed only once.
 
     Args:
-        request: the request whose app holds the public URL.
         response: outgoing response with caching disabled.
         store: link store.
+        settings: environment and public URL of the panel.
         expires_at: end of the evaluation, at most 7 days ahead; 24 hours if absent.
 
     Returns:
@@ -80,7 +82,6 @@ async def issue_jury_link(
         await store.save(sha256(token.encode()).digest(), deadline)
     except JuryUnavailableError:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE) from None
-    settings = request.app.state.settings
     origin = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
     response.headers.update(NO_STORE)
     return IssuedJuryLink(

@@ -102,8 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     mask_sessions_in_access_log()
     app.state.limiter = limiter
-    app.state.settings = settings
-    app.state.jury_links, app.state.jury_rate_counter = build_jury(settings)
+    (app.state.jury_links, app.state.jury_rate_counter, app.state.jury_rate_secret) = (
+        build_jury(settings)
+    )
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
@@ -112,14 +113,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.repositories = repositories
     app.state.staff = build_staff(repositories)
     secret = settings.session_secret
-    key = (
-        secret.get_secret_value() if secret is not None else ""
-    ) or secrets.token_urlsafe(TOKEN_BYTES)
-    app.state.jury_rate_secret = key.encode()
+    key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(
         SessionMiddleware,
         # no key configured: a random one, so sessions end when the process restarts
-        secret_key=key,
+        secret_key=key or secrets.token_urlsafe(TOKEN_BYTES),
         session_cookie=SESSION_COOKIE,
         max_age=SESSION_MAX_AGE,
         same_site="lax",
