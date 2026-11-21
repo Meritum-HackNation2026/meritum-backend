@@ -7,18 +7,19 @@ change applies to the next claim without a restart.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from meritum_core.checks.contracts import ModeratorCase
 from meritum_core.moderation import (
     HighRiskTopic,
     HighRiskTopicRepository,
     ModeratorCaseRepository,
 )
+from meritum_core.moderation.constants import TOPIC_NAME_MAX_CHARS
 
 from meritum_backend.auth.api import CsrfUser
 from meritum_backend.moderation.constants import CASE_ROLES
 from meritum_backend.staff import StaffMember
-from meritum_backend.staff.api import Admin, StaffGate
+from meritum_backend.staff.api import Admin, AnyStaff, StaffGate
 
 router = APIRouter(prefix="/api/v1/moderation", tags=["moderation"])
 
@@ -76,11 +77,11 @@ async def list_cases(_member: CaseReader, cases: Cases) -> list[ModeratorCase]:
 
 
 @router.get("/topics")
-async def list_topics(_admin: Admin, topics: Topics) -> list[HighRiskTopic]:
-    """The high-risk topics and their keywords.
+async def list_topics(_member: AnyStaff, topics: Topics) -> list[HighRiskTopic]:
+    """The high-risk topics and their keywords; open to every staff role.
 
     Args:
-        _admin: the signed-in administrator.
+        _member: a signed-in member with any role.
         topics: the topic repository.
 
     Returns:
@@ -116,7 +117,10 @@ async def save_topic(
 
 @router.delete("/topics/{name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_topic(
-    name: str, _admin: Admin, _csrf: CsrfUser, topics: Topics
+    name: Annotated[str, Path(max_length=TOPIC_NAME_MAX_CHARS)],
+    _admin: Admin,
+    _csrf: CsrfUser,
+    topics: Topics,
 ) -> None:
     """Delete a topic; an unknown name does nothing.
 

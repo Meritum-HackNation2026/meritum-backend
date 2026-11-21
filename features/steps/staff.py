@@ -5,6 +5,7 @@ provider stands in for Google and Microsoft, the repositories are in memory.
 """
 
 import asyncio
+from datetime import UTC, datetime
 from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
@@ -12,6 +13,7 @@ from behave import given, then, when
 from behave.runner import Context
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from meritum_core.checks.contracts import CaseClaim, ModeratorCase
 from meritum_core.moderation import HighRiskTopic
 
 from meritum_backend.auth.adapters import FakeLogin
@@ -25,17 +27,29 @@ MODERATOR = "moderator@example.com"
 STRANGER = "stranger@example.com"
 TOPIC = HighRiskTopic(name="wybory", keywords=["wybory", "lokal wyborczy"])
 CLAIM = "Lokal wyborczy w Gdańsku będzie zamknięty w niedzielę."
+NOW = datetime(2026, 11, 21, tzinfo=UTC)
+CASE = ModeratorCase(
+    id="#S-1",
+    state="open",
+    reasons=["insufficient_evidence"],
+    summary="Twierdzenie bez dowodów",
+    claims=[CaseClaim(claim=CLAIM, check_ids=["c_1"])],
+    first_seen=NOW,
+    last_seen=NOW,
+)
 
 
 def _app() -> FastAPI:
-    """Build the app with one configured administrator.
+    """Build the app with one configured administrator and one open case.
 
     Returns:
         The app; its repositories live as long as it does.
     """
-    return create_app(
+    app = create_app(
         Settings(database_url="postgresql://x:x@127.0.0.1:1/x", admin_emails=ADMIN)
     )
+    asyncio.run(app.state.cases.save(CASE))
+    return app
 
 
 def _signed_in(app: FastAPI, email: str) -> TestClient:
@@ -114,7 +128,8 @@ def moderator_sees_cases_only(context: Context) -> None:
     """
     moderator = _signed_in(context.app, MODERATOR)
     assert moderator.get("/api/v1/staff/me").json()["role"] == "moderator"
-    assert moderator.get("/api/v1/moderation/cases").status_code == HTTPStatus.OK
+    cases = moderator.get("/api/v1/moderation/cases").json()
+    assert [case["id"] for case in cases] == [CASE.id]
     assert moderator.get("/api/v1/staff").status_code == HTTPStatus.FORBIDDEN
 
 
@@ -158,7 +173,7 @@ def stranger_refused(context: Context) -> None:
     assert client.get("/api/v1/staff/me").status_code == HTTPStatus.FORBIDDEN
     cases = client.get("/api/v1/moderation/cases")
     assert cases.status_code == HTTPStatus.FORBIDDEN
-    assert "claims" not in cases.text
+    assert CASE.id not in cases.text
 
 
 @given('administrator dodaje temat "wybory" ze słowami kluczowymi')

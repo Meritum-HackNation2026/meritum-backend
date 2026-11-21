@@ -60,6 +60,7 @@ CALLS = {
 ALLOWED = {
     "me": {"moderator", "analyst", "admin"},
     "cases": {"moderator", "admin"},
+    "topics": {"moderator", "analyst", "admin"},
 }  # every other call: admin only
 
 
@@ -128,3 +129,8 @@ def test_topics_round_trip(app: FastAPI) -> None:
     assert admin.get("/api/v1/moderation/topics").json() == [TOPIC]
     admin.delete("/api/v1/moderation/topics/wybory")
     assert admin.get("/api/v1/moderation/topics").json() == []
+
+
+def test_too_long_topic_name_is_rejected(app: FastAPI) -> None:
+    admin = signed_in(app, ADMIN)
+    assert admin.delete(f"/api/v1/moderation/topics/{'x' * 81}").status_code == 422

@@ -77,7 +77,8 @@ Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i ekspor
 | `GET /api/v1/staff/me` | każda rola; 403 znaczy „brak dostępu do panelu” |
 | `GET`, `POST /api/v1/staff`, `DELETE /api/v1/staff/{email}` | `admin` |
 | `GET /api/v1/moderation/cases` | `moderator`, `admin` |
-| `GET`, `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
+| `GET /api/v1/moderation/topics` | każda rola (lista jest jawna dla personelu) |
+| `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
 
 Konta personelu, sprawy i tematy są na razie w pamięci procesu (giną przy restarcie, worker ich nie widzi); przejdą do PostgreSQL razem z adapterami z core/031.
 

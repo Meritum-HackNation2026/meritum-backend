@@ -1,6 +1,6 @@
 """Constants of the staff slice."""
 
-from typing import Final
+from typing import Final, get_args
 
 from meritum_core.checks.contracts import StaffRole
 
@@ -13,7 +13,7 @@ EMAIL_PATTERN: Final = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 ADMIN: Final[StaffRole] = "admin"
 """The role that manages staff accounts and the high-risk topic list."""
 
-EVERY_ROLE: Final[frozenset[StaffRole]] = frozenset({"moderator", "analyst", "admin"})
+EVERY_ROLE: Final[frozenset[StaffRole]] = frozenset(get_args(StaffRole))
 """Every staff role: whoever has one may open the panel."""
 
 ADMIN_ONLY: Final[frozenset[StaffRole]] = frozenset({ADMIN})
