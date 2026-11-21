@@ -23,6 +23,10 @@ class RecordingCounter:
         self.keys.append(key)
         return 1
 
+    async def forget_finished(self, window_seconds: int) -> None:
+        del window_seconds
+        self.keys.clear()
+
 
 def ip_key(salt: str | None) -> str:
     counter = RecordingCounter()
@@ -73,3 +77,19 @@ def test_unreachable_counter_lets_through_and_logs_no_address(
     assert caplog.records
     assert all(IP not in r.getMessage() for r in caplog.records)
     assert all(r.exc_text is None or IP not in r.exc_text for r in caplog.records)
+
+
+def test_secret_comes_from_the_channel_hash_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MERITUM_CHANNEL_HASH_SALT", "s3cret")
+    assert LimitSettings().channel_hash_salt == SecretStr("s3cret")
+
+
+def test_event_stream_key_is_hmac_too() -> None:
+    counter = RecordingCounter()
+    limits = LimitSettings(channel_hash_salt=SecretStr("s3cret"))
+    gate = CheckGate(counter, FixedPendingChecks(), limits)
+    asyncio.run(gate.stream_refusal(HOME))
+    digest = hmac.new(b"s3cret", f"events:{IP}".encode(), hashlib.sha256).hexdigest()
+    assert counter.keys == [f"events:{digest}"]

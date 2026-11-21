@@ -39,6 +39,15 @@ class MemoryRateCounter:
         self._hits[key] = (window, hits)
         return hits
 
+    async def forget_finished(self, window_seconds: int) -> None:
+        """Drop the keys of finished windows.
+
+        Args:
+            window_seconds: length of the window.
+        """
+        window = int(self._clock() // window_seconds)
+        self._hits = {k: v for k, v in self._hits.items() if v[0] == window}
+
     @property
     def keys(self) -> frozenset[str]:
         """The keys stored now (tests check what the table would hold).

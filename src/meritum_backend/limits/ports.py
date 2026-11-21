@@ -27,6 +27,14 @@ class RateCounter(Protocol):
         """
         ...
 
+    async def forget_finished(self, window_seconds: int) -> None:
+        """Drop the counts of finished windows, with or without new traffic.
+
+        Args:
+            window_seconds: length of the window the counts were made in.
+        """
+        ...
+
 
 class PendingChecks(Protocol):
     """Counts checks waiting in the worker's queue.

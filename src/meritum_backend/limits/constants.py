@@ -75,6 +75,10 @@ EVENTS_SCOPE: Final = "events"
 RETRY_AFTER_HEADER: Final = "Retry-After"
 """Header with the seconds a refused client should wait."""
 
+PRUNE_EVERY_SECONDS: Final = 15
+"""How often the API drops finished windows, so no key outlives its window by
+more than this, even without traffic (backend#66)."""
+
 KEY_SECRET_BYTES: Final = 32
 """Length of the per-process HMAC key used when no secret is configured."""
 

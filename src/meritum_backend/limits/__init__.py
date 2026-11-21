@@ -20,6 +20,7 @@ from meritum_backend.limits.api import (
     admit_stream,
     check_refused,
     get_check_gate,
+    start_pruning,
 )
 from meritum_backend.limits.constants import BUSY, RATE_LIMITED
 from meritum_backend.limits.errors import CheckRefusedError
@@ -45,5 +46,6 @@ __all__ = [
     "check_refused",
     "get_check_gate",
     "limiter",
+    "start_pruning",
     "too_many_requests",
 ]
