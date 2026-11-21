@@ -21,6 +21,19 @@ CALLBACK_PATH: Final = "/api/v1/auth/callback/{provider}"
 HOME: Final = "/"
 """Where the browser goes after a successful login: the web app's home page."""
 
+RETURN_PATH_MAX: Final = 512
+"""Longest return path kept in the session cookie; a longer one means ``HOME``."""
+
+RETURN_PATH_CHARS: Final = frozenset(map(chr, range(0x21, 0x7F))) - {"\\"}
+"""Characters a return path may hold: printable ASCII without spaces or backslashes
+(browsers read ``\\`` as ``/`` and drop tabs, so ``/\\host`` would leave the site)."""
+
+RETURN_TO_DOC: Final = (
+    "Path on this site to open after login, e.g. /panel. Anything else"
+    " (another host, //host, a scheme, a backslash, whitespace) means /."
+)
+"""OpenAPI description of the login endpoint's ``return_to`` parameter."""
+
 CSRF_HEADER: Final = "X-CSRF-Token"
 """Header that state-changing requests repeat the session's CSRF token in."""
 

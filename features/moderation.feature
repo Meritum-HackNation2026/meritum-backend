@@ -68,3 +68,13 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given administrator utworzył ważny link jury
     When członek jury realizuje link po okresie oceny
     Then dostaje informację o wygaśnięciu i pozostaje bez sesji
+
+  Scenario: po zalogowaniu moderator wraca tam, skąd zaczął
+    Given moderator otwiera /panel i nie jest zalogowany
+    When loguje się przez dostawcę OIDC
+    Then po powrocie z logowania trafia na /panel
+
+  Scenario: obcy adres powrotu jest odrzucany
+    Given żądanie logowania z adresem powrotu https://zly.example/
+    When logowanie się kończy
+    Then backend przekierowuje na /

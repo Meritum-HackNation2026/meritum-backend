@@ -1,6 +1,25 @@
 """Models of the auth slice: the signed-in account and a login in progress."""
 
-from pydantic import BaseModel, ConfigDict
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, ConfigDict
+
+from meritum_backend.auth.constants import HOME, RETURN_PATH_CHARS, RETURN_PATH_MAX
+
+
+def _same_origin_path(path: str) -> str:
+    """Keep ``path`` only when it is a relative path on this site.
+
+    Args:
+        path: the return path the login was started with.
+
+    Returns:
+        ``path``, or ``HOME`` for anything that could leave the site: a scheme,
+        ``//host``, a backslash, whitespace, control characters or a long value.
+    """
+    is_absolute_path = path.startswith("/") and not path.startswith("//")
+    is_plain = len(path) <= RETURN_PATH_MAX and set(path) <= RETURN_PATH_CHARS
+    return path if is_absolute_path and is_plain else HOME
 
 
 class Account(BaseModel):
@@ -33,6 +52,8 @@ class PendingLogin(BaseModel):
         nonce: the value the ID token must carry (replay protection).
         code_verifier: the PKCE secret matching the code challenge sent.
         redirect_uri: the callback address registered with the provider.
+        return_to: the page to open after login; anything but a relative path
+            on this site becomes ``HOME`` (no open redirect).
 
     Features:
         US-MOD-05, US-SPR-10, F-25
@@ -45,6 +66,7 @@ class PendingLogin(BaseModel):
     nonce: str
     code_verifier: str
     redirect_uri: str
+    return_to: Annotated[str, AfterValidator(_same_origin_path)] = HOME
 
 
 class LoginStart(BaseModel):
