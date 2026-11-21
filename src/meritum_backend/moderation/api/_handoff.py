@@ -73,9 +73,14 @@ class Dispute(BaseModel):
     """
 
     justification: Annotated[
-        str | None,
+        Annotated[
+            str,
+            StringConstraints(
+                strip_whitespace=True, max_length=MAX_JUSTIFICATION_CHARS
+            ),
+        ]
+        | None,
         BeforeValidator(_none_when_blank),
-        StringConstraints(strip_whitespace=True, max_length=MAX_JUSTIFICATION_CHARS),
     ] = None
 
 
