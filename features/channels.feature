@@ -54,3 +54,8 @@ Feature: Kanały bez sesji przeglądarki
     Given mms:downloaded bez części tekstowej (same załączniki)
     When webhook je odbiera i podpis się zgadza
     Then backend potwierdza odbiór (2xx) i nic nie sprawdza
+
+  Scenario: wynik z pamięci niesie znacznik AI modelu, który napisał uzasadnienie
+    Given sprawdzenie tekstu "Czy we Włoszech ostatnio odbywał się strajk generalny?" z formularza zakończyło się 10 minut temu
+    When ten sam tekst z innymi spacjami i cudzysłowami przychodzi z wtyczki
+    Then oba wyniki mają ten sam znacznik AI z dostawcą i modelem, który napisał uzasadnienie

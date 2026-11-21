@@ -51,5 +51,11 @@
   "escalation": {
     "state": "recommended"
   },
-  "corpus_version": "test"
+  "corpus_version": "test",
+  "ai_marker": {
+    "ai_generated": true,
+    "provider": "openrouter",
+    "model": "anthropic/claude-haiku-5-5",
+    "generated_at": "2026-11-21T12:00:00Z"
+  }
 }

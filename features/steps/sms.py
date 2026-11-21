@@ -18,7 +18,7 @@ from behave import given, then, when
 from behave.runner import Context
 from fastapi.testclient import TestClient
 from meritum_core.checks import CheckResult
-from meritum_core.checks.contracts import CheckRecord, ClaimResult
+from meritum_core.checks.contracts import AiMarker, CheckRecord, ClaimResult
 from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
@@ -79,6 +79,11 @@ class _FinishedJobs(InMemoryJobQueue):
             ],
             limitations=["Korpus obejmuje tylko źródła polskie."],
             corpus_version="test",
+            ai_marker=AiMarker(
+                provider="stub",
+                model="stub",
+                generated_at=datetime(2026, 11, 21, tzinfo=UTC),
+            ),
         )
         output = CheckOutput(result=result).model_dump(mode="json")
         return JobState(workflow_id=workflow_id, status="SUCCESS", output=output)

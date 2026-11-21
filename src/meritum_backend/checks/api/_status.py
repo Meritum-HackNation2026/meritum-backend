@@ -33,6 +33,7 @@ from meritum_backend.checks.api._cache import (
     serve_from_cache,
     served,
 )
+from meritum_backend.checks.api._disclosure import ai_disclosure
 from meritum_backend.checks.api._identity import identity
 from meritum_backend.checks.api._keyed import InvalidCheck, KeyedErrorsRoute, invalid
 from meritum_backend.checks.api._pii import PiiGate
@@ -227,5 +228,5 @@ async def check_status(
         if result is not None:
             await fill(cache, result, datetime.now(UTC))
     if result is not None:
-        response.headers[AI_DISCLOSURE_HEADER] = AI_DISCLOSURE_VALUE
+        response.headers[AI_DISCLOSURE_HEADER] = ai_disclosure(result)
     return AnalysisStatus(check_id=check_id, steps=steps, result=result)

@@ -12,6 +12,7 @@ from typing import LiteralString
 import psycopg
 from meritum_core.checks.contracts import CachedResult
 from psycopg.rows import TupleRow
+from pydantic import ValidationError
 
 from meritum_backend.checks.constants import (
     CACHE_CONNECT_TIMEOUT_SECONDS,
@@ -54,7 +55,8 @@ class PostgresResultCache:
             now: the request time.
 
         Returns:
-            The entry, or None on a miss or a database error.
+            The entry, or None on a miss, a database error or an entry the
+            current contract rejects.
         """
         return await self._entry(LOOKUP_CACHE, {"key": key, "now": now})
 
@@ -104,7 +106,13 @@ class PostgresResultCache:
     ) -> CachedResult | None:
         rows = await self._run((query, params))
         row = rows[0] if rows else None
-        return None if row is None else CachedResult.model_validate(row[0])
+        if row is None:
+            return None
+        try:
+            return CachedResult.model_validate(row[0])
+        except ValidationError:  # stored under an older contract, e.g. before ai_marker
+            _log.warning("result cache entry no longer valid; treated as a miss")
+            return None
 
     async def _run(self, *statements: tuple[LiteralString, _Params]) -> list[TupleRow]:
         try:

@@ -126,3 +126,12 @@ async def _expiry() -> None:
     await cache.fill("chk-1", entry)
     assert await cache.lookup("key", NOW + timedelta(hours=1)) == entry
     assert await cache.lookup("key", NOW + timedelta(hours=2)) is None
+
+
+def test_a_hit_carries_the_ai_marker_of_the_check_that_wrote_it(
+    make_client: MakeClient,
+) -> None:
+    channels = Channels(make_client, FinishedWorker())
+    first = channels.check("web", TEXT, "session-aaaaaaaaaa")
+    hit = channels.check("extension", TEXT, "session-bbbbbbbbbb")
+    assert first.ai_marker == hit.ai_marker == RESULT.ai_marker

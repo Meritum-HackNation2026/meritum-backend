@@ -137,6 +137,7 @@ SUBSTANTIVE_FIELDS: Final = (
     "limitation_codes",
     "transcript",
     "source_warning",
+    "ai_marker",
     "corpus_version",
 )
 """The fields a CheckResult and a CachedResult share: the substantive part (ADR-19)."""

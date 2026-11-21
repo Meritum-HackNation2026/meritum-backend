@@ -1,11 +1,11 @@
 import json
 from collections.abc import Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import override
 
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, AnalysisStep, CheckResult
-from meritum_core.checks.contracts import ClaimResult
+from meritum_core.checks.contracts import AiMarker, ClaimResult
 from meritum_core.jobs.constants import CONTRACT_VERSION, PROGRESS_KEY
 from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
@@ -36,6 +36,9 @@ VERDICT = CheckResult(
     ],
     limitations=["Korpus obejmuje tylko źródła polskie."],
     corpus_version="test",
+    ai_marker=AiMarker(
+        provider="stub", model="stub", generated_at=datetime(2026, 11, 21, tzinfo=UTC)
+    ),
 )
 
 
