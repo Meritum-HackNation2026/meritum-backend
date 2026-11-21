@@ -53,7 +53,7 @@ Kontrole przed PR, te same co w CI:
 uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest
 ```
 
-Po zmianie w meritum-core: `uv lock --upgrade-package meritum-core`.
+meritum-core jest przypięty do commita (`rev` w `pyproject.toml`). PR-y z podbiciem otwiera automatycznie workflow w meritum-core; ręcznie: zmień `rev` i uruchom `uv lock --upgrade-package meritum-core`.
 
 ## CI/CD
 
