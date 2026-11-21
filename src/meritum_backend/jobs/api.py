@@ -7,6 +7,8 @@ from meritum_core.jobs.contracts import PING, PingInput
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel
 
+from meritum_backend.limits import limiter
+
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
 
@@ -29,8 +31,15 @@ Jobs = Annotated[JobQueue, Depends(get_jobs)]
 
 
 @router.post("/ping", status_code=status.HTTP_202_ACCEPTED)
-async def enqueue_ping(jobs: Jobs, payload: PingInput | None = None) -> Enqueued:
+@limiter.limit("10/minute")  # ty: ignore[dynamic-function-decorator-return]
+async def enqueue_ping(
+    request: Request,  # ruff: ignore[unused-function-argument] (slowapi reads the client address)
+    jobs: Jobs,
+    payload: PingInput | None = None,
+) -> Enqueued:
     """Enqueue the `ping` workflow (deploy smoke test).
+
+    Public, so limited to 10 per minute per client address (429 above that).
 
     Returns:
         The workflow id to poll.

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from meritum_backend.health.api import get_settings
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import limiter
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -42,6 +43,7 @@ def jobs() -> FakeJobs:
 
 @pytest.fixture
 def client(jobs: FakeJobs) -> TestClient:
+    limiter.reset()  # counters are module-level; every test starts from zero
     settings = Settings(database_url="postgresql://x:x@127.0.0.1:1/x")
     app = create_app(settings)
     app.dependency_overrides[get_jobs] = lambda: jobs
@@ -65,3 +67,13 @@ def test_ping_enqueues_and_reads_state(client: TestClient, jobs: FakeJobs) -> No
     assert jobs.enqueued == [("ping", {"contract_version": 1, "message": "hej"})]
     assert client.get("/api/v1/jobs/wf-1").json()["status"] == "SUCCESS"
     assert client.get("/api/v1/jobs/nope").status_code == 404
+
+
+def test_ping_is_rate_limited_per_client(client: TestClient) -> None:
+    for _ in range(10):
+        assert client.post("/api/v1/jobs/ping").status_code == 202
+    response = client.post("/api/v1/jobs/ping")
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "60"
+    assert "Spróbuj ponownie" in response.json()["detail"]
+    assert client.get("/api/v1/jobs/wf-1").status_code == 200  # reads are not limited
