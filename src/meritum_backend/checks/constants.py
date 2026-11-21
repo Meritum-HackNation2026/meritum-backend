@@ -6,7 +6,7 @@ Features:
 
 import re
 from datetime import timedelta
-from typing import Final
+from typing import Final, LiteralString
 
 from meritum_core.checks import AnalysisStep
 from meritum_core.checks.transcription import (
@@ -116,3 +116,92 @@ AUDIO_MAX_MB: Final = MAX_AUDIO_BYTES // (1024 * 1024)
 
 AUDIO_MAX_MINUTES: Final = MAX_AUDIO_SECONDS // 60
 """{max_minutes} of the copy: MAX_AUDIO_SECONDS in minutes."""
+
+RESULT_CACHE_TTL: Final = timedelta(hours=2)
+"""How long a cached result is served; new corpus snapshots do not cut it (ADR-22)."""
+
+CACHE_HIT_RETENTION: Final = timedelta(days=30)
+"""How long the CheckRecord of a check served from the cache is kept (ADR-13)."""
+
+UNANSWERED_VERDICT: Final = "insufficient_evidence"
+"""Verdict of a claim with no answer; every cache hit escalates it (US-MOD-03)."""
+
+CACHE_HIT_REASON: Final = "cache_hit"
+"""EscalateClaimInput.reason of the escalation a cache hit starts (core/019)."""
+
+SUBSTANTIVE_FIELDS: Final = (
+    "status",
+    "claims",
+    "message",
+    "limitations",
+    "limitation_codes",
+    "transcript",
+    "source_warning",
+    "corpus_version",
+)
+"""The fields a CheckResult and a CachedResult share: the substantive part (ADR-19)."""
+
+CACHE_CONNECT_TIMEOUT_SECONDS: Final = 3
+"""How long the result cache waits for a database connection before it misses."""
+
+CREATE_CACHE_TABLES: Final[tuple[LiteralString, ...]] = (
+    """
+    CREATE TABLE IF NOT EXISTS result_cache (
+        key text PRIMARY KEY,
+        entry jsonb NOT NULL,
+        expires_at timestamptz NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS result_cache_checks (
+        check_id text PRIMARY KEY,
+        key text NOT NULL,
+        served jsonb,
+        linked_at timestamptz NOT NULL DEFAULT now()
+    )
+    """,
+)
+"""Cached results by input key; each check's key and, for a hit, what it was served."""
+
+LOCK_CACHE_TABLES: Final[LiteralString] = (
+    "SELECT pg_advisory_xact_lock(hashtext('meritum.result_cache'))"
+)
+"""Serializes the first-use CREATE of every API instance; released at commit."""
+
+LOOKUP_CACHE: Final[LiteralString] = (
+    "SELECT entry FROM result_cache WHERE key = %(key)s AND expires_at > %(now)s"
+)
+"""The live entry of one input key."""
+
+LINK_CHECK: Final[LiteralString] = (
+    "INSERT INTO result_cache_checks (check_id, key, served)"
+    " VALUES (%(check_id)s, %(key)s, %(served)s::jsonb)"
+    " ON CONFLICT (check_id) DO NOTHING"
+)
+"""Remember the input key of one check and, for a hit, the entry it got."""
+
+PRUNE_LINKS: Final[LiteralString] = (
+    "DELETE FROM result_cache_checks WHERE linked_at < now() - interval '1 day'"
+)
+"""Forget check keys older than any check still being polled."""
+
+PRUNE_ENTRIES: Final[LiteralString] = (
+    "DELETE FROM result_cache WHERE expires_at < now() - interval '1 day'"
+)
+"""Drop entries a day past expiry; a fill would replace them anyway."""
+
+FILL_CACHE: Final[LiteralString] = """
+    INSERT INTO result_cache (key, entry, expires_at)
+    SELECT key, %(entry)s::jsonb, %(expires_at)s
+    FROM result_cache_checks WHERE check_id = %(check_id)s
+    ON CONFLICT (key) DO UPDATE
+    SET entry = EXCLUDED.entry, expires_at = EXCLUDED.expires_at
+    WHERE result_cache.expires_at <= %(now)s
+"""
+"""Store a check's result under its key, unless a live entry is already there."""
+
+ENTRY_OF_CHECK: Final[LiteralString] = (
+    "SELECT served FROM result_cache_checks"
+    " WHERE check_id = %(check_id)s AND served IS NOT NULL"
+)
+"""The entry a cache hit got; kept with the hit, so a later refill never changes it."""
