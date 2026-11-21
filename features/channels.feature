@@ -27,3 +27,19 @@ Feature: Kanały bez sesji przeglądarki
     When inna sesja dostaje ten wynik z pamięci
     Then CheckResult.escalation jest policzone dla tej sesji i nie zawiera cudzego stanu ani numeru "#S-7"
     And powtórzone pytanie bez odpowiedzi zwiększa licznik powtórzeń tak samo jak bez pamięci
+
+  Scenario: pierwsze użycie komendy (scenariusz G)
+    Given użytkownik pierwszy raz wywołuje /sprawdz z tekstem "Czy Wrocław był jedynym miastem w Polsce, w którym 65-latkowie jeździli komunikacją miejską za darmo?"
+    When bot dostaje wynik sprawdzenia z kanałem "discord"
+    Then pierwsza wiadomość mówi, że odpowiada system AI, i podsumowuje werdykt każdego twierdzenia z linkiem do pełnej karty wyniku
+    And potem bot wysyła po jednej wiadomości na twierdzenie: werdykt, jeden najważniejszy cytat albo ocenę fact-checkera ze źródłem i siłę
+
+  Scenario: długi cytat
+    Given odpowiedź dla twierdzenia przekracza 2000 znaków
+    When bot dzieli odpowiedź na wiadomości
+    Then żadna wiadomość nie ma więcej niż 2000 znaków treści, osadzenia mają razem najwyżej 6000 znaków, a podział nie przecina cytatu
+
+  Scenario: odpowiedź po 3 sekundach
+    Given sprawdzenie trwa dłużej niż 3 s
+    When Discord czeka na odpowiedź na interakcję
+    Then bot odpowiada odroczoną odpowiedzią, a wynik wysyła jako wiadomość uzupełniającą
