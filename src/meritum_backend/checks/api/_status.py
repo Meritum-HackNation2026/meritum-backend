@@ -10,16 +10,12 @@ Features:
 
 import asyncio
 import contextlib
-from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Annotated, Any, cast, override
+from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
-from fastapi.exceptions import RequestValidationError
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute
 from meritum_core.checks import (
-    SESSIONLESS_CHANNELS,
     AnalysisStatus,
     CheckRequest,
     CheckResult,
@@ -28,8 +24,9 @@ from meritum_core.jobs.constants import PROGRESS_KEY
 from meritum_core.jobs.contracts import CHECK, CheckInput
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
-from pydantic_core import ErrorDetails
 
+from meritum_backend.checks.api._identity import identity
+from meritum_backend.checks.api._keyed import InvalidCheck, KeyedErrorsRoute, invalid
 from meritum_backend.checks.api._pii import PiiGate
 from meritum_backend.checks.constants import (
     AI_DISCLOSURE_HEADER,
@@ -41,7 +38,6 @@ from meritum_backend.checks.constants import (
     PROGRESS_WAIT_SECONDS,
     RECEIVED,
     SESSION_HEADER,
-    SESSIONLESS_DETAIL,
 )
 from meritum_backend.checks.intake import is_unsupported_link, masked, message_key
 from meritum_backend.checks.progress import (
@@ -53,19 +49,7 @@ from meritum_backend.health.api import Ready, not_ready_response
 from meritum_backend.health.models import NotReady
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import CheckRefusedError, ClientOrigin, Gate, TooManyChecks
-
-
-class InvalidCheck(BaseModel):
-    """422 answer: what the person must fix, as a key of copy/pl.json.
-
-    Attributes:
-        message_key: errors.empty, errors.too_long or errors.invalid_url.
-
-    Features:
-        US-SPR-01, US-SPR-07, F-01
-    """
-
-    message_key: str
+from meritum_backend.settings import Settings, get_settings
 
 
 class CheckAccepted(BaseModel):
@@ -79,39 +63,6 @@ class CheckAccepted(BaseModel):
     """
 
     check_id: str
-
-
-def _invalid(key: str) -> JSONResponse:
-    body = InvalidCheck(message_key=key).model_dump()
-    return JSONResponse(body, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
-
-
-class KeyedErrorsRoute(APIRoute):
-    """Route that answers a bad body with a copy key, never echoing the input.
-
-    FastAPI's default 422 repeats the sent text, which may hold personal data.
-
-    Features:
-        US-SPR-01, US-BEZ-04, F-01, F-20
-    """
-
-    @override
-    # Any: the exact signature of APIRoute.get_route_handler (Starlette types).
-    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
-        """Wrap the default handler.
-
-        Returns:
-            The handler that maps validation errors to InvalidCheck.
-        """
-        handler = super().get_route_handler()
-
-        async def keyed(request: Request) -> Response:
-            try:
-                return await handler(request)
-            except RequestValidationError as exc:
-                return _invalid(message_key(cast("list[ErrorDetails]", exc.errors())))
-
-        return keyed
 
 
 router = APIRouter(
@@ -136,6 +87,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
     origin: ClientOrigin,
     pii: PiiGate,
     readiness: Ready,
+    settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
@@ -147,35 +99,40 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         origin: the client address and region the limits count.
         pii: the personal-data masking gate.
         readiness: the readiness probe; a service that is not ready refuses checks.
+        settings: the app settings (the channel user hash salt).
         session: the random browser session id; no sign-in needed.
 
     Returns:
         The check id, 422 with a copy key, or 503 NotReady.
 
     Raises:
-        HTTPException: 400 without a valid session or for Discord, SMS and MCP
-            (they come through their adapters with a hashed user id, backend#27),
-            503 when the job queue is unreachable.
+        HTTPException: 400 without a valid session, or for Discord, SMS and MCP
+            without ``channel_user_id``; 503 when the job queue is unreachable or
+            the hash salt is not configured.
         CheckRefusedError: over a rate limit or with too many pending checks;
             answered 429 with Retry-After, nothing enqueued.
 
     Features:
-        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-03, US-BEZ-04, US-WDR-03, US-WDR-08,
-        F-01, F-20, F-23, F-30
+        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-03, US-BEZ-04, US-BEZ-06, US-WTY-08,
+        US-WDR-03, US-WDR-08, F-01, F-20, F-23, F-30
     """
     received_at = datetime.now(UTC)
     if is_unsupported_link(request):
-        return _invalid(INVALID_URL_KEY)
-    if request.channel in SESSIONLESS_CHANNELS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, SESSIONLESS_DETAIL)
+        return invalid(INVALID_URL_KEY)
+    request, session, hashed = identity(request, session, settings.channel_hash_salt)
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
     try:
         clean = await masked(request, pii)
     except ValidationError as exc:
-        return _invalid(message_key(exc.errors()))
+        return invalid(message_key(exc.errors()))
     try:
-        payload = CheckInput(request=clean, session_id=session, received_at=received_at)
+        payload = CheckInput(
+            request=clean,
+            session_id=session,
+            channel_user_hash=hashed,
+            received_at=received_at,
+        )
     except ValidationError:  # the only field left to fail is session_id
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     if not await readiness.ready():

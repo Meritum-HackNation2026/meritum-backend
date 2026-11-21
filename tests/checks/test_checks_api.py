@@ -69,7 +69,6 @@ def test_bad_input_gets_a_copy_key_and_starts_nothing(
     [
         ({"channel": "web", "text": "Czy to prawda?"}, {}, SESSION_HEADER),
         ({"channel": "web", "text": "Czy to prawda?"}, {SESSION_HEADER: "x"}, "valid"),
-        ({"channel": "discord", "text": "Czy to prawda?"}, SESSION, "adapter"),
     ],
 )
 def test_without_a_browser_session_nothing_starts(

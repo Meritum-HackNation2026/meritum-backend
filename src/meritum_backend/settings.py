@@ -7,6 +7,7 @@ from typing import Annotated
 from pydantic import BeforeValidator, SecretStr
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from meritum_backend.channels import ChannelHashSalt
 from meritum_backend.constants import LIST_SEPARATORS, LOCAL_DB
 
 
@@ -36,7 +37,8 @@ class Settings(BaseSettings):
         discord_public_key: Discord app public key (hex) of this env; no key, no
             interactions endpoint.
         discord_bot_token: Discord bot token; required when the Discord channel is on.
-        channel_hash_salt: salt of channel user id hashes (readiness reports it).
+        channel_hash_salt: salt of the Discord, SMS and MCP user id hashes; an
+            empty one counts as none (readiness reports it, those channels get 503).
         session_secret: key that signs the session cookie; a random one per
             process when unset (sessions then end on restart).
         public_url: public address of the API, the base of OIDC callback URLs;
@@ -62,7 +64,7 @@ class Settings(BaseSettings):
     dbos_schema: str = "worker_local"
     discord_public_key: str | None = None
     discord_bot_token: SecretStr | None = None
-    channel_hash_salt: SecretStr | None = None
+    channel_hash_salt: ChannelHashSalt = None
     session_secret: SecretStr | None = None
     public_url: str | None = None
     google_client_id: str | None = None
