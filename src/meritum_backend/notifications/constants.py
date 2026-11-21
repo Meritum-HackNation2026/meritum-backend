@@ -21,8 +21,8 @@ NO_RECIPIENT_DETAIL: Final = "send the session id or sign in"
 NOT_FOUND_DETAIL: Final = "notification not found"
 """404 detail: no notification with that id belongs to the caller."""
 
-ID_MIN: Final = 8
+SESSION_ID_MIN: Final = 8
 """Shortest session id, as Notification.session_id allows."""
 
-ID_MAX: Final = 64
+SESSION_ID_MAX: Final = 64
 """Longest session id, as Notification.session_id allows."""

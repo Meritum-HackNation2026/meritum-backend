@@ -65,7 +65,7 @@ def get_ticks() -> Ticks:
 
 
 Store = Annotated[NotificationRepository, Depends(get_notifications)]
-Caller = Annotated[list[Recipient], Depends(recipients)]
+Mine = Annotated[list[Recipient], Depends(recipients)]
 
 
 async def _inbox(
@@ -82,7 +82,7 @@ async def _inbox(
     responses={status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks}},
 )
 async def notification_stream(
-    store: Store, caller: Caller, ticks: Annotated[Ticks, Depends(get_ticks)]
+    store: Store, caller: Mine, ticks: Annotated[Ticks, Depends(get_ticks)]
 ) -> AsyncIterable[Notification]:
     """Push the caller's notifications that arrive while the stream is open.
 
@@ -112,7 +112,7 @@ async def notification_stream(
 
 
 @router.get("")
-async def list_notifications(store: Store, caller: Caller) -> list[Notification]:
+async def list_notifications(store: Store, caller: Mine) -> list[Notification]:
     """List the caller's notifications, newest first.
 
     Args:
@@ -129,7 +129,7 @@ async def list_notifications(store: Store, caller: Caller) -> list[Notification]
 
 
 @router.post("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
-async def mark_read(notification_id: str, store: Store, caller: Caller) -> None:
+async def mark_read(notification_id: str, store: Store, caller: Mine) -> None:
     """Mark one of the caller's notifications as read.
 
     Args:
@@ -149,7 +149,7 @@ async def mark_read(notification_id: str, store: Store, caller: Caller) -> None:
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_notifications(store: Store, caller: Caller) -> None:
+async def clear_notifications(store: Store, caller: Mine) -> None:
     """Delete every notification of the caller's session and account.
 
     Args:

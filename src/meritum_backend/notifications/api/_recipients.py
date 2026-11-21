@@ -13,8 +13,8 @@ from meritum_backend.auth import Account
 from meritum_backend.auth.api import current_user
 from meritum_backend.checks import SESSION_HEADER
 from meritum_backend.notifications.constants import (
-    ID_MAX,
-    ID_MIN,
+    SESSION_ID_MAX,
+    SESSION_ID_MIN,
     NO_RECIPIENT_DETAIL,
     SESSION_QUERY,
 )
@@ -44,10 +44,16 @@ def signed_in_account(request: Request) -> Account | None:
 def recipients(
     account: Annotated[Account | None, Depends(signed_in_account)],
     header: Annotated[
-        str | None, Header(alias=SESSION_HEADER, min_length=ID_MIN, max_length=ID_MAX)
+        str | None,
+        Header(
+            alias=SESSION_HEADER, min_length=SESSION_ID_MIN, max_length=SESSION_ID_MAX
+        ),
     ] = None,
     query: Annotated[
-        str | None, Query(alias=SESSION_QUERY, min_length=ID_MIN, max_length=ID_MAX)
+        str | None,
+        Query(
+            alias=SESSION_QUERY, min_length=SESSION_ID_MIN, max_length=SESSION_ID_MAX
+        ),
     ] = None,
 ) -> list[Recipient]:
     """Every inbox the caller may read: its session and its account.
