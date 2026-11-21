@@ -50,8 +50,12 @@ Ustawienia to zmienne `MERITUM_*` (`src/meritum_backend/settings.py`), domyślne
 Kontrole przed PR, te same co w CI:
 
 ```bash
-uv run ruff check . && uv run ruff format --check . && uv run ty check && uv run pytest
+uv run ruff check . && uv run ruff format --check . && uv run ty check
+uv run python scripts/check_conventions.py && uv run vulture && uv run bandit -c pyproject.toml -r src scripts
+uv run pytest            # z testami architektury (tests/architecture/)
 ```
+
+Zasady architektury i to, co je sprawdza: [docs/architecture.md](docs/architecture.md).
 
 meritum-core jest przypięty do commita (`rev` w `pyproject.toml`). PR-y z podbiciem otwiera automatycznie workflow w meritum-core; ręcznie: zmień `rev` i uruchom `uv lock --upgrade-package meritum-core`.
 

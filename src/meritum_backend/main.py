@@ -16,10 +16,16 @@ from meritum_backend.settings import Settings
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the app.
+    """Build the app: the composition root that wires adapters from settings.
+
+    Args:
+        settings: the settings; read from the environment when None.
 
     Returns:
         The FastAPI app with its routers.
+
+    Features:
+        ADR-01
     """
     settings = settings or Settings()
 

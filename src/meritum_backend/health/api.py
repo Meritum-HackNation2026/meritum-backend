@@ -17,6 +17,9 @@ async def live() -> dict[str, str]:
 
     Returns:
         Always `{"status": "ok"}`.
+
+    Features:
+        none (infrastructure)
     """
     return {"status": "ok"}
 
@@ -25,8 +28,14 @@ async def live() -> dict[str, str]:
 async def health(settings: Annotated[Settings, Depends(get_settings)]) -> JSONResponse:
     """Readiness: the API's own database role can run a query.
 
+    Args:
+        settings: the app settings (the database URL).
+
     Returns:
         200 with `database: ok`, or 503 with `database: unavailable`.
+
+    Features:
+        none (infrastructure)
     """
     try:
         async with await psycopg.AsyncConnection.connect(

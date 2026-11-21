@@ -13,7 +13,14 @@ router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
 
 class Enqueued(BaseModel):
-    """Answer to an accepted job."""
+    """Answer to an accepted job.
+
+    Attributes:
+        workflow_id: the id to poll at GET /api/v1/jobs/{workflow_id}.
+
+    Features:
+        ADR-03
+    """
 
     workflow_id: str
 
@@ -21,8 +28,14 @@ class Enqueued(BaseModel):
 def get_jobs(request: Request) -> JobQueue:
     """The JobQueue the app built at startup (overridden in tests).
 
+    Args:
+        request: the current request (holds the app state).
+
     Returns:
         The app's JobQueue.
+
+    Features:
+        ADR-03
     """
     return request.app.state.jobs
 
@@ -41,11 +54,19 @@ async def enqueue_ping(
 
     Public, so limited to 10 per minute per client address (429 above that).
 
+    Args:
+        request: the request; slowapi reads the client address from it.
+        jobs: the job queue port.
+        payload: the ping input; the default message when None.
+
     Returns:
         The workflow id to poll.
 
     Raises:
         HTTPException: 503 when the worker's database is unreachable.
+
+    Features:
+        ADR-03
     """
     try:
         workflow_id = await jobs.enqueue(PING, payload or PingInput())
@@ -60,11 +81,18 @@ async def enqueue_ping(
 async def job_state(jobs: Jobs, workflow_id: str) -> JobState:
     """Read one job's state.
 
+    Args:
+        jobs: the job queue port.
+        workflow_id: the id returned when the job was enqueued.
+
     Returns:
         Status, output and error of the workflow.
 
     Raises:
         HTTPException: 404 when the id is unknown.
+
+    Features:
+        ADR-03
     """
     state = await jobs.state(workflow_id)
     if state is None:
