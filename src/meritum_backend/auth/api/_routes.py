@@ -1,120 +1,36 @@
-"""Auth API: OIDC login, callback, the current account and logout.
-
-The session is Starlette's signed cookie (main.py: httpOnly, Secure,
-SameSite=Lax). State-changing requests made with it repeat the session's CSRF
-token in the ``X-CSRF-Token`` header (``CsrfUser``).
-"""
+"""Auth routes: OIDC login, callback, the current account and logout."""
 
 import secrets
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from meritum_backend.auth import Account, LoginError, LoginProvider, PendingLogin
+from meritum_backend.auth import LoginError, PendingLogin
+from meritum_backend.auth.api._session import (
+    CurrentUser,
+    Login,
+    check_csrf,
+    same_secret,
+)
 from meritum_backend.auth.constants import (
     CALLBACK_PATH,
-    CSRF_HEADER,
     HOME,
     LOCAL_URL,
     PUBLIC_URLS,
+    RETURN_TO_DOC,
     SESSION_ACCOUNT,
     SESSION_CSRF,
-    SESSION_EXPIRES,
-    SESSION_MAX_AGE,
     SESSION_PENDING,
-    SESSION_READ_ONLY,
     SESSION_SINCE,
     TOKEN_BYTES,
 )
-from meritum_backend.auth.models import Me
+from meritum_backend.auth.models import Me, ReturnPath
 from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-
-
-def get_login(request: Request) -> LoginProvider:
-    """The login provider the app built (overridden in tests).
-
-    Args:
-        request: the current request (holds the app state).
-
-    Returns:
-        The app's login provider.
-
-    Features:
-        US-MOD-05, F-25
-    """
-    return request.app.state.login
-
-
-def current_user(request: Request) -> Account:
-    """The signed-in account from the session cookie.
-
-    Args:
-        request: the current request.
-
-    Returns:
-        The account.
-
-    Raises:
-        HTTPException: 401 without a valid session.
-
-    Features:
-        US-MOD-05, US-SPR-10, F-25
-    """
-    since = request.session.get(SESSION_SINCE)
-    fresh = isinstance(since, int) and time.time() - since < SESSION_MAX_AGE
-    try:
-        account = Account.model_validate(request.session.get(SESSION_ACCOUNT))
-    except ValidationError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not signed in") from exc
-    expiry = request.session.get(SESSION_EXPIRES)
-    if not fresh or (isinstance(expiry, (int, float)) and expiry <= time.time()):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session expired")
-    return account
-
-
-def csrf_user(
-    request: Request, account: Annotated[Account, Depends(current_user)]
-) -> Account:
-    """The signed-in account, for a state-changing request with a CSRF token.
-
-    Args:
-        request: the current request.
-        account: the signed-in account.
-
-    Returns:
-        The account.
-
-    Raises:
-        HTTPException: 403 on a CSRF mismatch or for a read-only (jury) session.
-
-    Features:
-        US-MOD-05, US-SPR-10, US-OBS-06, F-25, F-28
-    """
-    _check_csrf(request)
-    if request.session.get(SESSION_READ_ONLY):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "read-only session")
-    return account
-
-
-def _check_csrf(request: Request) -> None:
-    expected = str(request.session.get(SESSION_CSRF, ""))
-    if not expected or not _same(expected, request.headers.get(CSRF_HEADER, "")):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "missing or bad CSRF token")
-
-
-def _same(expected: str, sent: str) -> bool:
-    # constant time; bytes, so non-ASCII input is a mismatch, not a 500
-    return secrets.compare_digest(expected.encode(), sent.encode())
-
-
-Login = Annotated[LoginProvider, Depends(get_login)]
-CurrentUser = Annotated[Account, Depends(current_user)]
-CsrfUser = Annotated[Account, Depends(csrf_user)]
 
 
 def _callback_url(settings: Settings, provider: str) -> str:
@@ -128,6 +44,7 @@ async def login(
     request: Request,
     login: Login,
     settings: Annotated[Settings, Depends(get_settings)],
+    return_to: Annotated[ReturnPath, Query(description=RETURN_TO_DOC)] = HOME,
 ) -> RedirectResponse:
     """Send the user to the provider's login page.
 
@@ -136,6 +53,8 @@ async def login(
         request: the request; its session keeps the login in progress.
         login: the login provider port.
         settings: the app settings (public address for the callback).
+        return_to: the page to open after login; kept with the login in
+            progress, anything but a relative path on this site means ``HOME``.
 
     Returns:
         A redirect to the provider.
@@ -155,7 +74,8 @@ async def login(
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY, "provider unavailable"
         ) from exc
-    request.session[SESSION_PENDING] = start.pending.model_dump()
+    pending = start.pending.model_copy(update={"return_to": return_to})
+    request.session[SESSION_PENDING] = pending.model_dump()
     return RedirectResponse(start.url, status.HTTP_302_FOUND)
 
 
@@ -175,7 +95,7 @@ def _pending(request: Request, state: str) -> PendingLogin | None:
         )
     except ValidationError:
         return None
-    return pending if _same(pending.state, state) else None
+    return pending if same_secret(pending.state, state) else None
 
 
 @router.get("/callback/{provider}")
@@ -192,7 +112,8 @@ async def callback(
         state: the state the provider sends back unchanged.
 
     Returns:
-        A redirect to the web app's home page, with a new session.
+        A redirect to the page the login started from (``return_to``, else
+        the web app's home page), with a new session.
 
     Raises:
         HTTPException: 400 when the state does not match the session, or the
@@ -212,7 +133,7 @@ async def callback(
     request.session[SESSION_ACCOUNT] = account.model_dump()
     request.session[SESSION_CSRF] = secrets.token_urlsafe(TOKEN_BYTES)
     request.session[SESSION_SINCE] = int(time.time())
-    return RedirectResponse(HOME, status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(pending.return_to, status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/me")
@@ -246,5 +167,5 @@ async def logout(request: Request, _account: CurrentUser) -> None:
     Features:
         US-MOD-05, US-SPR-10, F-25
     """
-    _check_csrf(request)
+    check_csrf(request)
     request.session.clear()
