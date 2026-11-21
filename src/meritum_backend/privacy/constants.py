@@ -11,3 +11,6 @@ NOT_OWN_SESSION_DETAIL: Final = "a session deletes only its own checks"
 
 BAD_SUBJECT_DETAIL: Final = "invalid session id"
 """400 detail: the path is not a browser session id (or is a channel user hash)."""
+
+UNAVAILABLE_DETAIL: Final = "deletion unavailable"
+"""503 detail: the job queue or the app database is unreachable."""

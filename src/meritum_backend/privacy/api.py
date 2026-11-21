@@ -20,9 +20,13 @@ from meritum_core.jobs.ports import JobQueue
 from meritum_core.observability import SubjectEraser
 from pydantic import BaseModel, ValidationError
 
-from meritum_backend.checks.constants import SESSION_HEADER
+from meritum_backend.checks import SESSION_HEADER
 from meritum_backend.jobs.api import Jobs
-from meritum_backend.privacy.constants import BAD_SUBJECT_DETAIL, NOT_OWN_SESSION_DETAIL
+from meritum_backend.privacy.constants import (
+    BAD_SUBJECT_DETAIL,
+    NOT_OWN_SESSION_DETAIL,
+    UNAVAILABLE_DETAIL,
+)
 
 
 class DeletedChecks(BaseModel):
@@ -132,6 +136,6 @@ async def delete_session_checks(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SUBJECT_DETAIL) from None
     except Exception as exc:  # DBOS and psycopg wrap driver errors in their own types
         raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "deletion unavailable"
+            status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE_DETAIL
         ) from exc
     return DeletedChecks(deleted=deleted)
