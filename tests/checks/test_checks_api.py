@@ -15,7 +15,7 @@ from meritum_backend.checks.constants import RECEIVED, SESSION_HEADER
 from meritum_backend.limits import CheckGate, get_check_gate
 from meritum_backend.limits.adapters import FixedPendingChecks
 
-from .cache_fakes import FinishedWorker
+from .cache_fakes import RESULT, FinishedWorker
 
 type MakeClient = Callable[[InMemoryJobQueue], TestClient]
 
@@ -205,3 +205,21 @@ def test_the_ai_disclosure_header_names_the_model_of_the_ai_marker(
         'mode=ai-originated; model="anthropic/claude-haiku-5-5";'
         ' provider="openrouter"; date=@1795262400'
     )
+
+
+def test_the_ai_disclosure_header_keeps_control_characters_out(
+    make_client: MakeClient,
+) -> None:
+    marker = RESULT.ai_marker
+    assert marker is not None
+    tricky = marker.model_copy(update={"model": 'a\r\nX-Evil: 1"\\b'})
+    client = make_client(
+        FinishedWorker(RESULT.model_copy(update={"ai_marker": tricky}))
+    )
+    body = {"channel": "web", "text": "Czy to prawda?"}
+    check_id = client.post("/api/v1/checks", json=body, headers=SESSION).json()[
+        "check_id"
+    ]
+    response = client.get(f"/api/v1/checks/{check_id}")
+    assert "X-Evil" not in response.headers
+    assert 'model="aX-Evil: 1\\"\\\\b"' in response.headers["AI-Disclosure"]
