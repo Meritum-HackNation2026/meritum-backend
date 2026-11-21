@@ -129,7 +129,7 @@ def test_no_dbos_row_names_the_session_once_the_worker_ran(
     assert dbos_rows(admin_url, session) > 0
     eraser = build_app_repositories(DatabaseSettings()).eraser
     asyncio.run(delete_subject("session_id", session, eraser, jobs))
-    if os.environ.get("MERITUM_TEST_WORKER", "") == "":
+    if "MERITUM_TEST_WORKER" not in os.environ:
         pytest.skip(
             "DBOS rows go when the worker runs delete_subject (worker#24); "
             "start it and set MERITUM_TEST_WORKER=1"
