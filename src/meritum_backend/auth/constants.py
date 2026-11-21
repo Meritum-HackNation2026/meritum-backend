@@ -65,5 +65,8 @@ SESSION_PENDING: Final = "pending_login"
 SESSION_ACCOUNT: Final = "account"
 """Session key of the signed-in account."""
 
+SESSION_SINCE: Final = "since"
+"""Session key of the login time (Unix seconds); bounds the session lifetime."""
+
 SESSION_CSRF: Final = "csrf"
 """Session key of the CSRF token, drawn anew at every login."""

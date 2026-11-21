@@ -6,6 +6,7 @@ token in the ``X-CSRF-Token`` header (``CsrfUser``).
 """
 
 import secrets
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -21,7 +22,9 @@ from meritum_backend.auth.constants import (
     PUBLIC_URLS,
     SESSION_ACCOUNT,
     SESSION_CSRF,
+    SESSION_MAX_AGE,
     SESSION_PENDING,
+    SESSION_SINCE,
     TOKEN_BYTES,
 )
 from meritum_backend.auth.models import Me
@@ -60,10 +63,17 @@ def current_user(request: Request) -> Account:
     Features:
         US-MOD-05, US-SPR-10, F-25
     """
+    since = request.session.get(SESSION_SINCE)
+    fresh = isinstance(since, int) and time.time() - since < SESSION_MAX_AGE
     try:
-        return Account.model_validate(request.session.get(SESSION_ACCOUNT))
+        account = Account.model_validate(request.session.get(SESSION_ACCOUNT))
     except ValidationError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not signed in") from exc
+    if (
+        not fresh
+    ):  # any session change re-signs the cookie; the login time does not move
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session expired")
+    return account
 
 
 def csrf_user(
@@ -203,6 +213,7 @@ async def callback(
     request.session.clear()
     request.session[SESSION_ACCOUNT] = account.model_dump()
     request.session[SESSION_CSRF] = secrets.token_urlsafe(TOKEN_BYTES)
+    request.session[SESSION_SINCE] = int(time.time())
     return RedirectResponse(HOME, status.HTTP_303_SEE_OTHER)
 
 

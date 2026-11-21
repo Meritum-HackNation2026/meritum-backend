@@ -152,3 +152,15 @@ def test_session_ends_after_max_age_even_when_used(
     assert client.get("/api/v1/auth/me").status_code == 200  # re-signs the cookie
     monkeypatch.setattr(time, "time", lambda: start + 9 * 60 * 60)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
     assert client.get("/api/v1/auth/me").status_code == 401
+
+
+def test_restarting_login_does_not_extend_the_session(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    start = time.time()
+    sign_in(client)
+    for hours in (5, 9):
+        now = start + hours * 60 * 60
+        monkeypatch.setattr(time, "time", lambda now=now: now)  # ruff: ignore[shared-clock-mock] -- single-threaded test client
+        client.get("/api/v1/auth/login/google")  # re-signs the session cookie
+    assert client.get("/api/v1/auth/me").status_code == 401

@@ -136,13 +136,7 @@ class AuthlibLogin:
         app = self._app(provider)
         try:
             found = await app.create_authorization_url(redirect_uri)
-        except (
-            AuthlibBaseError,
-            JoseError,
-            httpx2.HTTPError,
-            KeyError,
-            ValueError,
-        ) as exc:
+        except self._failures as exc:
             raise LoginError(str(exc)) from exc
         pending = PendingLogin(
             provider=provider,
@@ -178,13 +172,7 @@ class AuthlibLogin:
             raise LoginError(msg)
         try:
             claims = await self._id_token(app, code, pending)
-        except (
-            AuthlibBaseError,
-            JoseError,
-            httpx2.HTTPError,
-            KeyError,
-            ValueError,
-        ) as exc:
+        except self._failures as exc:
             raise LoginError(str(exc)) from exc
         return Account(
             provider=provider,

@@ -11,7 +11,7 @@ from meritum_core.jobs.contracts import APPLICATION_NAME
 from starlette.middleware.sessions import SessionMiddleware
 
 from meritum_backend.auth.api import router as auth_router
-from meritum_backend.auth.constants import SESSION_COOKIE, SESSION_MAX_AGE
+from meritum_backend.auth.constants import SESSION_COOKIE, SESSION_MAX_AGE, TOKEN_BYTES
 from meritum_backend.auth.factory import build_login
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
@@ -63,7 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         SessionMiddleware,
         # no key configured: a random one, so sessions end when the process restarts
-        secret_key=key or secrets.token_urlsafe(32),
+        secret_key=key or secrets.token_urlsafe(TOKEN_BYTES),
         session_cookie=SESSION_COOKIE,
         max_age=SESSION_MAX_AGE,
         same_site="lax",

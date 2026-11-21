@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from meritum_backend.auth.adapters import FakeLogin
 from meritum_backend.auth.api import get_login
-from meritum_backend.auth.constants import FAKE_CODE
+from meritum_backend.auth.constants import FAKE_CODE, GOOGLE
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -32,6 +32,7 @@ def _client() -> TestClient:
         google_client_secret="client-secret",  # ruff: ignore[hardcoded-password-func-arg] -- fake value, the fake provider ignores it
     )
     app = create_app(settings)
+    assert GOOGLE in app.state.login.providers  # the factory registered Google
     app.dependency_overrides[get_login] = lambda: FakeLogin(SUBJECT, EMAIL)
     return TestClient(app, base_url="https://testserver", follow_redirects=False)
 
