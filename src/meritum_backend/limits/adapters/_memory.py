@@ -1,24 +1,24 @@
-"""In-process adapters: a rate counter for tests and one process, a fixed queue.
+"""In-process adapters for tests: a rate counter and a fixed pending queue.
 
 Features:
     US-BEZ-02, US-WDR-03, F-20, F-23
 """
 
-import time
 from collections.abc import Callable
 
 
 class MemoryRateCounter:
-    """RateCounter in one process's memory; shared only by apps of that process.
+    """RateCounter in one process's memory, for tests.
 
     Args:
-        clock: seconds since the epoch; ``time.time`` by default.
+        clock: seconds since the epoch; frozen by default, so a test never
+            straddles a window boundary and sees its count reset.
 
     Features:
         US-BEZ-02, F-20
     """
 
-    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+    def __init__(self, clock: Callable[[], float] = lambda: 0.0) -> None:
         self._clock = clock
         self._hits: dict[str, tuple[int, int]] = {}
 
