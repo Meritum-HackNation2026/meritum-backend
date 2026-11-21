@@ -49,6 +49,8 @@ from meritum_backend.checks.progress import (
     is_check,
     without_early_verdict,
 )
+from meritum_backend.health.api import Ready
+from meritum_backend.health.readiness import NotReady
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import CheckRefusedError, ClientOrigin, Gate, TooManyChecks
 
@@ -124,6 +126,7 @@ router = APIRouter(
     responses={
         status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck},
         status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks},
+        status.HTTP_503_SERVICE_UNAVAILABLE: {"model": NotReady},
     },
 )
 async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-arguments] (FastAPI injects each dependency as a parameter)
@@ -132,6 +135,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
     gate: Gate,
     origin: ClientOrigin,
     pii: PiiGate,
+    readiness: Ready,
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
@@ -142,10 +146,11 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         gate: the shared rate limits and the pending-checks threshold.
         origin: the client address and region the limits count.
         pii: the personal-data masking gate.
+        readiness: the readiness probe; a service that is not ready refuses checks.
         session: the random browser session id; no sign-in needed.
 
     Returns:
-        The check id, or 422 with a copy key.
+        The check id, 422 with a copy key, or 503 NotReady.
 
     Raises:
         HTTPException: 400 without a valid session or for Discord, SMS and MCP
@@ -156,8 +161,12 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
 
     Features:
         US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-WDR-03, F-01, F-20, F-23
+        US-SPR-01, US-SPR-07, US-BEZ-04, US-WDR-08, F-01, F-20, F-30
     """
     received_at = datetime.now(UTC)
+    if not await readiness.ready():
+        body = NotReady().model_dump()
+        return JSONResponse(body, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     if is_unsupported_link(request):
         return _invalid(INVALID_URL_KEY)
     if request.channel in SESSIONLESS_CHANNELS:

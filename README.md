@@ -11,11 +11,11 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 
 | Metoda i ścieżka | Opis |
 | --- | --- |
-| `GET /api/v1/health` | gotowość: 200, gdy rola API wykona zapytanie w bazie, inaczej 503 |
+| `GET /api/v1/health` | gotowość (patrz „Test gotowości”): 200, gdy niczego nie brakuje, inaczej 503 z nazwami brakujących zmiennych i niedostępnych dostawców (bez wartości) |
 | `GET /api/v1/health/live` | żywotność procesu, bez bazy (healthcheck Dockera) |
 | `POST /api/v1/jobs/ping` | zleca workflow `ping` (test dymny po deployu), zwraca `workflow_id` |
 | `GET /api/v1/jobs/{workflow_id}` | stan zadania: `status`, `output`, `error` |
-| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje dane osobowe w tekście i w parametrach query linku przed `JobQueue` (bramka PII z `MERITUM_PII_*`, domyślnie pusta, potem wzorce telefonów, e-maili i PESEL) (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27; ponad limit dostaje 429 z `Retry-After` (patrz „Limity zapytań”) |
+| `POST /api/v1/checks` | sprawdzenie z każdego kanału: `CheckRequest` (tekst do 4000 znaków, adres http(s) albo `audio_id`), nagłówek `X-Meritum-Session` z losowym identyfikatorem sesji; maskuje dane osobowe w tekście i w parametrach query linku przed `JobQueue` (bramka PII z `MERITUM_PII_*`, domyślnie pusta, potem wzorce telefonów, e-maili i PESEL) (ścieżka linku zostaje, żeby worker pobrał tę samą stronę; fragment jest usuwany, a link z użytkownikiem lub hasłem dostaje 422), zleca workflow `check`, zwraca 202 i `check_id`; zły wpis daje 422 z kluczem z `copy/pl.json` (`errors.empty`, `errors.too_long`, `errors.invalid_url`); kanały `discord`, `sms` i `mcp` dostają 400 do czasu backend#27; ponad limit dostaje 429 z `Retry-After` (patrz „Limity zapytań”); przy niegotowej usłudze 503 `{"status": "technical_failure", "code": "not_ready", "message_key": "status_hint.technical_failure"}` |
 | `POST /api/v1/audio` | nagranie z formularza jako treść żądania (OGG Opus, MP3, M4A albo WAV; format odczytany z bajtów, nie z `Content-Type`); zapisuje plik w `BlobStore` z retencją zapisu sprawdzenia (30 dni) i zwraca 201 z `audio_id` do `POST /api/v1/checks`; odmowa ma `status: out_of_scope`, klucz z `copy/pl.json` oraz `formats`, `max_mb` i `max_minutes` do wstawienia w tekst: 413 `errors.audio_too_large` (ponad 20 MiB), 422 `errors.audio_too_long` (ponad 10 min), 415 `status_hint.out_of_scope_audio_format`; 10 wysyłek na minutę i 30 na dobę z jednego adresu |
 | `GET /api/v1/checks/{check_id}` | `AnalysisStatus`: kroki i, po zakończeniu, `result` (`CheckResult` z `ai_disclosure: true` i nagłówkiem `AI-Disclosure: mode=ai-originated`) |
 | `GET /api/v1/checks/{check_id}/events` | postęp sprawdzenia jako Server-Sent Events: każda wartość strumienia `progress` workflowu (`JobQueue.stream`) to jedno zdarzenie `AnalysisStatus`; `result` pojawia się dopiero po kroku `verify_citations` (`done` albo `skipped`), więc wersja wstępna nie niesie werdyktu; po zakończeniu ostatnie zdarzenie ma pełny `CheckResult` i strumień się zamyka; rozłączenie nie przerywa workflowu, a ponowne połączenie odtwarza kroki od początku (404 dla nieznanego id) |
@@ -38,6 +38,15 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 | żadna | przy `MERITUM_ENV=local` pamięć procesu (wystarcza testom i samemu API, worker nie zobaczy pliku); w innym środowisku API nie startuje |
 
 Plik ma `expires_at` 30 dni od wysłania. Bucket GCS usuwa go regułą cyklu życia (infra#8). Na wolumenie adapter systemu plików niczego sam nie usuwa: plik sprawdzenia kasuje workflow retencji razem z zapisem sprawdzenia i przy „Usuń moje sprawdzenia” (backend/009, worker/013, worker#24). Nagranie, które nie trafiło do żadnego sprawdzenia, zostaje na wolumenie, dopóki worker#24 nie zacznie czyścić plików po `expires_at`.
+
+## Test gotowości
+
+`GET /api/v1/health` łączy dwa raporty i wymienia tylko nazwy, nigdy wartości sekretów:
+
+- własny raport API: baza (`SELECT 1` rolą API), `MERITUM_CHANNEL_HASH_SALT`, magazyn plików (`MERITUM_BLOB_PROVIDER` z `MERITUM_BLOB_DIRECTORY` albo `MERITUM_BLOB_BUCKET`, sprawdzane fabryką z core) i `MERITUM_DISCORD_BOT_TOKEN`, gdy kanał Discord jest włączony (`MERITUM_DISCORD_PUBLIC_KEY`);
+- raport workera: przy pierwszym sprawdzeniu API zleca workflow `readiness` (jeden na proces) i czyta jego zdarzenie `readiness` (`ReadinessReport` z core: brakujące zmienne i niedostępni dostawcy workera). Dopóki worker go nie opublikuje, odpowiedź ma `"worker": "not_reported"` i kod 503.
+
+Ten sam raport trafia do logu startu (`not ready: ...` jako ostrzeżenie), gdy worker odpowie albo po 60 s. `POST /api/v1/checks` przy niegotowej usłudze odpowiada 503 ze stanem `technical_failure` i kodem `not_ready`, bez nazw kluczy; raport dla sprawdzeń jest odświeżany co 30 s. Deploy czeka na `/api/v1/health/live`, a niegotową usługę zgłasza ostrzeżeniem z treścią raportu, bez przerywania.
 
 ## Kanał Discord
 
@@ -170,7 +179,7 @@ meritum-core jest przypięty do commita (`rev` w `pyproject.toml`). PR-y z podbi
 `.github/workflows/ci.yml`, jedno uruchomienie na commit:
 
 - `lint` i `tests` idą równolegle na runnerach GCP (`self-hosted, meritum`).
-- `deploy` rusza tylko na `develop` (dev) i `main` (prd), po zielonym `lint` i `tests`, na runnerze `dellpromaxgb10`. `deploy/deploy.sh` buduje obraz na hoście (ARM64), podmienia kontener, czeka na `/api/v1/health` i, jeśli worker tego środowiska działa, puszcza `ping` przez kolejkę DBOS.
+- `deploy` rusza tylko na `develop` (dev) i `main` (prd), po zielonym `lint` i `tests`, na runnerze `dellpromaxgb10`. `deploy/deploy.sh` buduje obraz na hoście (ARM64), podmienia kontener, czeka na `/api/v1/health/live`, zgłasza wynik `/api/v1/health` (ostrzeżenie przy 503) i, jeśli worker tego środowiska działa, puszcza `ping` przez kolejkę DBOS.
 
 ### Sekrety w kontenerze
 
@@ -180,6 +189,7 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 |---|---|---|
 | `MERITUM_DISCORD_PUBLIC_KEY` | `DISCORD_PUBLIC_KEY_{DEV,PRD}` (zmienna) | kanał Discord |
 | `MERITUM_CHANNEL_HASH_SALT` | `MERITUM_CHANNEL_HASH_SALT_{DEV,PRD}` (sekret) | #24, #66 (klucze licznika limitów) |
+| `MERITUM_DISCORD_BOT_TOKEN` | `DISCORD_BOT_TOKEN_{DEV,PRD}` (sekret) | #19 (test gotowości) |
 | `MERITUM_SESSION_SECRET` | `MERITUM_SESSION_SECRET_{DEV,PRD}` (sekret) | #15 |
 | `MERITUM_GOOGLE_CLIENT_ID` | `GOOGLE_CLIENT_ID_{DEV,PRD}` (zmienna) | #15 |
 | `MERITUM_GOOGLE_CLIENT_SECRET` | `GOOGLE_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |
