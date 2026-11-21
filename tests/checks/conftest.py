@@ -9,11 +9,10 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import (
     CheckGate,
-    FixedPendingChecks,
     LimitSettings,
-    MemoryRateCounter,
     get_check_gate,
 )
+from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 

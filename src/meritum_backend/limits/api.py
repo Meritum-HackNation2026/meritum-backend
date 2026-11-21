@@ -6,7 +6,9 @@ Features:
 
 from typing import Annotated, cast
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from meritum_backend.limits.constants import (
     REGION_CODE,
@@ -15,6 +17,37 @@ from meritum_backend.limits.constants import (
     UNKNOWN_REGION,
 )
 from meritum_backend.limits.gate import CheckGate, Origin
+from meritum_backend.limits.models import Refusal
+
+
+class TooManyChecks(BaseModel):
+    """429 answer: a message for people, never a verdict.
+
+    Attributes:
+        message_key: errors.rate_limited or errors.busy (copy/pl.json).
+
+    Features:
+        US-BEZ-02, US-WDR-03, F-20, F-23
+    """
+
+    message_key: str
+
+
+def too_many_checks(refusal: Refusal) -> JSONResponse:
+    """Answer a refused check.
+
+    Args:
+        refusal: why the check may not start.
+
+    Returns:
+        429 with the copy key and Retry-After.
+
+    Features:
+        US-BEZ-02, US-WDR-03, F-20, F-23
+    """
+    body = TooManyChecks(message_key=refusal.message_key).model_dump()
+    headers = {"Retry-After": str(refusal.retry_after_seconds)}
+    return JSONResponse(body, status.HTTP_429_TOO_MANY_REQUESTS, headers)
 
 
 def get_check_gate(request: Request) -> CheckGate:

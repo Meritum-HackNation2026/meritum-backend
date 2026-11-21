@@ -7,7 +7,8 @@ Features:
 import hashlib
 from dataclasses import dataclass
 
-from meritum_backend.limits.constants import BUSY_KEY, RATE_LIMITED_KEY, WINDOW_SECONDS
+from meritum_backend.limits.constants import BUSY, RATE_LIMITED, WINDOW_SECONDS
+from meritum_backend.limits.models import Refusal
 from meritum_backend.limits.ports import PendingChecks, RateCounter
 from meritum_backend.limits.settings import LimitSettings
 
@@ -50,7 +51,7 @@ class CheckGate:
     pending: PendingChecks
     limits: LimitSettings
 
-    async def refusal(self, origin: Origin, channel: str) -> str | None:
+    async def refusal(self, origin: Origin, channel: str) -> Refusal | None:
         """Count the check and say why it may not start, if it may not.
 
         Args:
@@ -58,8 +59,7 @@ class CheckGate:
             channel: the channel of the check.
 
         Returns:
-            A copy/pl.json key (errors.rate_limited or errors.busy), or None
-            when the check may start.
+            RATE_LIMITED or BUSY, or None when the check may start.
         """
         limits = (
             (_key("ip", origin.ip), self.limits.checks_per_ip_per_minute),
@@ -68,8 +68,8 @@ class CheckGate:
         )
         for key, limit in limits:
             if await self.counter.hit(key, WINDOW_SECONDS) > limit:
-                return RATE_LIMITED_KEY
+                return RATE_LIMITED
         most = self.limits.max_pending_checks
         if await self.pending.count(most) >= most:
-            return BUSY_KEY
+            return BUSY
         return None

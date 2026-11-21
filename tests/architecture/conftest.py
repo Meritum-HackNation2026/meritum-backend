@@ -14,7 +14,7 @@ PACKAGE = "meritum_backend"
 # Modules that may use frameworks and adapters: the composition root (main), the
 # inbound HTTP adapters (<slice>.api), HTTP rate limits (slowapi) and factories.
 WIRING = re.compile(
-    r"^meritum_backend\.(main|limits|[a-z_]+\.(api|adapters|factory))(\.|$)"
+    r"^meritum_backend\.(main|limits\._slowapi|[a-z_]+\.(api|adapters|factory))(\.|$)"
 )
 FRAMEWORKS = re.compile(
     r"^(dbos|fastapi|starlette|slowapi|psycopg|uvicorn|httpx2?|cryptography"

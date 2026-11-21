@@ -8,36 +8,38 @@ Features:
     US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
 """
 
-from slowapi.errors import RateLimitExceeded
-
-from meritum_backend.limits._slowapi import limiter, too_many_requests
-from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
-from meritum_backend.limits.api import ClientOrigin, Gate, get_check_gate
-from meritum_backend.limits.constants import (
-    BUSY_KEY,
-    BUSY_RETRY_SECONDS,
-    RATE_LIMITED_KEY,
-    RATE_LIMITED_RETRY_SECONDS,
+from meritum_backend.limits._slowapi import (
+    RateLimitExceeded,
+    limiter,
+    too_many_requests,
 )
+from meritum_backend.limits.api import (
+    ClientOrigin,
+    Gate,
+    TooManyChecks,
+    get_check_gate,
+    too_many_checks,
+)
+from meritum_backend.limits.constants import BUSY, RATE_LIMITED
 from meritum_backend.limits.factory import build_check_gate
 from meritum_backend.limits.gate import CheckGate, Origin
+from meritum_backend.limits.models import Refusal
 from meritum_backend.limits.settings import LimitSettings
 
 __all__ = [
-    "BUSY_KEY",
-    "BUSY_RETRY_SECONDS",
-    "RATE_LIMITED_KEY",
-    "RATE_LIMITED_RETRY_SECONDS",
+    "BUSY",
+    "RATE_LIMITED",
     "CheckGate",
     "ClientOrigin",
-    "FixedPendingChecks",
     "Gate",
     "LimitSettings",
-    "MemoryRateCounter",
     "Origin",
     "RateLimitExceeded",
+    "Refusal",
+    "TooManyChecks",
     "build_check_gate",
     "get_check_gate",
     "limiter",
+    "too_many_checks",
     "too_many_requests",
 ]

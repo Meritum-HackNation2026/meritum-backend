@@ -9,6 +9,7 @@ import logging
 import psycopg
 
 from meritum_backend.limits.constants import (
+    CONNECT_TIMEOUT_SECONDS,
     CREATE_RATE_TABLE,
     HIT_RATE_KEY,
     LOCK_RATE_TABLE,
@@ -47,7 +48,7 @@ class PostgresRateCounter:
             # shortcut: one connection per hit; add a psycopg_pool pool when
             # check traffic makes connecting show up in latency.
             async with await psycopg.AsyncConnection.connect(
-                self._conninfo, connect_timeout=3
+                self._conninfo, connect_timeout=CONNECT_TIMEOUT_SECONDS
             ) as conn:
                 return await self._count(conn, key, window_seconds)
         except psycopg.Error:
@@ -66,6 +67,7 @@ class PostgresRateCounter:
             await conn.commit()
             self._ready = True
         params = {"key": key, "window": window_seconds}
-        await conn.execute(PRUNE_RATE_WINDOWS, params)
         row = await (await conn.execute(HIT_RATE_KEY, params)).fetchone()
+        await conn.commit()  # the hit holds no row lock while old windows go
+        await conn.execute(PRUNE_RATE_WINDOWS, params)
         return int(row[0]) if row is not None else 0

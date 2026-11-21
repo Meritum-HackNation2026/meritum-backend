@@ -10,6 +10,8 @@ Features:
 import re
 from typing import Final, LiteralString
 
+from meritum_backend.limits.models import Refusal
+
 WINDOW_SECONDS: Final = 60
 """Length of one fixed counting window; the limits below are per window."""
 
@@ -31,11 +33,17 @@ RATE_LIMITED_KEY: Final = "errors.rate_limited"
 BUSY_KEY: Final = "errors.busy"
 """copy/pl.json key: too many pending checks; try again in a few minutes."""
 
-RATE_LIMITED_RETRY_SECONDS: Final = WINDOW_SECONDS
-"""Retry-After of a rate-limited check: the next window."""
-
 BUSY_RETRY_SECONDS: Final = 300
 """Retry-After of a busy answer: the "few minutes" of errors.busy."""
+
+RATE_LIMITED: Final = Refusal(RATE_LIMITED_KEY, WINDOW_SECONDS)
+"""Refusal over a rate limit: try again in the next window."""
+
+BUSY: Final = Refusal(BUSY_KEY, BUSY_RETRY_SECONDS)
+"""Refusal while too many checks wait in the worker's queue."""
+
+CONNECT_TIMEOUT_SECONDS: Final = 3
+"""How long the rate counter waits for a database connection."""
 
 REGION_HEADER: Final = "CF-IPCountry"
 """Cloudflare's header with the client's ISO 3166 country code."""
@@ -78,10 +86,13 @@ HIT_RATE_KEY: Final[LiteralString] = """
 """One atomic upsert: concurrent instances never lose a hit."""
 
 PRUNE_RATE_WINDOWS: Final[LiteralString] = """
-    DELETE FROM rate_limit_hits
-    WHERE window_start < now() - make_interval(secs => %(window)s)
+    WITH turn AS (
+        SELECT pg_try_advisory_xact_lock(hashtext('meritum.rate_limit_prune')) AS mine
+    )
+    DELETE FROM rate_limit_hits USING turn
+    WHERE turn.mine AND window_start < now() - make_interval(secs => %(window)s)
 """
-"""Drops finished windows, so a hashed address lives at most two windows."""
+"""Drops finished windows; one instance at a time, the others skip (no lock waits)."""
 
 LOCK_RATE_TABLE: Final[LiteralString] = (
     "SELECT pg_advisory_xact_lock(hashtext('meritum.rate_limit_hits'))"

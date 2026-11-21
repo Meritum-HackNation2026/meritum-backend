@@ -24,6 +24,7 @@ def test_two_instances_count_on_one_table() -> None:
     assert asyncio.run(hits()) == list(range(1, 11))
 
 
+@pytest.mark.integration
 def test_unreachable_database_lets_the_request_through() -> None:
     counter = PostgresRateCounter("postgresql://x:x@127.0.0.1:1/x")
     assert asyncio.run(counter.hit("k", 60)) == 0

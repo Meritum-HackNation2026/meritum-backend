@@ -12,7 +12,8 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 
 from meritum_backend.checks.constants import RECEIVED, SESSION_HEADER
-from meritum_backend.limits import CheckGate, FixedPendingChecks, get_check_gate
+from meritum_backend.limits import CheckGate, get_check_gate
+from meritum_backend.limits.adapters import FixedPendingChecks
 
 type MakeClient = Callable[[InMemoryJobQueue], TestClient]
 

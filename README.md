@@ -77,7 +77,7 @@ Drugi test zleca workflow `check` dla świeżej sesji i sprawdza, że trafił do
 
 ## Limity zapytań
 
-`POST /api/v1/checks` liczy każde sprawdzenie na adres IP klienta, kraj (nagłówek `CF-IPCountry` od Cloudflare, bez niego `XX`) i kanał, w oknach jednominutowych. Liczniki są wspólne dla wszystkich instancji API (ADR-18): tabela `rate_limit_hits` w schemacie API, zakładana przy pierwszym użyciu. Klucze są skrótami SHA-256, a każde kolejne sprawdzenie usuwa wiersze zakończonych okien, więc baza nie trzyma adresów IP otwartym tekstem i nie przechowuje skrótów dłużej, niż trwa ruch. Kod limitów nie zapisuje adresów IP w logach.
+`POST /api/v1/checks` liczy każde sprawdzenie na adres IP klienta, kraj (nagłówek `CF-IPCountry` od Cloudflare, bez niego `XX`) i kanał, w oknach jednominutowych. Liczniki są wspólne dla wszystkich instancji API (ADR-18): tabela `rate_limit_hits` w schemacie API, zakładana przy pierwszym użyciu. Klucze są skrótami SHA-256 bez soli, czyli adresami pseudonimizowanymi, nie anonimowymi. Każde kolejne sprawdzenie usuwa wiersze zakończonych okien. Kod limitów nie zapisuje adresów IP w logach; logi dostępu uvicorna i bramy to osobna sprawa polityki prywatności.
 
 Przed zleceniem workflowu API sprawdza też, ile sprawdzeń czeka w kolejce DBOS tego środowiska. Gdy osiągną próg, nowe dostają 429. Limit współbieżności kolejki zostaje w workerze.
 
@@ -89,7 +89,6 @@ Odpowiedź 429 nie zawiera werdyktu, tylko klucz komunikatu z `copy/pl.json`: `e
 | `MERITUM_CHECKS_PER_REGION_PER_MINUTE` | 300 | sprawdzenia z jednego kraju na minutę |
 | `MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE` | 600 | sprawdzenia z jednego kanału na minutę |
 | `MERITUM_MAX_PENDING_CHECKS` | 100 | oczekujące sprawdzenia, od których API odpowiada 429 |
-| `MERITUM_RATE_COUNTER` | `postgres` | `memory` liczy tylko w jednym procesie (testy) |
 
 Domyślne wartości są w `src/meritum_backend/limits/constants.py`. Test licznika na prawdziwym PostgreSQL: `docker compose up -d --wait db`, potem `uv run pytest -m integration tests/limits`.
 

@@ -49,13 +49,7 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.jobs.api import Jobs
-from meritum_backend.limits import (
-    BUSY_KEY,
-    BUSY_RETRY_SECONDS,
-    RATE_LIMITED_RETRY_SECONDS,
-    ClientOrigin,
-    Gate,
-)
+from meritum_backend.limits import ClientOrigin, Gate, TooManyChecks, too_many_checks
 
 
 class InvalidCheck(BaseModel):
@@ -87,13 +81,6 @@ class CheckAccepted(BaseModel):
 def _invalid(key: str) -> JSONResponse:
     body = InvalidCheck(message_key=key).model_dump()
     return JSONResponse(body, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
-
-
-def _too_many(key: str) -> JSONResponse:
-    body = InvalidCheck(message_key=key).model_dump()
-    wait = BUSY_RETRY_SECONDS if key == BUSY_KEY else RATE_LIMITED_RETRY_SECONDS
-    headers = {"Retry-After": str(wait)}
-    return JSONResponse(body, status.HTTP_429_TOO_MANY_REQUESTS, headers)
 
 
 class KeyedErrorsRoute(APIRoute):
@@ -135,7 +122,7 @@ router = APIRouter(
     response_model=CheckAccepted,
     responses={
         status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck},
-        status.HTTP_429_TOO_MANY_REQUESTS: {"model": InvalidCheck},
+        status.HTTP_429_TOO_MANY_REQUESTS: {"model": TooManyChecks},
     },
 )
 async def start_check(
@@ -174,7 +161,7 @@ async def start_check(
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
     if (refusal := await gate.refusal(origin, request.channel)) is not None:
-        return _too_many(refusal)
+        return too_many_checks(refusal)
     try:
         clean = masked(request)
     except ValidationError as exc:
