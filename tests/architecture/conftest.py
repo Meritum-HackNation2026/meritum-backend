@@ -17,7 +17,8 @@ WIRING = re.compile(
     r"^meritum_backend\.(main|limits|[a-z_]+\.(api|adapters|factory))(\.|$)"
 )
 FRAMEWORKS = re.compile(
-    r"^(dbos|fastapi|starlette|slowapi|psycopg|uvicorn|httpx|cryptography)(\.|$)"
+    r"^(dbos|fastapi|starlette|slowapi|psycopg|uvicorn|httpx2?|cryptography"
+    r"|authlib|joserfc|itsdangerous)(\.|$)"
 )
 ADAPTERS = re.compile(r"^meritum_[a-z]+(\.[a-z_]+)*\.adapters(\.|$)")
 
