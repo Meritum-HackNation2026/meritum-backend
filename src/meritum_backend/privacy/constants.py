@@ -37,3 +37,10 @@ id, which works as a key."""
 
 SESSION_REPLACEMENT: Final = r"\1{session_id}\2"
 """Regex replacement: the access log shows ``{session_id}`` instead of the id."""
+
+SESSION_IN_QUERY: Final = re.compile(r"([?&]session=)[^&#\s]+")
+"""The notification stream's ``?session=`` (EventSource sends no headers); the
+id works as a key to that session's inbox."""
+
+SESSION_QUERY_REPLACEMENT: Final = r"\1{session_id}"
+"""Regex replacement: the access log shows ``session={session_id}``."""
