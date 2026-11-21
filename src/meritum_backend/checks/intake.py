@@ -18,7 +18,7 @@ from meritum_backend.checks.constants import (
     INVALID_URL_KEY,
     MARKER_OPEN,
     MARKERS,
-    TEXT_FIELD,
+    TEXT_FIELDS,
     TEXT_MAX_CHARS,
     TOO_LONG_ERROR,
     TOO_LONG_KEY,
@@ -42,7 +42,7 @@ def message_key(errors: Sequence[ErrorDetails]) -> str:
     fields = [(error["loc"][-1] if error["loc"] else "", error) for error in errors]
     if any(field in URL_FIELDS for field, _ in fields):
         return INVALID_URL_KEY
-    if any(f == TEXT_FIELD and e["type"] == TOO_LONG_ERROR for f, e in fields):
+    if any(f in TEXT_FIELDS and e["type"] == TOO_LONG_ERROR for f, e in fields):
         return TOO_LONG_KEY
     return EMPTY_KEY
 
@@ -74,11 +74,27 @@ async def _mask(value: str, gate: PiiGatePort) -> str:
     return (await mask_personal_data(value, gate)).text
 
 
-async def _masked_text(text: str, gate: PiiGatePort) -> str:
+async def masked_text(text: str, limit: int, gate: PiiGatePort) -> str:
+    """Mask personal data and cut the result to ``limit`` characters.
+
+    Markers can be longer than what they replace, so the masked text may grow
+    past the limit; it is then cut before any marker the cut would split.
+
+    Args:
+        text: free text that may contain personal data.
+        limit: the longest text the receiver accepts.
+        gate: the personal-data masking gate.
+
+    Returns:
+        The masked text, at most ``limit`` characters long.
+
+    Features:
+        US-BEZ-04, US-MOD-06, F-20
+    """
     full = await _mask(text, gate)
-    if len(full) <= TEXT_MAX_CHARS:
+    if len(full) <= limit:
         return full
-    cut = full[:TEXT_MAX_CHARS]
+    cut = full[:limit]
     # a marker cut in half would reach the model as noise
     opened = cut.rfind(MARKER_OPEN)
     tail = cut[opened:]
@@ -129,7 +145,7 @@ async def masked(request: CheckRequest, gate: PiiGatePort) -> CheckRequest:
     update = {
         "text": None
         if request.text is None
-        else await _masked_text(request.text, gate),
+        else await masked_text(request.text, TEXT_MAX_CHARS, gate),
         "url": await _masked_link(request.url, gate),
         "page_url": await _masked_link(request.page_url, gate),
     }

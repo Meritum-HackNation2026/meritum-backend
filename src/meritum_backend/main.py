@@ -36,6 +36,7 @@ from meritum_backend.limits import (
     start_pruning,
     too_many_requests,
 )
+from meritum_backend.moderation.api import handoff_router
 from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.privacy.access_log import mask_sessions_in_access_log
@@ -128,4 +129,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(check_events_router)
     app.include_router(audio_router)
     app.include_router(privacy_router)
+    app.include_router(handoff_router)
     return app

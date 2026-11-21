@@ -37,8 +37,8 @@ MARKERS: Final = (PHONE_MARKER, EMAIL_MARKER, PESEL_MARKER)
 MARKER_OPEN: Final = "["
 """First character of every personal-data marker of meritum-core ("[telefon]")."""
 
-TEXT_FIELD: Final = "text"
-"""CheckRequest field with the free text."""
+TEXT_FIELDS: Final = frozenset({"text", "justification"})
+"""Free-text fields whose too-long error maps to TOO_LONG_KEY (check text, dispute)."""
 
 TOO_LONG_ERROR: Final = "string_too_long"
 """pydantic error type of a string over its max_length."""
