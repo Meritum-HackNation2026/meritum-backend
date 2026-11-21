@@ -31,3 +31,8 @@ Feature: Bezpieczeństwo danych wejściowych
     Given liczba oczekujących sprawdzeń osiągnęła próg z konfiguracji
     When przychodzi nowe sprawdzenie
     Then odpowiedź ma kod 429 z komunikatem, a workflow nie jest zlecany
+
+  Scenario: identyfikator sesji nie trafia do logów
+    Given żądanie DELETE /api/v1/sessions/<session_id>/checks
+    When serwer zapisuje log dostępu
+    Then w logu ścieżka ma zamaskowany identyfikator sesji
