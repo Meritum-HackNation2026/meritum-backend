@@ -5,9 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
-from tests.conftest import FakeBlobStore, MakeProbe, worker_report
+from tests.conftest import FakeBlobStore, FakeClock, MakeProbe, worker_report
 
-from meritum_backend.health import readiness
 from meritum_backend.health.api import get_readiness
 from meritum_backend.health.models import Problems
 from meritum_backend.health.readiness import ReadinessProbe
@@ -94,12 +93,32 @@ def test_fresh_report_enqueues_no_new_workflow(make_probe: MakeProbe) -> None:
     assert [job.spec.name for job in jobs.enqueued] == ["readiness"]
 
 
-def test_worker_silent_after_a_refresh_is_not_reported(
-    make_probe: MakeProbe, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(readiness, "WORKER_EXPIRY_SECONDS", 0)
-    probe = make_probe(InMemoryJobQueue(), report=worker_report())
-    body = client_for(probe).get("/api/v1/health").json()
+def test_quiet_period_keeps_a_live_worker_ready(make_probe: MakeProbe) -> None:
+    clock = FakeClock()
+    jobs = InMemoryJobQueue()
+    probe = make_probe(jobs, report=worker_report(), clock=clock)
+    client = client_for(probe)
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+    clock.now = 130.0  # nobody asked for over two minutes
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+    jobs.set_event(
+        probe.workflow_id, "readiness", worker_report()
+    )  # answers the refresh
+    clock.now = 200.0
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+
+
+def test_worker_silent_after_a_refresh_is_not_reported(make_probe: MakeProbe) -> None:
+    clock = FakeClock()
+    probe = make_probe(InMemoryJobQueue(), report=worker_report(), clock=clock)
+    client = client_for(probe)
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+    clock.now = 60.0  # the report is due: a new workflow is enqueued
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+    clock.now = 119.0
+    assert client.get("/api/v1/health").json()["worker"] == "ok"
+    clock.now = 120.0  # no answer for a whole refresh period
+    body = client.get("/api/v1/health").json()
     assert (body["status"], body["worker"]) == ("degraded", "not_reported")
 
 

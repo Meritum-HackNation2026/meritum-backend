@@ -48,7 +48,5 @@ DATABASE_CONNECT_TIMEOUT_SECONDS: Final = 3
 """How long the readiness probe waits to connect to the API's database."""
 
 WORKER_REFRESH_SECONDS: Final = 60.0
-"""Age of the worker report after which the API enqueues a new `readiness` workflow."""
-
-WORKER_EXPIRY_SECONDS: Final = 2 * WORKER_REFRESH_SECONDS
-"""Age after which the worker's last report no longer counts: it stopped answering."""
+"""Age of the worker report that triggers a new `readiness` workflow; also how long
+the worker has to answer it before it counts as not reported."""

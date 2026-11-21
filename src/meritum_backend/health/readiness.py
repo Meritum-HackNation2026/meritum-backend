@@ -13,6 +13,7 @@ Features:
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from uuid import uuid4
 
 from meritum_core.jobs.constants import READINESS_KEY
@@ -26,7 +27,6 @@ from meritum_backend.health.constants import (
     READY_CACHE_SECONDS,
     SALT_ENV,
     STARTUP_WORKER_WAIT_SECONDS,
-    WORKER_EXPIRY_SECONDS,
     WORKER_REFRESH_SECONDS,
     WORKFLOW_ID_PREFIX,
 )
@@ -65,6 +65,7 @@ class ReadinessProbe:
         jobs: the job queue the worker's report comes through.
         database: whether the API's database role can run a query.
         blob_store: what the blob store configuration lacks.
+        clock: monotonic seconds; a fake one in tests.
 
     Features:
         US-WDR-08, US-BEZ-03, F-30, ADR-03
@@ -76,11 +77,14 @@ class ReadinessProbe:
         jobs: JobQueue,
         database: DatabaseProbe,
         blob_store: BlobStoreProbe,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._settings = settings
         self._jobs = jobs
         self._database = database
         self._blob_store = blob_store
+        self._clock = clock
+        self._refreshed_at: float | None = None  # when the pending refresh was enqueued
         self._enqueued = False
         self._last: tuple[float, Readiness] | None = None
         # (workflow id, when its report arrived, the report)
@@ -108,21 +112,27 @@ class ReadinessProbe:
             )
             return None
 
-    async def _worker_report(self, wait: float) -> ReadinessReport | None:
-        report = await self._read_event(wait)
-        now = time.monotonic()
-        is_new = self._report is None or self._report[0] != self.workflow_id
-        if report is not None and is_new:
-            self._report = (self.workflow_id, now, report)
-        if self._report is None:
-            return None
-        report_id, arrived, last = self._report
-        if report_id == self.workflow_id and now - arrived >= WORKER_REFRESH_SECONDS:
+    def _refresh_if_due(self) -> None:
+        if self._report is None or self._report[0] != self.workflow_id:
+            return  # no report yet, or a refresh is already pending
+        if self._clock() - self._report[1] >= WORKER_REFRESH_SECONDS:
             # a restarted worker answers a new workflow; keep the last report meanwhile
             self.workflow_id = _new_workflow_id()
             self._enqueued = False
-        # a worker that stopped answering refreshes is not reported any more
-        return last if now - arrived < WORKER_EXPIRY_SECONDS else None
+            self._refreshed_at = self._clock()
+
+    async def _worker_report(self, wait: float) -> ReadinessReport | None:
+        self._refresh_if_due()
+        report = await self._read_event(wait)
+        is_new = self._report is None or self._report[0] != self.workflow_id
+        if report is not None and is_new:
+            self._report = (self.workflow_id, self._clock(), report)
+            self._refreshed_at = None
+        # a worker that left a refresh unanswered for a whole period is not reported
+        unanswered = self._refreshed_at is not None and (
+            self._clock() - self._refreshed_at >= WORKER_REFRESH_SECONDS
+        )
+        return None if unanswered or self._report is None else self._report[2]
 
     async def check(self, worker_wait: float = HEALTH_WORKER_WAIT_SECONDS) -> Readiness:
         """Probe the database, the API's variables and the worker's report.
@@ -157,7 +167,7 @@ class ReadinessProbe:
             missing_env=missing,
             unavailable_providers=unavailable,
         )
-        self._last = (time.monotonic(), readiness)
+        self._last = (self._clock(), readiness)
         return readiness
 
     async def ready(self) -> bool:
@@ -169,7 +179,7 @@ class ReadinessProbe:
         Features:
             US-WDR-08, US-BEZ-03, F-30
         """
-        if self._last and time.monotonic() - self._last[0] < READY_CACHE_SECONDS:
+        if self._last and self._clock() - self._last[0] < READY_CACHE_SECONDS:
             return self._last[1].ready
         return (await self.check()).ready
 

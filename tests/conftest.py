@@ -1,5 +1,6 @@
 """Shared fixtures: a readiness probe on fakes, ready unless a test says otherwise."""
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -42,21 +43,31 @@ class FakeBlobStore:
         return self.found
 
 
+@dataclass
+class FakeClock:
+    now: float = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
 @pytest.fixture
 def make_probe() -> MakeProbe:
-    def make(
+    def make(  # ruff: ignore[too-many-arguments] -- keyword-only overrides of a test factory
         jobs: InMemoryJobQueue,
         *,
         report: ReadinessReport | None = None,
         settings: Settings | None = None,
         database_ok: bool = True,
         blob: BlobStoreProbe | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> ReadinessProbe:
         probe = ReadinessProbe(
             settings or Settings(channel_hash_salt=SecretStr("salt")),
             jobs,
             FakeDatabase(database_ok),
             blob or FakeBlobStore(),
+            clock,
         )
         if report is not None:
             jobs.set_event(probe.workflow_id, READINESS_KEY, report)

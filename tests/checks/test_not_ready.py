@@ -1,10 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 from meritum_core.jobs.constants import READINESS_KEY
 from meritum_core.jobs.fakes import InMemoryJobQueue
-from tests.conftest import MakeProbe, worker_report
+from tests.conftest import FakeClock, MakeProbe, worker_report
 
-from meritum_backend.health import readiness
 from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app
@@ -48,20 +46,21 @@ def test_bad_input_is_still_422_when_not_ready(make_probe: MakeProbe) -> None:
 
 
 def test_fixed_worker_lets_checks_through_without_an_api_restart(
-    make_probe: MakeProbe, monkeypatch: pytest.MonkeyPatch
+    make_probe: MakeProbe,
 ) -> None:
-    monkeypatch.setattr(readiness, "READY_CACHE_SECONDS", 0)
-    monkeypatch.setattr(readiness, "WORKER_REFRESH_SECONDS", 0)
+    clock = FakeClock()
     queue = InMemoryJobQueue()
-    probe = make_probe(queue, report=worker_report(["LLM_KEY"]))
+    probe = make_probe(queue, report=worker_report(["LLM_KEY"]), clock=clock)
     app = create_app(Settings())
     app.dependency_overrides[get_jobs] = InMemoryJobQueue
     app.dependency_overrides[get_readiness] = lambda: probe
     client = TestClient(app)
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 503
-    client.post("/api/v1/checks", json=CHECK, headers=SESSION)  # enqueues a new one
+    clock.now = 61.0  # the report is due: the API enqueues a new workflow
+    assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 503
     ids = [job.workflow_id for job in queue.enqueued]
     assert len(set(ids)) == 2  # a finished workflow never runs again in DBOS
     # the restarted worker answers the readiness workflow the API enqueued next
     queue.set_event(ids[-1], READINESS_KEY, worker_report())
+    clock.now = 92.0  # past the 30 s cache of the last answer
     assert client.post("/api/v1/checks", json=CHECK, headers=SESSION).status_code == 202
