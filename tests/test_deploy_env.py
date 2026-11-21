@@ -97,7 +97,7 @@ def test_env_file_without_files_volume_mounts_nothing(tmp_path: Path) -> None:
     assert mount(envfile) == []
 
 
-def gcp(envfile: Path) -> list[str]:
+def gcp_mount_args(envfile: Path) -> list[str]:
     done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed command, test data only
         [
             BASH,
@@ -122,7 +122,7 @@ def test_each_gcp_mount_of_the_env_file_is_mounted(tmp_path: Path) -> None:
         "MERITUM_GCP_MOUNTS=/home/m/meritum/gcp/meritum-backend:/etc/meritum/gcp/"
         "meritum-backend:ro /home/m/meritum/gcp/pki:/etc/meritum/pki:ro\n"
     )
-    assert gcp(envfile) == [
+    assert gcp_mount_args(envfile) == [
         "-v",
         "/home/m/meritum/gcp/meritum-backend:/etc/meritum/gcp/meritum-backend:ro",
         "-v",
@@ -133,4 +133,10 @@ def test_each_gcp_mount_of_the_env_file_is_mounted(tmp_path: Path) -> None:
 def test_env_file_without_gcp_mounts_mounts_nothing(tmp_path: Path) -> None:
     envfile = tmp_path / "api-dev.env"
     envfile.write_text("MERITUM_DATABASE_URL=x\n")
-    assert gcp(envfile) == []
+    assert gcp_mount_args(envfile) == []
+
+
+def test_gcp_mount_without_read_only_is_skipped(tmp_path: Path) -> None:
+    envfile = tmp_path / "api-dev.env"
+    envfile.write_text("MERITUM_GCP_MOUNTS=/h/gcp:/etc/gcp /h/pki:/etc/pki:ro\n")
+    assert gcp_mount_args(envfile) == ["-v", "/h/pki:/etc/pki:ro"]

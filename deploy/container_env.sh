@@ -52,6 +52,8 @@ gcp_mounts() {
   gcp_args=()
   read -ra entries <<<"$(sed -n 's/^MERITUM_GCP_MOUNTS=//p' "$1" | tail -n 1)"
   for entry in "${entries[@]}"; do
+    # credentials are never mounted writable
+    [[ $entry == *:ro ]] || { echo "::warning title=GCP mount skipped::$entry is not :ro" >&2; continue; }
     gcp_args+=(-v "$entry")
   done
 }
