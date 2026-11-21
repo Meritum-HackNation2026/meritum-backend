@@ -6,11 +6,10 @@ from meritum_core.jobs.contracts import WorkflowSpec
 from meritum_core.jobs.ports import JobState
 from pydantic import BaseModel
 
-from meritum_backend.health.api import get_settings
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import limiter
 from meritum_backend.main import create_app
-from meritum_backend.settings import Settings
+from meritum_backend.settings import Settings, get_settings
 
 
 class FakeJobs:
