@@ -22,7 +22,13 @@ from meritum_backend.checks.factory import build_blobs
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.jobs.api import router as jobs_router
-from meritum_backend.limits import RateLimitExceeded, limiter, too_many_requests
+from meritum_backend.limits import (
+    LimitSettings,
+    RateLimitExceeded,
+    build_check_gate,
+    limiter,
+    too_many_requests,
+)
 from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.privacy.api import router as privacy_router
@@ -56,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.jobs = DbosJobQueue(client, app_version=settings.env)
         app.state.blobs = build_blobs(settings)
+        app.state.check_gate = build_check_gate(settings, LimitSettings(), client)
         try:
             yield
         finally:

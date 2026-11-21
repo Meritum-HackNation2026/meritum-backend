@@ -1,0 +1,89 @@
+"""Limits of the check intake: per IP, region and channel, and pending checks.
+
+Every value is a default; ``LimitSettings`` reads the MERITUM_* variable named
+next to it.
+
+Features:
+    US-BEZ-02, US-WDR-03, F-20, F-23, ADR-18
+"""
+
+import re
+from typing import Final, LiteralString
+
+WINDOW_SECONDS: Final = 60
+"""Length of one fixed counting window; the limits below are per window."""
+
+CHECKS_PER_IP_PER_MINUTE: Final = 10
+"""Checks one client address may start per minute (MERITUM_CHECKS_PER_IP_PER_MINUTE)."""
+
+CHECKS_PER_REGION_PER_MINUTE: Final = 300
+"""Checks one country may start per minute (MERITUM_CHECKS_PER_REGION_PER_MINUTE)."""
+
+CHECKS_PER_CHANNEL_PER_MINUTE: Final = 600
+"""Checks one channel may start per minute (MERITUM_CHECKS_PER_CHANNEL_PER_MINUTE)."""
+
+MAX_PENDING_CHECKS: Final = 100
+"""Queued checks at which new ones get 429 busy (MERITUM_MAX_PENDING_CHECKS)."""
+
+RATE_LIMITED_KEY: Final = "errors.rate_limited"
+"""copy/pl.json key: too many checks in a short time; try again in a minute."""
+
+BUSY_KEY: Final = "errors.busy"
+"""copy/pl.json key: too many pending checks; try again in a few minutes."""
+
+RATE_LIMITED_RETRY_SECONDS: Final = WINDOW_SECONDS
+"""Retry-After of a rate-limited check: the next window."""
+
+BUSY_RETRY_SECONDS: Final = 300
+"""Retry-After of a busy answer: the "few minutes" of errors.busy."""
+
+REGION_HEADER: Final = "CF-IPCountry"
+"""Cloudflare's header with the client's ISO 3166 country code."""
+
+UNKNOWN_REGION: Final = "XX"
+"""Region of a request without a valid country code (Cloudflare's own "unknown")."""
+
+REGION_CODE: Final = re.compile(r"[A-Z]{2}")
+"""A valid region: two uppercase letters; anything else counts as UNKNOWN_REGION."""
+
+UNKNOWN_IP: Final = "unknown"
+"""Client address when the server saw none (test clients, unix sockets)."""
+
+CREATE_RATE_TABLE: Final[tuple[LiteralString, ...]] = (
+    """
+    CREATE TABLE IF NOT EXISTS rate_limit_hits (
+        key text NOT NULL,
+        window_start timestamptz NOT NULL,
+        hits integer NOT NULL,
+        PRIMARY KEY (key, window_start)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS rate_limit_hits_window_start
+    ON rate_limit_hits (window_start)
+    """,
+)
+"""The table in the API role's own schema (its search_path), made on first use."""
+
+HIT_RATE_KEY: Final[LiteralString] = """
+    INSERT INTO rate_limit_hits AS h (key, window_start, hits)
+    VALUES (
+        %(key)s,
+        to_timestamp(floor(extract(epoch FROM now()) / %(window)s) * %(window)s),
+        1
+    )
+    ON CONFLICT (key, window_start) DO UPDATE SET hits = h.hits + 1
+    RETURNING hits
+"""
+"""One atomic upsert: concurrent instances never lose a hit."""
+
+PRUNE_RATE_WINDOWS: Final[LiteralString] = """
+    DELETE FROM rate_limit_hits
+    WHERE window_start < now() - make_interval(secs => %(window)s)
+"""
+"""Drops finished windows, so a hashed address lives at most two windows."""
+
+LOCK_RATE_TABLE: Final[LiteralString] = (
+    "SELECT pg_advisory_xact_lock(hashtext('meritum.rate_limit_hits'))"
+)
+"""Serializes the first-use CREATE of every instance; released at commit."""

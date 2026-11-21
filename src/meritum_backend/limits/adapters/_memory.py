@@ -1,0 +1,64 @@
+"""In-process adapters: a rate counter for tests and one process, a fixed queue.
+
+Features:
+    US-BEZ-02, US-WDR-03, F-20, F-23
+"""
+
+import time
+from collections.abc import Callable
+
+
+class MemoryRateCounter:
+    """RateCounter in one process's memory; shared only by apps of that process.
+
+    Args:
+        clock: seconds since the epoch; ``time.time`` by default.
+
+    Features:
+        US-BEZ-02, F-20
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.time) -> None:
+        self._clock = clock
+        self._hits: dict[str, tuple[int, int]] = {}
+
+    async def hit(self, key: str, window_seconds: int) -> int:
+        """Count one hit of ``key`` in the current window.
+
+        Args:
+            key: what is limited.
+            window_seconds: length of the window.
+
+        Returns:
+            Hits of ``key`` in the current window, this one included.
+        """
+        window = int(self._clock() // window_seconds)
+        seen_window, hits = self._hits.get(key, (window, 0))
+        hits = hits + 1 if seen_window == window else 1
+        self._hits[key] = (window, hits)
+        return hits
+
+
+class FixedPendingChecks:
+    """PendingChecks with a set number of pending checks (tests).
+
+    Args:
+        pending: how many checks are pending.
+
+    Features:
+        US-WDR-03, F-23
+    """
+
+    def __init__(self, pending: int = 0) -> None:
+        self._pending = pending
+
+    async def count(self, at_most: int) -> int:
+        """Return the set number, capped at ``at_most``.
+
+        Args:
+            at_most: the threshold.
+
+        Returns:
+            The pending checks, at most ``at_most``.
+        """
+        return min(self._pending, at_most)

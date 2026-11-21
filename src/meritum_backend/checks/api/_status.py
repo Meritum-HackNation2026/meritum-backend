@@ -4,7 +4,8 @@ Every channel (web form, extension, Discord, SMS, MCP) calls this one API, so th
 result does not depend on the channel (ADR-08).
 
 Features:
-    US-SPR-01, US-SPR-07, US-BEZ-04, US-BEZ-07, F-01, F-20, F-21, ADR-08
+    US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-BEZ-07, US-WDR-03, F-01, F-20,
+    F-21, F-23, ADR-08
 """
 
 import asyncio
@@ -48,6 +49,13 @@ from meritum_backend.checks.progress import (
     without_early_verdict,
 )
 from meritum_backend.jobs.api import Jobs
+from meritum_backend.limits import (
+    BUSY_KEY,
+    BUSY_RETRY_SECONDS,
+    RATE_LIMITED_RETRY_SECONDS,
+    ClientOrigin,
+    Gate,
+)
 
 
 class InvalidCheck(BaseModel):
@@ -79,6 +87,13 @@ class CheckAccepted(BaseModel):
 def _invalid(key: str) -> JSONResponse:
     body = InvalidCheck(message_key=key).model_dump()
     return JSONResponse(body, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+
+def _too_many(key: str) -> JSONResponse:
+    body = InvalidCheck(message_key=key).model_dump()
+    wait = BUSY_RETRY_SECONDS if key == BUSY_KEY else RATE_LIMITED_RETRY_SECONDS
+    headers = {"Retry-After": str(wait)}
+    return JSONResponse(body, status.HTTP_429_TOO_MANY_REQUESTS, headers)
 
 
 class KeyedErrorsRoute(APIRoute):
@@ -118,11 +133,16 @@ router = APIRouter(
     "",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=CheckAccepted,
-    responses={status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck}},
+    responses={
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": InvalidCheck},
+        status.HTTP_429_TOO_MANY_REQUESTS: {"model": InvalidCheck},
+    },
 )
 async def start_check(
     request: CheckRequest,
     jobs: Jobs,
+    gate: Gate,
+    origin: ClientOrigin,
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
@@ -130,10 +150,13 @@ async def start_check(
     Args:
         request: text (up to 4000 characters), a full http(s) link or an audio id.
         jobs: the job queue port.
+        gate: the shared rate limits and the pending-checks threshold.
+        origin: the client address and region the limits count.
         session: the random browser session id; no sign-in needed.
 
     Returns:
-        The check id, or 422 with a copy key.
+        The check id, or 422 with a copy key, or 429 with errors.rate_limited
+        or errors.busy and Retry-After (nothing enqueued).
 
     Raises:
         HTTPException: 400 without a valid session or for Discord, SMS and MCP
@@ -141,7 +164,7 @@ async def start_check(
             503 when the job queue is unreachable.
 
     Features:
-        US-SPR-01, US-SPR-07, US-BEZ-04, F-01, F-20
+        US-SPR-01, US-SPR-07, US-BEZ-02, US-BEZ-04, US-WDR-03, F-01, F-20, F-23
     """
     received_at = datetime.now(UTC)
     if is_unsupported_link(request):
@@ -150,6 +173,8 @@ async def start_check(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, SESSIONLESS_DETAIL)
     if session is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_SESSION_DETAIL)
+    if (refusal := await gate.refusal(origin, request.channel)) is not None:
+        return _too_many(refusal)
     try:
         clean = masked(request)
     except ValidationError as exc:

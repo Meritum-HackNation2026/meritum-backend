@@ -16,6 +16,13 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 
 from meritum_backend.checks.constants import SESSION_HEADER
 from meritum_backend.jobs.api import get_jobs
+from meritum_backend.limits import (
+    CheckGate,
+    FixedPendingChecks,
+    LimitSettings,
+    MemoryRateCounter,
+    get_check_gate,
+)
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -44,6 +51,8 @@ def _prepare(context: Context, body: dict[str, str]) -> None:
     context.jobs = InMemoryJobQueue()
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
     app.dependency_overrides[get_jobs] = lambda: context.jobs
+    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
+    app.dependency_overrides[get_check_gate] = lambda: gate
     context.client = TestClient(app)
     context.body = body
 

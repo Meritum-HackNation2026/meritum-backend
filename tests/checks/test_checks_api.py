@@ -1,7 +1,9 @@
 from collections.abc import Callable
-from typing import override
+from dataclasses import replace
+from typing import cast, override
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, CheckResult
 from meritum_core.jobs.constants import PROGRESS_KEY
@@ -10,6 +12,7 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 
 from meritum_backend.checks.constants import RECEIVED, SESSION_HEADER
+from meritum_backend.limits import CheckGate, FixedPendingChecks, get_check_gate
 
 type MakeClient = Callable[[InMemoryJobQueue], TestClient]
 
@@ -123,3 +126,33 @@ def test_openapi_documents_both_routes_and_the_ai_marker(client: TestClient) -> 
     assert "post" in paths["/api/v1/checks"]
     ok = paths["/api/v1/checks/{check_id}"]["get"]["responses"]["200"]
     assert "AI-Disclosure" in ok["headers"]
+
+
+WEB_TEXT = {"channel": "web", "text": "Czy szczepionki powodują autyzm?"}
+
+
+def test_eleventh_check_from_one_address_gets_429(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    for _ in range(10):
+        assert client.post("/api/v1/checks", json=WEB_TEXT, headers=SESSION).is_success
+    response = client.post("/api/v1/checks", json=WEB_TEXT, headers=SESSION)
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "60"
+    assert response.json() == {"message_key": "errors.rate_limited"}
+    assert len(jobs.enqueued) == 10
+
+
+def test_full_queue_gets_429_busy_and_enqueues_nothing(
+    make_client: MakeClient, jobs: InMemoryJobQueue, gate: CheckGate
+) -> None:
+    client = make_client(jobs)
+    app = cast("FastAPI", client.app)
+    app.dependency_overrides[get_check_gate] = lambda: replace(
+        gate, pending=FixedPendingChecks(gate.limits.max_pending_checks)
+    )
+    response = client.post("/api/v1/checks", json=WEB_TEXT, headers=SESSION)
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "300"
+    assert response.json() == {"message_key": "errors.busy"}
+    assert jobs.enqueued == []
