@@ -52,3 +52,19 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given backend z MERITUM_DATABASE_PROVIDER=postgres
     When administrator nadaje rolę i backend się restartuje
     Then konto personelu ma nadal tę rolę
+
+  Scenario: wejście z linku jury
+    Given administrator utworzył ważny link jury
+    When członek jury realizuje link
+    Then dostaje sesję analityka tylko do odczytu i trafia na stronę ewaluacji
+
+  Scenario: link jury użyty drugi raz
+    Given administrator utworzył ważny link jury
+    When członek jury realizuje link
+    And kolejna osoba realizuje ten sam link
+    Then kolejna osoba dostaje odmowę i pozostaje bez sesji
+
+  Scenario: link jury po terminie
+    Given administrator utworzył ważny link jury
+    When członek jury realizuje link po okresie oceny
+    Then dostaje informację o wygaśnięciu i pozostaje bez sesji

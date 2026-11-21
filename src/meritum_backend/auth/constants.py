@@ -70,3 +70,12 @@ SESSION_SINCE: Final = "since"
 
 SESSION_CSRF: Final = "csrf"
 """Session key of the CSRF token, drawn anew at every login."""
+
+SESSION_EXPIRES: Final = "expires"
+"""Optional absolute expiry for sessions tied to a short-lived grant."""
+
+SESSION_READ_ONLY: Final = "read_only"
+"""Signed session flag for accounts that may only read evaluation data."""
+
+LOGOUT_PATH: Final = "/api/v1/auth/logout"
+"""Clearing a browser session requires CSRF even for a read-only juror."""

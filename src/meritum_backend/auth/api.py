@@ -22,6 +22,7 @@ from meritum_backend.auth.constants import (
     PUBLIC_URLS,
     SESSION_ACCOUNT,
     SESSION_CSRF,
+    SESSION_EXPIRES,
     SESSION_MAX_AGE,
     SESSION_PENDING,
     SESSION_SINCE,
@@ -69,9 +70,8 @@ def current_user(request: Request) -> Account:
         account = Account.model_validate(request.session.get(SESSION_ACCOUNT))
     except ValidationError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not signed in") from exc
-    if (
-        not fresh
-    ):  # any session change re-signs the cookie; the login time does not move
+    expiry = request.session.get(SESSION_EXPIRES)
+    if not fresh or (isinstance(expiry, (int, float)) and expiry <= time.time()):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session expired")
     return account
 

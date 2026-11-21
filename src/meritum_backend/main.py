@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dbos import DBOSClient
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from meritum_core.jobs.adapters import DbosJobQueue
 from meritum_core.jobs.contracts import APPLICATION_NAME
 from meritum_core.observability import build_app_repositories
@@ -26,6 +26,9 @@ from meritum_backend.discord.api import router as discord_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
+from meritum_backend.jury.api import require_writable_session
+from meritum_backend.jury.api import router as jury_router
+from meritum_backend.jury.factory import build_jury_counter, build_jury_links
 from meritum_backend.limits import (
     CheckRefusedError,
     LimitSettings,
@@ -93,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Meritum API",
+        dependencies=[Depends(require_writable_session)],
         lifespan=lifespan,
         openapi_url="/api/v1/openapi.json",
         docs_url="/api/docs",
@@ -100,6 +104,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     mask_sessions_in_access_log()
     app.state.limiter = limiter
+    app.state.settings = settings
+    app.state.jury_links = build_jury_links(settings)
+    app.state.jury_rate_counter = build_jury_counter(settings)
     app.state.login = build_login(settings)
     app.state.pii_gate = build_pii_gate(PiiGateSettings())  # null gate by default
     app.state.admin_emails = settings.admin_emails
@@ -108,11 +115,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.repositories = repositories
     app.state.staff = build_staff(repositories)
     secret = settings.session_secret
-    key = secret.get_secret_value() if secret is not None else ""
+    key = (
+        secret.get_secret_value() if secret is not None else ""
+    ) or secrets.token_urlsafe(TOKEN_BYTES)
+    app.state.jury_rate_secret = key.encode()
     app.add_middleware(
         SessionMiddleware,
         # no key configured: a random one, so sessions end when the process restarts
-        secret_key=key or secrets.token_urlsafe(TOKEN_BYTES),
+        secret_key=key,
         session_cookie=SESSION_COOKIE,
         max_age=SESSION_MAX_AGE,
         same_site="lax",
@@ -126,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(checks_router)
     app.include_router(staff_router)
+    app.include_router(jury_router)
     app.include_router(moderation_router)
     app.include_router(check_events_router)
     app.include_router(audio_router)
