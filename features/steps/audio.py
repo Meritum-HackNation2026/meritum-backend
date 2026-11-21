@@ -19,7 +19,7 @@ from meritum_core.shared.blobs import BlobKind, BlobRef
 from meritum_core.shared.blobs.adapters import MemoryBlobStore
 from pydantic import AwareDatetime
 
-from meritum_backend.checks import get_blobs
+from meritum_backend.checks.api import get_blobs
 from meritum_backend.checks.constants import SESSION_HEADER
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app

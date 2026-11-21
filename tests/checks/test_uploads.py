@@ -12,7 +12,7 @@ from meritum_core.shared.blobs import BlobKind, BlobRef
 from meritum_core.shared.blobs.adapters import FilesystemBlobStore, MemoryBlobStore
 from pydantic import AwareDatetime, ValidationError
 
-from meritum_backend.checks import get_blobs
+from meritum_backend.checks.api import get_blobs
 from meritum_backend.checks.constants import AUDIO_RETENTION
 from meritum_backend.checks.factory import build_blobs
 from meritum_backend.limits import limiter
@@ -135,7 +135,10 @@ def test_uploads_are_limited_per_minute_and_per_day(
         now[0] += 61
         assert 429 not in burst(10)
     now[0] += 61
-    assert burst(1) == [429]  # 31st in a day, in a fresh minute
+    response = client.post("/api/v1/audio", content=b"")  # 31st in a day
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == str(24 * 60 * 60)
+    assert "później" in response.json()["detail"]
 
 
 def test_files_volume_gives_the_filesystem_store(tmp_path: Path) -> None:
@@ -164,3 +167,11 @@ def test_outside_local_a_missing_store_fails_at_startup(
     monkeypatch.delenv("MERITUM_BLOB_PROVIDER", raising=False)
     with pytest.raises(ValidationError):
         build_blobs(Settings(database_url=DB, env="dev"))
+
+
+def test_streamed_oversize_is_413_and_stores_nothing() -> None:
+    blobs = Blobs()
+    chunks = (bytes(2**20) for _ in range(21))  # chunked: no Content-Length
+    response = client_on(blobs).post("/api/v1/audio", content=chunks)
+    assert response.status_code == 413
+    assert blobs.refs == []

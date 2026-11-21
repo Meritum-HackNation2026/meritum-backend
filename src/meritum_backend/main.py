@@ -13,8 +13,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from meritum_backend.auth.api import router as auth_router
 from meritum_backend.auth.constants import SESSION_COOKIE, SESSION_MAX_AGE, TOKEN_BYTES
 from meritum_backend.auth.factory import build_login
+from meritum_backend.checks.api import audio_router
 from meritum_backend.checks.api import events_router as check_events_router
-from meritum_backend.checks import audio_router
 from meritum_backend.checks.api import router as checks_router
 from meritum_backend.checks.factory import build_blobs
 from meritum_backend.discord.api import router as discord_router
