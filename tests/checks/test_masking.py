@@ -89,19 +89,25 @@ def test_text_within_the_limit_stays_accepted_after_masking(
     assert len(job.payload.request.text) == 4000
 
 
+@pytest.mark.parametrize(
+    "url", ["https://x.pl/a#tel=600700800", "https://x.pl/a#600%20700%20800"]
+)
 def test_personal_data_in_a_link_fragment_is_masked(
-    client: TestClient, jobs: InMemoryJobQueue
+    client: TestClient, jobs: InMemoryJobQueue, url: str
 ) -> None:
-    body = {"channel": "web", "url": "https://x.pl/a#tel=600700800"}
+    body = {"channel": "web", "url": url}
     assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
     [job] = jobs.enqueued
-    assert "600700800" not in job.payload.model_dump_json()
+    assert "#" not in job.payload.model_dump_json()
 
 
+@pytest.mark.parametrize(
+    "url", ["https://jan:600700800@x.pl/a", "https://:secret@x.pl/a"]
+)
 def test_link_with_credentials_is_refused(
-    client: TestClient, jobs: InMemoryJobQueue
+    client: TestClient, jobs: InMemoryJobQueue, url: str
 ) -> None:
-    body = {"channel": "web", "url": "https://jan:600700800@x.pl/a"}
+    body = {"channel": "web", "url": url}
     response = client.post("/api/v1/checks", json=body, headers=SESSION)
     assert response.json() == {"message_key": "errors.invalid_url"}
     assert jobs.enqueued == []
@@ -133,3 +139,14 @@ def test_link_is_enqueued_as_sent(client: TestClient, jobs: InMemoryJobQueue) ->
     [job] = jobs.enqueued
     assert isinstance(job.payload, CheckInput)
     assert str(job.payload.request.url) == body["url"]
+
+
+@pytest.mark.parametrize("text", ["Czy to prawda [pilne] i [dalej", "[" + "x" * 3999])
+def test_brackets_the_person_typed_stay(
+    client: TestClient, jobs: InMemoryJobQueue, text: str
+) -> None:
+    body = {"channel": "web", "text": text}
+    assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
+    [job] = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    assert job.payload.request.text == text
