@@ -68,3 +68,9 @@ SESSIONLESS_DETAIL: Final = (
 
 NOT_FOUND_DETAIL: Final = "check not found"
 """404 detail: no check workflow has this id."""
+
+VERIFY_STEP: Final = "verify_citations"
+"""Step after which a result may carry verdicts; before it the result is withheld."""
+
+FINISHED_STEP_STATES: Final = frozenset({"done", "skipped"})
+"""States of a step that will not change any more (a failed one may be retried)."""

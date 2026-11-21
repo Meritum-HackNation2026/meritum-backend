@@ -24,7 +24,7 @@ from meritum_core.checks import (
     CheckResult,
 )
 from meritum_core.jobs.constants import PROGRESS_KEY
-from meritum_core.jobs.contracts import CHECK, CheckInput, CheckOutput
+from meritum_core.jobs.contracts import CHECK, CheckInput
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
 from pydantic_core import ErrorDetails
@@ -42,6 +42,11 @@ from meritum_backend.checks.constants import (
     SESSIONLESS_DETAIL,
 )
 from meritum_backend.checks.intake import is_unsupported_link, masked, message_key
+from meritum_backend.checks.progress import (
+    check_result,
+    is_check,
+    without_early_verdict,
+)
 from meritum_backend.jobs.api import Jobs
 
 
@@ -164,22 +169,19 @@ async def start_check(
 
 async def _latest_progress(jobs: JobQueue, check_id: str) -> AnalysisStatus | None:
     latest = None
-    # shortcut: a running workflow's stream stays open, so a poll reads it briefly;
-    # move to a streaming endpoint (SSE) when the frontend wants live steps.
+    # a running workflow's stream stays open, so a poll reads it briefly;
+    # live steps go through GET /api/v1/checks/{id}/events.
     with contextlib.suppress(TimeoutError):
         async with asyncio.timeout(PROGRESS_WAIT_SECONDS):
             async for value in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):
-                latest = value
+                latest = without_early_verdict(value)
     return latest
 
 
 def _output_result(state: JobState) -> CheckResult | None:
-    if state.output is None:
-        return None
-    try:
-        return CheckOutput.model_validate(state.output).result
-    except ValidationError:  # another workflow's id, e.g. a ping
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL) from None
+    if not is_check(state):  # another workflow, e.g. a ping
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
+    return check_result(state)
 
 
 @router.get(

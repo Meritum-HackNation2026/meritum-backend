@@ -20,3 +20,19 @@ Feature: Kontrole działającego API
     Given wejście "ftp://example.com/plik"
     When klient wysyła POST /api/v1/checks
     Then odpowiedź ma kod 422 z komunikatem, że przyjmujemy tylko adresy http:// albo https://
+
+  Scenario: postęp kroków w strumieniu
+    Given trwa sprawdzenie tekstu bez linku
+    When klient otwiera GET /api/v1/checks/{id}/events
+    Then dostaje zdarzenia AnalysisStatus, w których kilka kroków badań ma jednocześnie stan "active"
+    And krok "fetch_url" ma stan "skipped"
+
+  Scenario: wersja wstępna bez werdyktu
+    Given cytaty nie przeszły jeszcze weryfikacji
+    When serwer wysyła wersję wstępną odpowiedzi
+    Then zdarzenie nie zawiera werdyktu
+
+  Scenario: koniec sprawdzenia
+    Given workflow kończy się stanem "done"
+    When serwer wysyła ostatnie zdarzenie
+    Then zdarzenie zawiera AnalysisStatus z pełnym CheckResult w polu result, a strumień się zamyka
