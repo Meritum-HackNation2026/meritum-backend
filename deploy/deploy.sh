@@ -31,6 +31,7 @@ flock 9  # one change at a time on this host (shared with the platform and other
 docker rm -f "$container" >/dev/null 2>&1 || true
 container_env "$env"
 files_mount "$envfile"
+[ ${#mount_args[@]} -gt 0 ] || echo "::warning title=No files volume::$envfile has no MERITUM_FILES_VOLUME/DIR: run the platform workflow in meritum-infra"
 docker run -d --name "$container" --network meritum --restart unless-stopped \
   "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "${mount_args[@]}" "$image" >/dev/null
 log "started $container"
