@@ -19,7 +19,11 @@ from meritum_core.checks import AnalysisStatus
 from meritum_core.jobs.constants import PROGRESS_KEY
 
 from meritum_backend.checks.constants import NOT_FOUND_DETAIL, RECEIVED
-from meritum_backend.checks.progress import check_result, without_early_verdict
+from meritum_backend.checks.progress import (
+    check_result,
+    is_check,
+    without_early_verdict,
+)
 from meritum_backend.jobs.api import Jobs
 
 router = APIRouter(prefix="/api/v1/checks", tags=["checks"])
@@ -28,10 +32,7 @@ router = APIRouter(prefix="/api/v1/checks", tags=["checks"])
 async def _known_check(jobs: Jobs, check_id: str) -> str:
     # checked before the stream opens: once it does, the status is already 200
     state = await jobs.state(check_id)
-    is_other_workflow = (
-        state is not None and state.output is not None and not check_result(state)
-    )
-    if state is None or is_other_workflow:
+    if state is None or not is_check(state):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     return check_id
 
@@ -45,6 +46,8 @@ async def check_events(
     A result reaches the client only once ``verify_citations`` is done or
     skipped, so a preliminary answer never carries a verdict. When the workflow
     finished, the last event holds the full CheckResult and the stream closes.
+    The response has no AI-Disclosure header: headers go out before the first
+    event, when no result is known yet; ``result.ai_disclosure`` marks it.
 
     Args:
         jobs: the job queue port.

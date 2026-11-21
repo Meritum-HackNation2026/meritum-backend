@@ -58,3 +58,18 @@ def check_result(state: JobState) -> CheckResult | None:
     with contextlib.suppress(ValidationError):
         return CheckOutput.model_validate(state.output).result
     return None
+
+
+def is_check(state: JobState) -> bool:
+    """Tell whether a workflow can be a check: no output yet, or a check's output.
+
+    Args:
+        state: the workflow's state.
+
+    Returns:
+        False for a finished workflow of another kind (e.g. a ping).
+
+    Features:
+        US-SPR-02, F-09
+    """
+    return state.output is None or check_result(state) is not None

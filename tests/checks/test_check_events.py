@@ -77,13 +77,13 @@ def steps(**states: str) -> list[AnalysisStep]:
     ]
 
 
-def events(client: TestClient, check_id: str = "wf-1") -> list[dict[str, object]]:
+def events(client: TestClient, check_id: str = "wf-1") -> list[AnalysisStatus]:
     with client.stream("GET", f"/api/v1/checks/{check_id}/events") as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
         lines = list(response.iter_lines())
     return [
-        json.loads(line.removeprefix("data: "))
+        AnalysisStatus.model_validate(json.loads(line.removeprefix("data: ")))
         for line in lines
         if line.startswith("data: ")
     ]
@@ -104,10 +104,7 @@ def test_each_progress_value_becomes_one_event(make_client: MakeClient) -> None:
     for value in (first, second):
         jobs.publish("wf-1", PROGRESS_KEY, AnalysisStatus(check_id="wf-1", steps=value))
     received = events(make_client(jobs))
-    assert [e["steps"] for e in received] == [
-        [s.model_dump() for s in first],
-        [s.model_dump() for s in second],
-    ]
+    assert [e.steps for e in received] == [first, second]
 
 
 def test_a_result_before_citations_are_verified_is_withheld(
@@ -120,7 +117,7 @@ def test_a_result_before_citations_are_verified_is_withheld(
         PROGRESS_KEY,
         AnalysisStatus(check_id="wf-1", steps=early, result=VERDICT),
     )
-    assert events(make_client(jobs))[0]["result"] is None
+    assert events(make_client(jobs))[0].result is None
 
 
 def test_a_result_after_citations_are_verified_is_sent(make_client: MakeClient) -> None:
@@ -132,8 +129,7 @@ def test_a_result_after_citations_are_verified_is_sent(make_client: MakeClient) 
         AnalysisStatus(check_id="wf-1", steps=verified, result=RESULT),
     )
     received = events(make_client(jobs))
-    assert received[0]["result"]["status"] == "out_of_scope"  # ty: ignore[not-subscriptable]
-    assert len(received) == 1
+    assert [e.result for e in received] == [RESULT]
 
 
 def test_finished_check_ends_with_the_full_result_from_the_output(
@@ -144,8 +140,8 @@ def test_finished_check_ends_with_the_full_result_from_the_output(
     jobs.publish("wf-1", PROGRESS_KEY, AnalysisStatus(check_id="wf-1", steps=last))
     received = events(make_client(jobs))
     assert len(received) == 2
-    assert received[-1]["steps"] == [s.model_dump() for s in last]
-    assert received[-1]["result"] == RESULT.model_dump(mode="json")
+    assert received[-1].steps == last
+    assert received[-1].result == RESULT
 
 
 def test_reconnecting_replays_the_current_state(make_client: MakeClient) -> None:
@@ -153,7 +149,10 @@ def test_reconnecting_replays_the_current_state(make_client: MakeClient) -> None
     value = steps(receive="done", search_corpus="active")
     jobs.publish("wf-1", PROGRESS_KEY, AnalysisStatus(check_id="wf-1", steps=value))
     client = make_client(jobs)
-    assert events(client) == events(client)
+    assert [e.steps for e in events(client)] == [value]
+    later = steps(receive="done", search_corpus="done", assess_evidence="active")
+    jobs.publish("wf-1", PROGRESS_KEY, AnalysisStatus(check_id="wf-1", steps=later))
+    assert events(client)[-1].steps == later
 
 
 def test_openapi_documents_the_event_stream(client: TestClient) -> None:
@@ -171,7 +170,7 @@ def test_the_output_replaces_a_draft_answer_at_the_end(make_client: MakeClient) 
         AnalysisStatus(check_id="wf-1", steps=verified, result=RESULT),
     )
     received = events(make_client(jobs))
-    assert received[-1]["result"] == ANSWER.model_dump(mode="json")
+    assert received[-1].result == ANSWER
 
 
 def test_a_poll_withholds_a_result_before_citations_are_verified(
@@ -197,4 +196,4 @@ def test_a_message_without_verdicts_is_sent_before_verification(
         PROGRESS_KEY,
         AnalysisStatus(check_id="wf-1", steps=value, result=RESULT),
     )
-    assert events(make_client(jobs))[0]["result"] == RESULT.model_dump(mode="json")
+    assert events(make_client(jobs))[0].result == RESULT

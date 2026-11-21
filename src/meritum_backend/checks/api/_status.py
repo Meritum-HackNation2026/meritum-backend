@@ -42,7 +42,11 @@ from meritum_backend.checks.constants import (
     SESSIONLESS_DETAIL,
 )
 from meritum_backend.checks.intake import is_unsupported_link, masked, message_key
-from meritum_backend.checks.progress import check_result, without_early_verdict
+from meritum_backend.checks.progress import (
+    check_result,
+    is_check,
+    without_early_verdict,
+)
 from meritum_backend.jobs.api import Jobs
 
 
@@ -175,10 +179,9 @@ async def _latest_progress(jobs: JobQueue, check_id: str) -> AnalysisStatus | No
 
 
 def _output_result(state: JobState) -> CheckResult | None:
-    result = check_result(state)
-    if state.output is not None and result is None:  # another workflow, e.g. a ping
+    if not is_check(state):  # another workflow, e.g. a ping
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
-    return result
+    return check_result(state)
 
 
 @router.get(

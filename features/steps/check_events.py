@@ -132,7 +132,7 @@ def stream_read(context: Context) -> None:
     with TestClient(app).stream("GET", path) as response:
         assert response.headers["content-type"].startswith("text/event-stream")
         data = [
-            line[len("data: ") :]
+            line.removeprefix("data: ")
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
