@@ -7,23 +7,18 @@ provider stands in for Google and Microsoft, the repositories are in memory.
 import asyncio
 from datetime import UTC, datetime
 from http import HTTPStatus
-from urllib.parse import parse_qs, urlparse
 
 from behave import given, then, when
 from behave.runner import Context
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from features.constants import STAFF_ADMIN, STAFF_MODERATOR, STAFF_TEST_DBOS_URL
+from features.staff_support import csrf, grant_moderator, signed_in
 from meritum_core.checks.contracts import CaseClaim, ModeratorCase
 from meritum_core.moderation import HighRiskTopic
 
-from meritum_backend.auth.adapters import FakeLogin
-from meritum_backend.auth.api import get_login
-from meritum_backend.auth.constants import FAKE_CODE
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
-ADMIN = "admin@example.com"
-MODERATOR = "moderator@example.com"
 STRANGER = "stranger@example.com"
 TOPIC = HighRiskTopic(name="wybory", keywords=["wybory", "lokal wyborczy"])
 CLAIM = "Lokal wyborczy w Gdańsku będzie zamknięty w niedzielę."
@@ -46,42 +41,10 @@ def _app() -> FastAPI:
         The app; its repositories live as long as it does.
     """
     app = create_app(
-        Settings(database_url="postgresql://x:x@127.0.0.1:1/x", admin_emails=ADMIN)
+        Settings(database_url=STAFF_TEST_DBOS_URL, admin_emails=STAFF_ADMIN)
     )
     asyncio.run(app.state.cases.save(CASE))
     return app
-
-
-def _signed_in(app: FastAPI, email: str) -> TestClient:
-    """Sign ``email`` in through the fake provider; https for the Secure cookie.
-
-    Args:
-        app: the app.
-        email: the e-mail address the provider confirms.
-
-    Returns:
-        A client holding the session cookie.
-    """
-    app.dependency_overrides[get_login] = lambda: FakeLogin(f"sub-{email}", email)
-    client = TestClient(app, base_url="https://testserver", follow_redirects=False)
-    location = client.get("/api/v1/auth/login/google").headers["location"]
-    state = parse_qs(urlparse(location).query)["state"][0]
-    client.get(
-        "/api/v1/auth/callback/google", params={"code": FAKE_CODE, "state": state}
-    )
-    return client
-
-
-def _csrf(client: TestClient) -> dict[str, str]:
-    """Headers with the session's CSRF token.
-
-    Args:
-        client: a signed-in client.
-
-    Returns:
-        The ``X-CSRF-Token`` header.
-    """
-    return {"X-CSRF-Token": client.get("/api/v1/auth/me").json()["csrf_token"]}
 
 
 @given("zalogowany administrator")
@@ -95,7 +58,7 @@ def admin_signed_in(context: Context) -> None:
         US-MOD-05, F-25
     """
     context.app = _app()
-    context.admin = _signed_in(context.app, ADMIN)
+    context.admin = signed_in(context.app, STAFF_ADMIN)
 
 
 @when('wysyła POST /api/v1/staff z adresem e-mail i rolą "moderator"')
@@ -108,12 +71,7 @@ def admin_grants_moderator(context: Context) -> None:
     Features:
         US-MOD-05, F-25
     """
-    response = context.admin.post(
-        "/api/v1/staff",
-        json={"email": MODERATOR, "role": "moderator"},
-        headers=_csrf(context.admin),
-    )
-    assert response.status_code == HTTPStatus.CREATED
+    grant_moderator(context.admin)
 
 
 @then("osoba może się zalogować do panelu i widzi sprawy, ale nie listę kont")
@@ -126,7 +84,7 @@ def moderator_sees_cases_only(context: Context) -> None:
     Features:
         US-MOD-05, F-25
     """
-    moderator = _signed_in(context.app, MODERATOR)
+    moderator = signed_in(context.app, STAFF_MODERATOR)
     assert moderator.get("/api/v1/staff/me").json()["role"] == "moderator"
     cases = moderator.get("/api/v1/moderation/cases").json()
     assert [case["id"] for case in cases] == [CASE.id]
@@ -156,7 +114,7 @@ def stranger_signs_in(context: Context) -> None:
     Features:
         US-MOD-05, F-25
     """
-    context.client = _signed_in(context.app, STRANGER)
+    context.client = signed_in(context.app, STRANGER)
 
 
 @then("dostaje odmowę i nie widzi żadnej sprawy")
@@ -187,9 +145,9 @@ def admin_adds_topic(context: Context) -> None:
         US-MOD-05, F-20, F-25
     """
     context.app = _app()
-    admin = _signed_in(context.app, ADMIN)
+    admin = signed_in(context.app, STAFF_ADMIN)
     response = admin.post(
-        "/api/v1/moderation/topics", json=TOPIC.model_dump(), headers=_csrf(admin)
+        "/api/v1/moderation/topics", json=TOPIC.model_dump(), headers=csrf(admin)
     )
     assert response.status_code == HTTPStatus.CREATED
 

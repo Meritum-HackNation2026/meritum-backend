@@ -3,11 +3,11 @@
 import asyncio
 
 import pytest
+from meritum_core.moderation.fakes import InMemoryStaffRepository
 
 from meritum_backend.auth import Account
 from meritum_backend.settings import Settings
 from meritum_backend.staff import StaffAccount, StaffMember, role_of
-from meritum_backend.staff.adapters import InMemoryStaffRepository
 
 ADMINS = frozenset({"boss@example.com"})
 

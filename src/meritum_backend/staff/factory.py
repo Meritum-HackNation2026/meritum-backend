@@ -1,19 +1,19 @@
-"""Builds the staff account store."""
+"""Select the staff account store from the app repositories."""
 
-from meritum_backend.staff.adapters import InMemoryStaffRepository
-from meritum_backend.staff.ports import StaffRepository
+from meritum_core.moderation import StaffRepository
+from meritum_core.observability import AppRepositories
 
 
-def build_staff() -> StaffRepository:
-    """Build the staff account store.
+def build_staff(repositories: AppRepositories) -> StaffRepository:
+    """Use the staff store configured for the application.
 
-    shortcut: accounts live in memory and go with a restart (configured admins
-    stay); switch to the core repository of meritum-core#72 when it ships.
+    Args:
+        repositories: the stores built for the configured database provider.
 
     Returns:
-        The in-memory store.
+        The configured staff store.
 
     Features:
         US-MOD-05, F-25
     """
-    return InMemoryStaffRepository()
+    return repositories.staff

@@ -2,10 +2,11 @@
 
 from collections.abc import Set as AbstractSet
 
+from meritum_core.moderation import StaffRepository
+
 from meritum_backend.auth import Account
 from meritum_backend.staff.constants import ADMIN
 from meritum_backend.staff.models import StaffMember
-from meritum_backend.staff.ports import StaffRepository
 
 
 async def role_of(

@@ -46,3 +46,9 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given podobne twierdzenie jest już w otwartej sprawie od innej sesji
     When obywatel przekazuje swoje twierdzenie
     Then komunikat nie mówi, że ktoś inny pytał o to samo
+
+  @integration
+  Scenario: rola nadana przez administratora przeżywa deploy
+    Given backend z MERITUM_DATABASE_PROVIDER=postgres
+    When administrator nadaje rolę i backend się restartuje
+    Then konto personelu ma nadal tę rolę

@@ -19,23 +19,6 @@ type StaffEmail = Annotated[
 """A staff address, lower-cased so lookups ignore case."""
 
 
-class StaffAccount(BaseModel):
-    """A role an administrator granted to an e-mail address.
-
-    Attributes:
-        email: the address the OIDC provider must confirm (and verify).
-        role: the role in the panel.
-
-    Features:
-        US-MOD-05, F-25
-    """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    email: StaffEmail
-    role: StaffRole
-
-
 class StaffMember(BaseModel):
     """The signed-in person and their role in the panel.
 
