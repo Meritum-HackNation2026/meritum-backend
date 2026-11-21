@@ -111,6 +111,7 @@ def got_check_done(context: Context) -> None:
     assert event["check_id"] == "c_n1"
     assert event["link"] == "/sprawdzenia/c_n1"
     assert set(event) <= set(Notification.model_fields)
+    assert not {"question", "question_masked", "text"} & set(event)
 
 
 @given("sesja dostała 2 powiadomienia i nie zareagowała")
