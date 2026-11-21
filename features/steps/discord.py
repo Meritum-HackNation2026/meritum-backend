@@ -183,7 +183,7 @@ def _splits(context: Context) -> None:
 )
 def _within_limits(context: Context) -> None:
     messages = list[str](context.messages)
-    assert sum(len(m) for m in messages) > MESSAGE_MAX_CHARS
+    assert len(messages) > 1 + len(context.result.claims)  # the summary was split
     assert all(len(m) <= MESSAGE_MAX_CHARS for m in messages)
     # replies are plain content: no embeds, so the 6000-character embed limit holds
     assert all(isinstance(m, str) for m in messages)

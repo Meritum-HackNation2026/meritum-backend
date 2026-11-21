@@ -1,4 +1,7 @@
+import asyncio
 import json
+import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -6,72 +9,26 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from fastapi.testclient import TestClient
 from httpx2 import Response
+from meritum_core.checks.contracts import CheckRecord
 from meritum_core.checks.fakes import InMemoryCheckRecordRepository
-from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 from tests.checks.cache_fakes import RESULT, FinishedWorker
-from tests.checks.conftest import OFFLINE_DB
-from tests.conftest import MakeProbe, worker_report
+from tests.conftest import MakeProbe
+from tests.discord.fakes import FailedWorker, FakeReplies, make_client
 
 from meritum_backend.channels import channel_user_hash
-from meritum_backend.checks.adapters import MemoryResultCache
-from meritum_backend.checks.api import get_records, get_result_cache
-from meritum_backend.discord.api import get_replies
 from meritum_backend.discord.constants import (
     CHECK,
     CHECK_MESSAGE,
     COMMANDS,
+    FAILURE_TEXT,
+    POLL_SECONDS,
     TEXT_OPTION,
 )
-from meritum_backend.health.api import get_readiness
-from meritum_backend.jobs.api import get_jobs
-from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
-from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
-from meritum_backend.main import create_app
-from meritum_backend.settings import Settings, get_settings
 
 URL = "/api/v1/discord/interactions"
 KEY = Ed25519PrivateKey.generate()
 PUBLIC_HEX = KEY.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
-
-
-class FakeReplies:
-    def __init__(self) -> None:
-        self.sent: list[tuple[str, str, str]] = []
-
-    async def edit_original(self, application_id: str, token: str, text: str) -> None:
-        self.sent.append(("edit", f"{application_id}/{token}", text))
-
-    async def follow_up(self, application_id: str, token: str, text: str) -> None:
-        self.sent.append(("follow_up", f"{application_id}/{token}", text))
-
-
-def make_client(
-    public_key: str | None,
-    make_probe: MakeProbe,
-    jobs: InMemoryJobQueue | None = None,
-    replies: FakeReplies | None = None,
-) -> TestClient:
-    settings = Settings(
-        discord_public_key=public_key,
-        channel_hash_salt=SecretStr("salt"),
-        database_url=OFFLINE_DB,
-    )
-    app = create_app(settings)
-    gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
-    cache = MemoryResultCache()
-    records = InMemoryCheckRecordRepository()
-    probe = make_probe(InMemoryJobQueue(), report=worker_report())
-    app.dependency_overrides |= {
-        get_settings: lambda: settings,
-        get_jobs: lambda: jobs or FinishedWorker(),
-        get_check_gate: lambda: gate,
-        get_result_cache: lambda: cache,
-        get_records: lambda: records,
-        get_readiness: lambda: probe,
-        get_replies: lambda: replies or FakeReplies(),
-    }
-    return TestClient(app)
 
 
 def signed(
@@ -202,3 +159,41 @@ def test_signed_body_that_is_not_an_object_is_rejected(client: TestClient) -> No
     signature = KEY.sign(timestamp.encode() + body).hex()
     headers = {"X-Signature-Ed25519": signature, "X-Signature-Timestamp": timestamp}
     assert client.post(URL, content=body, headers=headers).status_code == 400
+
+
+def test_failed_check_answers_at_once(
+    make_probe: MakeProbe, replies: FakeReplies
+) -> None:
+    client = make_client(PUBLIC_HEX, make_probe, FailedWorker(), replies)
+    started = time.monotonic()
+    signed(client, _slash("Ziemia jest płaska"))
+    assert time.monotonic() - started < POLL_SECONDS
+    assert [kind for kind, _, _ in replies.sent] == ["edit"]
+    assert FAILURE_TEXT in replies.sent[0][2]
+
+
+def test_no_ai_notice_for_a_user_with_earlier_checks(
+    make_probe: MakeProbe, replies: FakeReplies
+) -> None:
+    records = InMemoryCheckRecordRepository()
+    hashed = channel_user_hash("discord", "1234567890", SecretStr("salt"))
+    now = datetime.now(UTC)
+    earlier = CheckRecord(
+        check_id="old",
+        session_id=hashed,
+        channel="discord",
+        channel_user_hash=hashed,
+        received_at=now,
+        answered_at=now,
+        question_masked="Ziemia jest płaska",
+        status="done",
+        verdicts=["false"],
+        source_ids=[],
+        corpus_version="test",
+        models=[],
+        retention_until=now + timedelta(days=30),
+    )
+    asyncio.run(records.save(earlier))
+    client = make_client(PUBLIC_HEX, make_probe, FinishedWorker(), replies, records)
+    signed(client, _slash("Ziemia jest płaska"))
+    assert "systemem AI" not in replies.sent[0][2]

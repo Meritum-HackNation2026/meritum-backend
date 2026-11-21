@@ -16,7 +16,11 @@ from meritum_core.jobs.ports import JobQueue
 
 from meritum_backend.checks import ResultCache
 from meritum_backend.checks.api import check_status
-from meritum_backend.discord.constants import POLL_ATTEMPTS, POLL_SECONDS
+from meritum_backend.discord.constants import (
+    FINISHED_STATUSES,
+    POLL_ATTEMPTS,
+    POLL_SECONDS,
+)
 from meritum_backend.discord.messages import reply_messages
 from meritum_backend.discord.ports import InteractionReplies
 
@@ -45,12 +49,16 @@ async def _result(
     jobs: JobQueue, cache: ResultCache, check_id: str
 ) -> CheckResult | None:
     for _ in range(POLL_ATTEMPTS):
+        # read before the result, so a check that ends in between is read again
+        state = await jobs.state(check_id)
         try:
             status = await check_status(jobs, cache, check_id, Response())
         except HTTPException:
             return None
         if status.result is not None:
             return status.result
+        if state is not None and state.status in FINISHED_STATUSES:
+            return None  # the workflow ended without a result: it failed
         await asyncio.sleep(POLL_SECONDS)
     return None
 

@@ -4,11 +4,15 @@ Features:
     US-WTY-06, F-03
 """
 
+import logging
 from typing import Any
 
 import httpx2
 
 from meritum_backend.discord.constants import API_URL, EPHEMERAL, HTTP_TIMEOUT_SECONDS
+
+# httpx2 logs each request URL at INFO; here the URL holds the interaction token
+logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
 def _body(text: str) -> dict[str, Any]:

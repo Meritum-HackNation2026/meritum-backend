@@ -82,7 +82,12 @@ POLL_SECONDS: Final = 3.0
 """How often a pending reply reads the check's state."""
 
 POLL_ATTEMPTS: Final = 200
-"""Reads before a reply gives up (about 14 minutes, the token lives 15)."""
+"""Reads before a reply gives up (10 minutes; the interaction token lives 15)."""
+
+FINISHED_STATUSES: Final = frozenset(
+    {"SUCCESS", "ERROR", "CANCELLED", "MAX_RECOVERY_ATTEMPTS_EXCEEDED"}
+)
+"""DBOS workflow statuses that will not change any more."""
 
 MESSAGE_MAX_CHARS: Final = 2000
 """Discord limit of a message's content for bots."""
