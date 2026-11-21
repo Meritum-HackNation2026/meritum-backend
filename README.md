@@ -57,7 +57,7 @@ uv run pytest            # z testami architektury (tests/architecture/)
 
 Zasady architektury i to, co je sprawdza: [docs/architecture.md](docs/architecture.md).
 
-Po zmianie w meritum-core: `uv lock --upgrade-package meritum-core`.
+meritum-core jest przypięty do commita (`rev` w `pyproject.toml`). PR-y z podbiciem otwiera automatycznie workflow w meritum-core; ręcznie: zmień `rev` i uruchom `uv lock --upgrade-package meritum-core`.
 
 ## CI/CD
 
