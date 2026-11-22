@@ -20,11 +20,27 @@ from meritum_backend.checks.api._status import (
     router,
     start_check,
 )
-from meritum_backend.checks.api._uploads import AudioRejected, get_blobs
+from meritum_backend.checks.api._uploads import (
+    AudioRefusedError,
+    AudioRejected,
+    AudioStoreError,
+    get_blobs,
+    store_audio,
+)
 from meritum_backend.checks.api._uploads import router as audio_router
+from meritum_backend.checks.constants import (
+    AUDIO_FORMATS,
+    AUDIO_MAX_MB,
+    AUDIO_MAX_MINUTES,
+)
 
 __all__ = [
+    "AUDIO_FORMATS",
+    "AUDIO_MAX_MB",
+    "AUDIO_MAX_MINUTES",
+    "AudioRefusedError",
     "AudioRejected",
+    "AudioStoreError",
     "Cache",
     "InvalidCheck",
     "KeyedErrorsRoute",
@@ -39,4 +55,5 @@ __all__ = [
     "get_result_cache",
     "router",
     "start_check",
+    "store_audio",
 ]

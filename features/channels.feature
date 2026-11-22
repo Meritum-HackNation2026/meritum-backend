@@ -74,3 +74,14 @@ Feature: Kanały bez sesji przeglądarki
     Given Gateway zrywa połączenie
     When proces wznawia sesję
     Then nie wysyła drugi raz odpowiedzi na wiadomość, na którą już odpowiedział
+
+  Scenario: wiadomość głosowa w wiadomości prywatnej
+    Given użytkownik wysyła botowi wiadomość głosową OGG trwającą 40 s
+    When bot ją odbiera
+    Then pobiera załącznik od razu i zleca sprawdzenie z audio_id
+    And odpowiedź zawiera transkrypcję z informacją, że powstała automatycznie i może mieć błędy
+
+  Scenario: nieobsługiwany format
+    Given załącznik audio w formacie, którego transkrypcja nie obsługuje
+    When bot go odbiera
+    Then odpowiada stanem "out_of_scope" z informacją, co można wysłać zamiast tego

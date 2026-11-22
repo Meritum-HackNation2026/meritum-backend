@@ -25,6 +25,8 @@ from meritum_backend.discord.constants import (
     STRENGTH_LINE,
     SUMMARY,
     SUMMARY_LINE,
+    TRANSCRIPT,
+    TRANSCRIPT_HINT,
     UNDATED,
     VERDICTS,
 )
@@ -68,6 +70,8 @@ def _claim_text(claim: ClaimResult) -> str:
 def _summary(result: CheckResult, card_url: str, *, first_contact: bool) -> str:
     lines = [AI_NOTICE] if first_contact else []
     lines.append(SUMMARY.format(claims=_plural(len(result.claims)), link=card_url))
+    if result.transcript is not None and result.transcript.strip():
+        lines.extend([TRANSCRIPT.format(text=result.transcript), TRANSCRIPT_HINT])
     lines.extend(
         SUMMARY_LINE.format(verdict=VERDICTS[c.verdict], claim=c.claim)
         for c in result.claims

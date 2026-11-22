@@ -9,6 +9,14 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
+from meritum_backend.checks.api import (
+    AUDIO_FORMATS,
+    AUDIO_MAX_MB,
+    AUDIO_MAX_MINUTES,
+    AudioRefusedError,
+    AudioStoreError,
+    store_audio,
+)
 from meritum_backend.discord.api import (
     Interaction,
     Ports,
@@ -17,7 +25,15 @@ from meritum_backend.discord.api import (
     start,
     user_hash,
 )
-from meritum_backend.discord.constants import CHANNEL_USER, ERRORS, SEEN_MESSAGES
+from meritum_backend.discord.constants import (
+    AUDIO_REFUSALS,
+    CHANNEL_USER,
+    ERRORS,
+    FAILURE_TEXT,
+    SEEN_MESSAGES,
+)
+from meritum_backend.discord.errors import VoiceDownloadError, VoiceTooLargeError
+from meritum_backend.discord.ports import VoiceDownloader
 
 
 @dataclass(frozen=True)
@@ -29,6 +45,7 @@ class Incoming:
         user_id: the author's Discord id; start hashes it.
         text: the message without the bot's mention.
         reply: posts one message in the same conversation.
+        voice_url: the signed URL of a voice message's OGG attachment, if any.
 
     Features:
         US-WTY-06, F-03
@@ -38,6 +55,7 @@ class Incoming:
     user_id: str
     text: str
     reply: Callable[[str], Awaitable[None]]
+    voice_url: str | None = None
 
 
 def strip_mention(content: str, bot_id: int) -> str:
@@ -77,13 +95,21 @@ class GatewayHandler:
     Args:
         ports: what POST /api/v1/checks takes.
         remember: how many message ids to remember for the dedup.
+        voice: downloads voice message attachments; None answers them with the
+            technical failure text.
 
     Features:
         US-WTY-06, F-03, ADR-08
     """
 
-    def __init__(self, ports: Ports, remember: int = SEEN_MESSAGES) -> None:
+    def __init__(
+        self,
+        ports: Ports,
+        remember: int = SEEN_MESSAGES,
+        voice: VoiceDownloader | None = None,
+    ) -> None:
         self.ports = ports
+        self._voice = voice
         self._remember = remember
         self._seen = OrderedDict[str, None]()
 
@@ -94,6 +120,35 @@ class GatewayHandler:
         if len(self._seen) > self._remember:
             self._seen.popitem(last=False)
         return True
+
+    async def _store_voice(self, incoming: Incoming) -> str | None:
+        """Download the attachment now (its URL expires) and keep it.
+
+        Returns:
+            The audio id, or None after the reason was sent: no verdict.
+        """
+        blobs = self.ports.blobs
+        if self._voice is None or blobs is None or incoming.voice_url is None:
+            await incoming.reply(FAILURE_TEXT)
+            return None
+        try:
+            data = await self._voice.download(incoming.voice_url)
+            return await store_audio(blobs, data)
+        except VoiceTooLargeError:
+            key = "errors.audio_too_large"
+        except AudioRefusedError as refused:
+            key = refused.key
+        except VoiceDownloadError, AudioStoreError:
+            await incoming.reply(FAILURE_TEXT)
+            return None
+        await incoming.reply(
+            AUDIO_REFUSALS[key].format(
+                max_mb=AUDIO_MAX_MB,
+                max_minutes=AUDIO_MAX_MINUTES,
+                formats=", ".join(AUDIO_FORMATS),
+            )
+        )
+        return None
 
     async def handle(self, incoming: Incoming) -> None:
         """Check the message's text and reply with the result.
@@ -109,12 +164,17 @@ class GatewayHandler:
         if not self._first_time(incoming.message_id):
             return
         ports = self.ports
-        if not incoming.text:
+        audio_id = None
+        if incoming.voice_url is not None:
+            audio_id = await self._store_voice(incoming)
+            if audio_id is None:
+                return
+        elif not incoming.text:
             await incoming.reply(ERRORS["errors.empty"])
             return
         hashed = user_hash(ports.settings, incoming.user_id)
         first = hashed is None or not await ports.records.list_for(CHANNEL_USER, hashed)
-        started = await start(ports, incoming.text, incoming.user_id)
+        started = await start(ports, incoming.text, incoming.user_id, audio_id)
         if not isinstance(started, str):
             await incoming.reply(started["data"]["content"])
             return

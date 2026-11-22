@@ -26,7 +26,7 @@ from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounte
 from meritum_backend.settings import Settings
 
 
-def _setup(
+def gateway_setup(
     make_probe: MakeProbe, jobs: FinishedWorker
 ) -> tuple[GatewayHandler, list[str]]:
     settings = Settings(channel_hash_salt=SecretStr("salt"), database_url=OFFLINE_DB)
@@ -44,7 +44,7 @@ def _setup(
     return GatewayHandler(ports), []
 
 
-def _incoming(sent: list[str], text: str, message_id: str = "m1") -> Incoming:
+def make_incoming(sent: list[str], text: str, message_id: str = "m1") -> Incoming:
     async def reply(content: str) -> None:  # ruff: ignore[unused-async] -- the Incoming.reply type
         sent.append(content)
 
@@ -55,8 +55,8 @@ def test_message_starts_the_web_check_and_replies_in_conversation(
     make_probe: MakeProbe,
 ) -> None:
     jobs = FinishedWorker()
-    handler, sent = _setup(make_probe, jobs)
-    asyncio.run(handler.handle(_incoming(sent, "https://example.pl/artykul")))
+    handler, sent = gateway_setup(make_probe, jobs)
+    asyncio.run(handler.handle(make_incoming(sent, "https://example.pl/artykul")))
     assert '"channel":"discord"' in jobs.enqueued[0].payload.model_dump_json()
     assert len(sent) == 1 + len(RESULT.claims)
     assert sent[0].startswith("Jestem botem Meritum, systemem AI.")
@@ -65,10 +65,10 @@ def test_message_starts_the_web_check_and_replies_in_conversation(
 
 def test_redelivered_message_is_answered_once(make_probe: MakeProbe) -> None:
     jobs = FinishedWorker()
-    handler, sent = _setup(make_probe, jobs)
-    asyncio.run(handler.handle(_incoming(sent, "Ziemia jest płaska")))
+    handler, sent = gateway_setup(make_probe, jobs)
+    asyncio.run(handler.handle(make_incoming(sent, "Ziemia jest płaska")))
     count = len(sent)
-    asyncio.run(handler.handle(_incoming(sent, "Ziemia jest płaska")))
+    asyncio.run(handler.handle(make_incoming(sent, "Ziemia jest płaska")))
     assert len(sent) == count
     assert len(jobs.checks()) == 1
 
@@ -77,19 +77,21 @@ def test_empty_message_gets_the_hint_and_starts_nothing(
     make_probe: MakeProbe,
 ) -> None:
     jobs = FinishedWorker()
-    handler, sent = _setup(make_probe, jobs)
-    asyncio.run(handler.handle(_incoming(sent, "")))
+    handler, sent = gateway_setup(make_probe, jobs)
+    asyncio.run(handler.handle(make_incoming(sent, "")))
     assert sent == [ERRORS["errors.empty"]]
     assert not jobs.enqueued
 
 
 def test_seen_ids_are_bounded(make_probe: MakeProbe) -> None:
-    handler, sent = _setup(make_probe, FinishedWorker())
+    handler, sent = gateway_setup(make_probe, FinishedWorker())
     handler = GatewayHandler(handler.ports, remember=2)
     for n in range(3):
-        asyncio.run(handler.handle(_incoming(sent, "", f"m{n}")))
+        asyncio.run(handler.handle(make_incoming(sent, "", f"m{n}")))
     sent.clear()
-    asyncio.run(handler.handle(_incoming(sent, "", "m0")))  # forgotten, answered again
+    asyncio.run(
+        handler.handle(make_incoming(sent, "", "m0"))
+    )  # forgotten, answered again
     assert sent == [ERRORS["errors.empty"]]
 
 

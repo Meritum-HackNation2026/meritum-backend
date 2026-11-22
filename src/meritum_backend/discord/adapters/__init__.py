@@ -4,6 +4,7 @@ Features:
     US-WTY-06, F-03
 """
 
+from meritum_backend.discord.adapters._cdn import CdnVoiceDownloader
 from meritum_backend.discord.adapters._webhook import WebhookReplies
 
-__all__ = ["WebhookReplies"]
+__all__ = ["CdnVoiceDownloader", "WebhookReplies"]

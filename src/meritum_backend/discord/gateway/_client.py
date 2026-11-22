@@ -35,6 +35,7 @@ def incoming_from(
         return None
     # no MESSAGE_CONTENT intent: Discord still sends the content of DMs and mentions
     text = strip_mention(message.content, bot.id)
+    # a voice message's attachment URL expires: the handler fetches it at once
 
     async def reply(content: str) -> None:
         if in_server:
@@ -42,7 +43,8 @@ def incoming_from(
         else:
             await message.channel.send(content)
 
-    return Incoming(str(message.id), str(message.author.id), text, reply)
+    voice = next((a.url for a in message.attachments if a.is_voice_message()), None)
+    return Incoming(str(message.id), str(message.author.id), text, reply, voice)
 
 
 class MeritumClient(discord.Client):
