@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import pytest
@@ -103,3 +104,27 @@ def test_switch_blocks_checks_without_worker_report(
 ) -> None:
     monkeypatch.setattr(readiness, "BLOCK_CHECKS_WITHOUT_WORKER_REPORT", True)
     assert post_without_worker_report(make_probe) == 503
+
+
+EUVS_DOWN = worker_report().model_copy(
+    update={"unavailable_providers": ["euvsdisinfo"]}
+)
+
+
+def test_unreachable_optional_provider_does_not_block_checks(
+    make_probe: MakeProbe,
+) -> None:
+    app = app_with(make_probe(InMemoryJobQueue(), report=EUVS_DOWN))
+    app.dependency_overrides[get_jobs] = InMemoryJobQueue
+    response = TestClient(app).post("/api/v1/checks", json=CHECK, headers=SESSION)
+    assert response.status_code == 202
+
+
+def test_unreachable_provider_is_logged_as_degraded(
+    make_probe: MakeProbe, caplog: pytest.LogCaptureFixture
+) -> None:
+    probe = make_probe(InMemoryJobQueue(), report=EUVS_DOWN)
+    with caplog.at_level(logging.WARNING, logger="meritum_backend"):
+        asyncio.run(probe.log_startup())
+    assert "degraded" in caplog.text
+    assert "not ready" not in caplog.text

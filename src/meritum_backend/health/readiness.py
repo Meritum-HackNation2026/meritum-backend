@@ -44,14 +44,10 @@ def _settings_missing(settings: Settings) -> list[str]:
 
 
 def _accepts_checks(readiness: Readiness) -> bool:
-    if readiness.ready:
-        return True
-    only_worker_silent = readiness.worker == "not_reported" and (
-        readiness.database == "ok"
-        and not readiness.missing_env
-        and not readiness.unavailable_providers
-    )
-    return only_worker_silent and not BLOCK_CHECKS_WITHOUT_WORKER_REPORT
+    # An unreachable provider (EUvsDisinfo, blob store) only degrades the service.
+    configured = readiness.database == "ok" and not readiness.missing_env
+    worker_heard = readiness.worker == "ok" or not BLOCK_CHECKS_WITHOUT_WORKER_REPORT
+    return configured and worker_heard
 
 
 class ReadinessProbe:
@@ -135,7 +131,8 @@ class ReadinessProbe:
         BLOCK_CHECKS_WITHOUT_WORKER_REPORT is on; it is logged as a warning.
 
         Returns:
-            True when the last report is ok, or lacks only the worker's report.
+            True when the database answers and no required variable is
+            missing; unreachable providers and a silent worker do not count.
 
         Features:
             US-WDR-08, US-BEZ-03, F-30
@@ -161,7 +158,8 @@ class ReadinessProbe:
             _logger.info("ready (env %s)", readiness.env)
             return
         _logger.warning(
-            "not ready: database %s, worker %s, missing env %s, unavailable %s",
+            "%s: database %s, worker %s, missing env %s, unavailable %s",
+            "degraded" if _accepts_checks(readiness) else "not ready",
             readiness.database,
             readiness.worker,
             ", ".join(readiness.missing_env) or "none",

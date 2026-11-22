@@ -84,6 +84,34 @@ def not_ready(context: Context) -> None:
     _prepare(context, _report(["MERITUM_LLM_API_KEY"]))
 
 
+@given('worker zgłasza dostawcę "{name}" jako niedostępnego')
+def worker_provider_down(context: Context, name: str) -> None:
+    """The worker reported one unreachable provider and no missing variable.
+
+    Args:
+        context: the behave context.
+        name: the provider name.
+
+    Features:
+        US-WDR-08, F-30
+    """
+    report = _report([]).model_copy(update={"unavailable_providers": [name]})
+    _prepare(context, report)
+
+
+@then("sprawdzenie zostaje przyjęte")
+def check_accepted(context: Context) -> None:
+    """The API enqueued the check instead of answering not_ready.
+
+    Args:
+        context: the behave context.
+
+    Features:
+        US-BEZ-03, F-30
+    """
+    assert context.response.status_code == HTTPStatus.ACCEPTED, context.response.text
+
+
 @given("worker nie opublikował raportu od startu API")
 def worker_silent(context: Context) -> None:
     """No readiness event was set.
