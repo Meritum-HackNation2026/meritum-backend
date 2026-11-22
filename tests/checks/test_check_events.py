@@ -207,6 +207,18 @@ def test_a_message_without_verdicts_is_sent_before_verification(
     assert events(make_client(jobs))[0].result == RESULT
 
 
+def test_the_answer_draft_reaches_the_stream_and_the_poll(
+    make_client: MakeClient,
+) -> None:
+    jobs = RunningJobs()
+    value = steps(receive="done", write_answer="active")
+    draft = AnalysisStatus(check_id="wf-1", steps=value, draft="Szkic odpowiedzi")
+    jobs.publish("wf-1", PROGRESS_KEY, draft)
+    client = make_client(jobs)
+    assert client.get("/api/v1/checks/wf-1").json()["draft"] == "Szkic odpowiedzi"
+    assert [e.draft for e in events(client)] == ["Szkic odpowiedzi"]
+
+
 def _publish_pre_v6_result(jobs: InMemoryJobQueue) -> None:
     done = steps(receive="done", verify_citations="done", write_answer="done")
     status = AnalysisStatus(check_id="wf-1", steps=done, result=VERDICT)

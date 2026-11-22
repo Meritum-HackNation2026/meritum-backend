@@ -48,6 +48,28 @@ def test_stream_sends_only_notifications_saved_after_it_opened(
     assert events[0]["link"] == "/sprawdzenia/c_new"
 
 
+def test_stream_passes_the_step_and_message_codes_through(
+    app: FastAPI, client: TestClient, repo: NotificationRepository
+) -> None:
+    progress = note("p").model_copy(
+        update={"kind": "check_progress", "step_code": "transcribe_audio"}
+    )
+    system = note("s").model_copy(
+        update={"kind": "system", "check_id": None, "message_code": "service_degraded"}
+    )
+
+    async def workflow_steps() -> None:
+        await repo.save(progress)
+        await repo.save(system)
+
+    script(app, [workflow_steps])
+
+    events = _events(client, f"session={SESSION}")
+
+    codes = {e["id"]: (e["step_code"], e["message_code"]) for e in events}
+    assert codes == {"p": ("transcribe_audio", None), "s": (None, "service_degraded")}
+
+
 def test_stream_without_a_session_is_400(client: TestClient) -> None:
     assert client.get(f"{URL}/stream").status_code == 400
 

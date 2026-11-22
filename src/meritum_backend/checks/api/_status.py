@@ -211,7 +211,8 @@ async def check_status(
         response: the response; gets the AI-Disclosure header with a result.
 
     Returns:
-        The steps; ``result`` once the check finished (``ai_disclosure`` is true).
+        The steps and the answer draft so far; ``result`` instead of the draft
+        once the check finished (``ai_disclosure`` is true).
 
     Raises:
         HTTPException: 404 when the id is unknown.
@@ -225,12 +226,16 @@ async def check_status(
         if result is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
         steps = [RECEIVED]
+        draft = None
     else:
         latest = await _latest_progress(jobs, check_id)
         steps = latest.steps if latest else [RECEIVED]
+        draft = latest.draft if latest else None
         result = (latest.result if latest else None) or _output_result(state)
         if result is not None:
             await fill(cache, result, datetime.now(UTC))
     if result is not None:
         response.headers[AI_DISCLOSURE_HEADER] = ai_disclosure(result)
-    return AnalysisStatus(check_id=check_id, steps=steps, result=result)
+    # The result replaces the draft once the check finishes.
+    draft = None if result is not None else draft
+    return AnalysisStatus(check_id=check_id, steps=steps, result=result, draft=draft)
