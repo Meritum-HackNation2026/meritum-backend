@@ -48,6 +48,7 @@
   "limitations": [
     "Sprawdziliśmy tylko źródła z katalogu."
   ],
+  "limitation_codes": ["corpus_scope"],
   "escalation": {
     "state": "recommended"
   },

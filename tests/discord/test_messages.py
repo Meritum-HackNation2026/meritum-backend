@@ -59,6 +59,7 @@ def _result(*claims: ClaimResult, escalation: Escalation | None = None) -> Check
         status="done",
         claims=list(claims),
         limitations=["Korpus obejmuje tylko źródła polskie."],
+        limitation_codes=["corpus_scope"],
         corpus_version="test",
         ai_marker=AiMarker(
             provider="stub",

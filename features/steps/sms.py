@@ -78,6 +78,7 @@ class _FinishedJobs(InMemoryJobQueue):
                 )
             ],
             limitations=["Korpus obejmuje tylko źródła polskie."],
+            limitation_codes=["corpus_scope"],
             corpus_version="test",
             ai_marker=AiMarker(
                 provider="stub",

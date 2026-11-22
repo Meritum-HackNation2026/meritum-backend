@@ -39,6 +39,7 @@ RESULT = CheckResult(
         )
     ],
     limitations=["Korpus obejmuje tylko źródła polskie."],
+    limitation_codes=["corpus_scope"],
     corpus_version="test",
     ai_marker=AiMarker(
         provider="stub", model="stub", generated_at=datetime(2026, 11, 21, tzinfo=UTC)
