@@ -70,6 +70,14 @@ def test_admin_emails_reach_the_container() -> None:
     assert "MERITUM_ADMIN_EMAILS=a@x.pl,b@x.pl" in environment
 
 
+def test_mcp_api_keys_reach_the_container_by_name() -> None:
+    key = "dev-client=k3y-value"
+    args, environment = run("dev", {"MERITUM_MCP_API_KEYS_DEV": key}, {})
+    assert "MERITUM_MCP_API_KEYS" in args
+    assert key not in " ".join(args)
+    assert f"MERITUM_MCP_API_KEYS={key}" in environment
+
+
 def mount(envfile: Path) -> list[str]:
     done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] -- fixed command, test data only
         [

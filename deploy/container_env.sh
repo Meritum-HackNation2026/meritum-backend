@@ -23,6 +23,7 @@ container_vars=(
   "MERITUM_SMS_GATEWAY_NUMBER       SMS_GATEWAY_NUMBER"               # #29 the gateway's own number
   "MERITUM_EMAIL_WORKER_URL         EMAIL_WORKER_URL"                 # #34 e-mail Worker address (repo variable)
   "MERITUM_EMAIL_WORKER_SIGNING_SECRET  MERITUM_EMAIL_WORKER_SIGNING_SECRET" # #34 HMAC secret of the e-mail Worker
+  "MERITUM_MCP_API_KEYS             MERITUM_MCP_API_KEYS"             # #43, #44 MCP clients: label=key,label2=key2
 )
 
 container_env() {
