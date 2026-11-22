@@ -58,6 +58,9 @@ class Settings(BaseSettings):
             key, no SMS webhook.
         sms_gateway_number: the gateway phone's own number (E.164); its SMS to
             itself are acknowledged and never answered.
+        email_worker_url: address of the Cloudflare e-mail Worker (infra/009); with
+            its secret, moderators can be notified by e-mail.
+        email_worker_signing_secret: the HMAC secret the Worker checks.
         sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
             per SMS instead of 70).
 
@@ -89,6 +92,8 @@ class Settings(BaseSettings):
     sms_gateway_password: SecretStr | None = None
     sms_gateway_webhook_signing_key: SecretStr | None = None
     sms_gateway_number: str | None = None
+    email_worker_url: str | None = None
+    email_worker_signing_secret: SecretStr | None = None
     sms_gsm7: bool = False
 
 

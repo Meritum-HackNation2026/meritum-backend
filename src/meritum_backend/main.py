@@ -42,7 +42,9 @@ from meritum_backend.limits import (
 from meritum_backend.moderation.api import handoff_router
 from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.moderation.factory import build_moderation
+from meritum_backend.notifications.api import config_router as notifier_config_router
 from meritum_backend.notifications.api import router as notifications_router
+from meritum_backend.notifications.factory import build_announcer, build_config_store
 from meritum_backend.privacy.access_log import mask_sessions_in_access_log
 from meritum_backend.privacy.api import router as privacy_router
 from meritum_backend.settings import Settings
@@ -119,6 +121,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     repositories = build_app_repositories(DatabaseSettings())
     app.state.repositories = repositories
     app.state.staff = build_staff(repositories)
+    app.state.notifier_configs = build_config_store(settings)
+    app.state.announcer = build_announcer(
+        settings, repositories, app.state.notifier_configs
+    )
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(
@@ -137,6 +143,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(discord_router)
     app.include_router(auth_router)
     app.include_router(checks_router)
+    app.include_router(notifier_config_router)  # before staff: DELETE /staff/{email}
     app.include_router(staff_router)
     app.include_router(jury_router)
     app.include_router(moderation_router)

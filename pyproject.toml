@@ -124,7 +124,7 @@ max-lines = 250
 [tool.vulture]
 paths = ["src", "scripts", "tests", "features", "vulture_whitelist.py"]
 # FastAPI registers route functions through the router decorators.
-ignore_decorators = ["@router.*", "@given", "@when", "@then"]
+ignore_decorators = ["@router.*", "@model_validator*", "@given", "@when", "@then"]
 # behave calls the hooks in features/environment.py by name.
 ignore_names = ["before_scenario"]
 min_confidence = 60
