@@ -117,7 +117,19 @@ def _user_id(interaction: dict[str, Any]) -> str:
     return str((user or {}).get("id", ""))
 
 
-def _card_url(settings: Settings, check_id: str) -> str:
+def card_url(settings: Settings, check_id: str) -> str:
+    """Address of the full result card of a check in the web app.
+
+    Args:
+        settings: holds the public URL and the environment.
+        check_id: the check's id.
+
+    Returns:
+        The absolute URL.
+
+    Features:
+        US-WTY-06, F-03
+    """
     base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
     return base.rstrip("/") + CARD_PATH.format(check_id=check_id)
 
@@ -196,7 +208,7 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
     target = Interaction(
         application_id=str(interaction.get("application_id", "")),
         token=str(interaction.get("token", "")),
-        card_url=_card_url(settings, started),
+        card_url=card_url(settings, started),
         first_contact=first,
     )
     background.add_task(reply_when_done, jobs, cache, replies, started, target)

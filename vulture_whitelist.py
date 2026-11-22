@@ -6,6 +6,7 @@ Run: ``uv run vulture`` (paths come from ``[tool.vulture]`` in pyproject.toml).
 from meritum_backend.auth import Account
 from meritum_backend.auth.models import Me
 from meritum_backend.checks.api import AudioRejected
+from meritum_backend.discord.gateway import MeritumClient
 from meritum_backend.settings import Settings
 from meritum_backend.staff import StaffMember
 
@@ -16,3 +17,4 @@ AudioRejected.formats  # response fields with defaults, serialised by model_dump
 AudioRejected.max_mb
 AudioRejected.max_minutes
 StaffMember.read_only  # response field, serialised by FastAPI
+MeritumClient.on_message  # called by discord.py for each Gateway message
