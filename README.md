@@ -128,7 +128,7 @@ Serwer MCP pozwala sprawdzić twierdzenie z aplikacji czatu (US-WDR-06, US-WTY-0
 | Transport | Streamable HTTP |
 | Narzędzia | `check_claim` (jedno twierdzenie albo pytanie o fakt, do 4000 znaków; czeka do 90 s na wynik) i `search_sources` (krótkie fragmenty z katalogu źródeł: tytuł, wydawca, data, link, wersja korpusu; to nie jest werdykt) |
 | Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, albo token dostępu OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp"` |
-| Limity | `check_claim`: 30 na minutę na klienta (wszyscy użytkownicy jednego konektora dzielą ten limit) i wspólne limity z „Limity zapytań”; `search_sources`: 30 na minutę z jednego adresu; ponad limit narzędzie zwraca błąd z prośbą o ponowną próbę za minutę |
+| Limity | `check_claim` i `search_sources` mają wspólny limit 30 wywołań na minutę na klienta (według etykiety klucza API lub tożsamości OAuth). `check_claim` podlega też limitom z sekcji „Limity zapytań”, a `search_sources` ma dodatkowo limit 30 wyszukiwań na minutę z jednego adresu. Po przekroczeniu limitu narzędzie prosi o ponowną próbę za minutę. |
 | Retencja | jak w każdym kanale: zapis sprawdzenia 30 dni; „Usuń moje sprawdzenia” działa po skrócie identyfikatora klienta |
 | Identyfikator klienta | etykieta klucza (część przed `=`) albo `client_id`/`sub` tokenu OAuth; API zapisuje tylko skrót HMAC-SHA-256 z `<kanał>:<identyfikator>` i solą `MERITUM_CHANNEL_HASH_SALT`, surowy identyfikator nie trafia do kolejki, bazy ani logów |
 
