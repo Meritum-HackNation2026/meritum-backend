@@ -26,6 +26,9 @@ BLOB_PROVIDER_FIELDS: Final = {
 BLOB_STORE: Final = "blob_store"
 """Provider name reported when the blob store is configured but cannot be built."""
 
+OPTIONAL_HEALTH_PROVIDERS: Final = frozenset({BLOB_STORE, "euvsdisinfo", "fact_check"})
+"""Provider outages that degrade health without making the service unavailable."""
+
 WORKFLOW_ID_PREFIX: Final = "readiness-"
 """Prefix of the ids of the `readiness` workflows the API enqueues."""
 

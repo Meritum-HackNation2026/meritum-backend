@@ -43,6 +43,24 @@ def test_everything_set_is_ready(make_probe: MakeProbe) -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("providers", "expected_status"),
+    [
+        (["euvsdisinfo", "fact_check", "blob_store"], 200),
+        (["euvsdisinfo", "model"], 503),
+    ],
+)
+def test_health_distinguishes_optional_and_required_provider_outages(
+    make_probe: MakeProbe, providers: list[str], expected_status: int
+) -> None:
+    report = worker_report().model_copy(update={"unavailable_providers": providers})
+    probe = make_probe(InMemoryJobQueue(), report=report)
+    response = client_for(probe).get("/api/v1/health")
+    assert response.status_code == expected_status
+    assert response.json()["status"] == "degraded"
+    assert response.json()["unavailable_providers"] == providers
+
+
 def test_unreachable_database_is_not_ready(make_probe: MakeProbe) -> None:
     probe = make_probe(InMemoryJobQueue(), report=worker_report(), database_ok=False)
     response = client_for(probe).get("/api/v1/health")

@@ -20,3 +20,8 @@ Feature: Test gotowości przy starcie
     Given worker nie opublikował raportu od startu API
     When administrator otwiera GET /api/v1/health
     Then odpowiedź ma kod 503 z informacją, że worker nie zgłosił gotowości
+
+  Scenario: awaria EUvsDisinfo obniża stan health bez błędu HTTP
+    Given worker zgłasza dostawcę "euvsdisinfo" jako niedostępnego
+    When administrator otwiera GET /api/v1/health
+    Then odpowiedź ma kod 200 i stan "degraded" oraz wymienia dostawcę "euvsdisinfo"

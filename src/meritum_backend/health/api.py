@@ -9,6 +9,7 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
+from meritum_backend.health.constants import OPTIONAL_HEALTH_PROVIDERS
 from meritum_backend.health.models import NotReady, Readiness
 from meritum_backend.health.readiness import ReadinessProbe
 
@@ -74,13 +75,25 @@ async def health(probe: Ready) -> JSONResponse:
         probe: the readiness probe.
 
     Returns:
-        200 when nothing is missing, otherwise 503 with what is missing.
+        200 when required dependencies are ready, even if health is degraded
+        by optional providers. Otherwise 503 with the same report.
 
     Features:
         US-WDR-08, US-BEZ-03, F-30
     """
     readiness = await probe.check()
+    required_providers_down = not OPTIONAL_HEALTH_PROVIDERS.issuperset(
+        readiness.unavailable_providers
+    )
+    required_dependency_down = (
+        readiness.database != "ok"
+        or readiness.worker != "ok"
+        or bool(readiness.missing_env)
+        or required_providers_down
+    )
     code = (
-        status.HTTP_200_OK if readiness.ready else status.HTTP_503_SERVICE_UNAVAILABLE
+        status.HTTP_503_SERVICE_UNAVAILABLE
+        if required_dependency_down
+        else status.HTTP_200_OK
     )
     return JSONResponse(readiness.model_dump(), status_code=code)
