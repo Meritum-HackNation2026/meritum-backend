@@ -146,7 +146,9 @@ async def _escalation(jobs: JobQueue, check_id: str, index: int) -> Escalation |
     if state is None or state.output is None:
         return None
     with contextlib.suppress(ValidationError):
-        return EscalateClaimOutput.model_validate(state.output).escalation
+        return EscalateClaimOutput.model_validate(
+            state.output, extra="ignore"
+        ).escalation
     return None
 
 

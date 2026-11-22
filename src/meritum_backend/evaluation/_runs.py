@@ -65,7 +65,7 @@ def run_of(ref: RunRef, state: JobState | None) -> EvalRun:
         return _pending(ref, "running")
     if state.status == "SUCCESS" and state.output is not None:
         try:
-            return EvalRunOutput.model_validate(state.output).run
+            return EvalRunOutput.model_validate(state.output, extra="ignore").run
         except ValidationError:
             pass
     return _pending(ref, "failed", ref.started_at)

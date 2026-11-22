@@ -107,7 +107,7 @@ class PostgresResultCache:
         if row is None:
             return None
         try:
-            return CachedResult.model_validate(row[0])
+            return CachedResult.model_validate(row[0], extra="ignore")
         except ValidationError:  # stored under an older contract, e.g. before ai_marker
             _log.warning("result cache entry no longer valid; treated as a miss")
             return None
