@@ -1576,7 +1576,7 @@ requires-dist = [
     { name = "httpx2", specifier = ">=2.16.2" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "joserfc", specifier = ">=1.6.0" },
-    { name = "meritum-core", git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git?rev=7594822fba929e5c6784d6a0fd1e3e0e0244b64b" },
+    { name = "meritum-core", git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git?rev=dad70a446143392c51a8e6c18047377d2a490bd0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.9" },
     { name = "pydantic", specifier = ">=2.14.4" },
     { name = "pydantic-settings", specifier = ">=2.16.3" },
@@ -1599,7 +1599,7 @@ dev = [
 [[package]]
 name = "meritum-core"
 version = "0.1.0"
-source = { git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git?rev=7594822fba929e5c6784d6a0fd1e3e0e0244b64b#7594822fba929e5c6784d6a0fd1e3e0e0244b64b" }
+source = { git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git?rev=dad70a446143392c51a8e6c18047377d2a490bd0#dad70a446143392c51a8e6c18047377d2a490bd0" }
 dependencies = [
     { name = "dbos" },
     { name = "google-auth" },
