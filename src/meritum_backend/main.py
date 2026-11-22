@@ -24,7 +24,7 @@ from meritum_backend.auth.constants import (
     TOKEN_BYTES,
 )
 from meritum_backend.auth.factory import build_login
-from meritum_backend.checks.api import audio_router
+from meritum_backend.checks.api import audio_router, image_router
 from meritum_backend.checks.api import events_router as check_events_router
 from meritum_backend.checks.api import router as checks_router
 from meritum_backend.checks.factory import build_blobs, build_result_cache
@@ -168,6 +168,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(answer_router)
     app.include_router(check_events_router)
     app.include_router(audio_router)
+    app.include_router(image_router)
     app.include_router(privacy_router)
     app.include_router(handoff_router)
     app.include_router(sms_router)

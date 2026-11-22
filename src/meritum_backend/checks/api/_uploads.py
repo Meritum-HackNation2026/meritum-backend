@@ -97,20 +97,27 @@ def _rejected(code: int, key: str) -> JSONResponse:
     return JSONResponse(body.model_dump(), status_code=code)
 
 
-async def _read_capped(request: Request) -> bytes | None:
-    """Read the body, giving up past MAX_AUDIO_BYTES so memory stays bounded.
+async def read_capped(request: Request, limit: int = MAX_AUDIO_BYTES) -> bytes | None:
+    """Read the body, giving up past ``limit`` so memory stays bounded.
+
+    Args:
+        request: the request; its body is the file.
+        limit: the largest body accepted, in bytes.
 
     Returns:
-        The body, or None when it is (or says it is) over MAX_AUDIO_BYTES.
+        The body, or None when it is (or says it is) over ``limit``.
+
+    Features:
+        US-SPR-08, US-SPR-11, F-08, F-33
     """
     declared = request.headers.get("content-length", "")
-    if declared.isdigit() and int(declared) > MAX_AUDIO_BYTES:
+    if declared.isdigit() and int(declared) > limit:
         return None
     chunks: list[bytes] = []
     size = 0
     async for chunk in request.stream():
         size += len(chunk)
-        if size > MAX_AUDIO_BYTES:
+        if size > limit:
             return None
         chunks.append(chunk)
     return b"".join(chunks)
@@ -224,7 +231,7 @@ async def upload_audio(request: Request, blobs: Blobs) -> AudioAccepted | JSONRe
     Features:
         US-SPR-11, F-08, ADR-13, ADR-31
     """
-    data = await _read_capped(request)
+    data = await read_capped(request)
     if data is None:
         return _rejected(status.HTTP_413_CONTENT_TOO_LARGE, AUDIO_TOO_LARGE_KEY)
     try:

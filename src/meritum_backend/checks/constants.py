@@ -1,7 +1,8 @@
 """Constants of the checks slice.
 
 Features:
-    US-SPR-01, US-SPR-07, US-SPR-11, US-BEZ-04, US-BEZ-07, F-01, F-08, F-20, F-21
+    US-SPR-01, US-SPR-07, US-SPR-08, US-SPR-11, US-BEZ-04, US-BEZ-07, F-01, F-08, F-20,
+    F-21, F-33
 """
 
 import re
@@ -9,6 +10,7 @@ from datetime import timedelta
 from typing import Final, LiteralString
 
 from meritum_core.checks import AnalysisStep
+from meritum_core.checks.ocr import MAX_IMAGE_BYTES, ImageFormat
 from meritum_core.checks.transcription import (
     MAX_AUDIO_BYTES,
     MAX_AUDIO_SECONDS,
@@ -121,6 +123,28 @@ AUDIO_MAX_MB: Final = MAX_AUDIO_BYTES // (1024 * 1024)
 
 AUDIO_MAX_MINUTES: Final = MAX_AUDIO_SECONDS // 60
 """{max_minutes} of the copy: MAX_AUDIO_SECONDS in minutes."""
+
+IMAGE_RETENTION: Final = AUDIO_RETENTION
+"""How long an uploaded image is kept at most: the check record's retention."""
+
+IMAGE_CONTENT_TYPES: Final = {
+    ImageFormat.PNG: "image/png",
+    ImageFormat.JPEG: "image/jpeg",
+    ImageFormat.WEBP: "image/webp",
+}
+"""MIME type stored with an image, by the format read from its bytes."""
+
+IMAGE_FORMAT_KEY: Final = "out_of_scope_code.image"
+"""copy/pl.json key: this image cannot be checked (unsupported format or too large)."""
+
+IMAGE_UPLOAD_LIMIT: Final = AUDIO_UPLOAD_LIMIT
+"""Uploads per client address; each can keep MAX_IMAGE_BYTES for 30 days."""
+
+IMAGE_FORMATS: Final = ("PNG", "JPEG", "WebP")
+"""Formats named to the person."""
+
+IMAGE_MAX_MB: Final = MAX_IMAGE_BYTES // (1024 * 1024)
+"""The size limit in MiB."""
 
 RESULT_CACHE_TTL: Final = timedelta(hours=2)
 """How long a cached result is served; new corpus snapshots do not cut it (ADR-22)."""

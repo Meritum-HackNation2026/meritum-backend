@@ -70,7 +70,17 @@ def _m4a(seconds: int) -> bytes:
     return _box(b"ftyp", b"M4A " + bytes(4)) + _box(b"moov", _box(b"mvhd", header))
 
 
-def _prepare(context: Context, data: bytes, content_type: str) -> None:
+def prepare(context: Context, data: bytes, content_type: str) -> None:
+    """Start the app on in-memory ports and keep the file to upload.
+
+    Args:
+        context: the behave context; gets ``client``, ``jobs``, ``blobs``, ``audio``.
+        data: the file's bytes.
+        content_type: the MIME type the client claims.
+
+    Features:
+        US-SPR-08, US-SPR-11, F-08, F-33
+    """
     context.jobs = InMemoryJobQueue()
     context.blobs = _Blobs()
     app = create_app(Settings(database_url="postgresql://x:x@127.0.0.1:1/x"))
@@ -94,7 +104,7 @@ def m4a_file(context: Context, seconds: int) -> None:
     Features:
         US-SPR-11, F-08
     """
-    _prepare(context, _m4a(seconds), "audio/mp4")
+    prepare(context, _m4a(seconds), "audio/mp4")
 
 
 @given('plik "{name}"')
@@ -108,7 +118,7 @@ def unknown_file(context: Context, name: str) -> None:
     Features:
         US-SPR-11, F-08
     """
-    _prepare(context, f"to nie jest nagranie: {name}".encode(), "audio/x-xyz")
+    prepare(context, f"to nie jest nagranie: {name}".encode(), "audio/x-xyz")
 
 
 @given("plik większy niż limit rozmiaru z core/013")
@@ -121,7 +131,7 @@ def too_large_file(context: Context) -> None:
     Features:
         US-SPR-11, F-08
     """
-    _prepare(context, _m4a(40) + bytes(MAX_AUDIO_BYTES), "audio/mp4")
+    prepare(context, _m4a(40) + bytes(MAX_AUDIO_BYTES), "audio/mp4")
 
 
 @when("klient wysyła POST /api/v1/audio")

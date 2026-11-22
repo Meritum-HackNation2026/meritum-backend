@@ -52,3 +52,14 @@ Feature: Kontrole działającego API
     Given plik większy niż limit rozmiaru z core/013
     When klient wysyła POST /api/v1/audio
     Then odpowiedź ma kod 413 z komunikatem po polsku, bez werdyktu
+
+  Scenario: zrzut ekranu z formularza
+    Given plik PNG ze zrzutem ekranu posta
+    When klient wysyła POST /api/v1/images
+    Then odpowiedź ma kod 201 i image_id
+    And POST /api/v1/checks z tym image_id startuje sprawdzenie
+
+  Scenario: nieobsługiwany format obrazu
+    Given plik GIF zamiast zrzutu ekranu
+    When klient wysyła POST /api/v1/images
+    Then wynik ma stan "out_of_scope" z komunikatem, jakie obrazy można wysłać
