@@ -5,9 +5,10 @@ from meritum_core.checks.fakes import InMemoryCheckRecordRepository
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.security import PiiGateSettings, build_pii_gate
 from pydantic import SecretStr
-from tests.checks.cache_fakes import RESULT, FinishedWorker
+from tests.checks.cache_fakes import FinishedWorker
 from tests.checks.conftest import OFFLINE_DB
 from tests.conftest import MakeProbe, worker_report
+from tests.discord.fakes import flat
 
 import discord
 from meritum_backend.checks.adapters import MemoryResultCache
@@ -21,6 +22,7 @@ from meritum_backend.discord.gateway import (
     run,
     strip_mention,
 )
+from meritum_backend.discord.messages import Message
 from meritum_backend.limits import CheckGate, LimitSettings
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.settings import Settings
@@ -45,8 +47,8 @@ def gateway_setup(
 
 
 def make_incoming(sent: list[str], text: str, message_id: str = "m1") -> Incoming:
-    async def reply(content: str) -> None:  # ruff: ignore[unused-async] -- the Incoming.reply type
-        sent.append(content)
+    async def reply(message: Message) -> None:  # ruff: ignore[unused-async] -- the Incoming.reply type
+        sent.append(flat(message))
 
     return Incoming(message_id=message_id, user_id="1234567890", text=text, reply=reply)
 
@@ -58,9 +60,8 @@ def test_message_starts_the_web_check_and_replies_in_conversation(
     handler, sent = gateway_setup(make_probe, jobs)
     asyncio.run(handler.handle(make_incoming(sent, "https://example.pl/artykul")))
     assert '"channel":"discord"' in jobs.enqueued[0].payload.model_dump_json()
-    assert len(sent) == 1 + len(RESULT.claims)
+    assert len(sent) == 1  # one message, not a summary plus one per claim
     assert sent[0].startswith("Jestem botem Meritum, systemem AI.")
-    assert f"/sprawdzenie/{jobs.checks()[0]}" in sent[0]
 
 
 def test_redelivered_message_is_answered_once(make_probe: MakeProbe) -> None:
@@ -100,6 +101,20 @@ def test_strip_mention_removes_only_the_bots_mention() -> None:
     assert strip_mention(text, 42) == "sprawdź  to <@7> https://x.pl"
 
 
+_BODY: Message = {
+    "content": "AI",
+    "embeds": [{"title": "Wynik", "fields": []}],
+    "components": [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 5, "label": "Pełna karta", "url": "https://x.pl/c"}
+            ],
+        }
+    ],
+}
+
+
 def _message(content: str, mentions: list[int], *, guild: bool) -> MagicMock:
     message = MagicMock(spec=discord.Message)
     message.author = MagicMock(bot=False, id=7)
@@ -119,16 +134,22 @@ def test_server_message_needs_a_mention_and_is_answered_as_a_reply() -> None:
     incoming = incoming_from(message, bot)
     assert incoming is not None
     assert (incoming.text, incoming.user_id) == ("https://x.pl/a", "7")
-    asyncio.run(incoming.reply("wynik"))
-    message.reply.assert_awaited_once_with("wynik", mention_author=False)
+    asyncio.run(incoming.reply(_BODY))
+    (content,), kwargs = message.reply.await_args
+    assert content == "AI"
+    assert kwargs["mention_author"] is False
+    assert kwargs["embeds"][0].title == "Wynik"
+    (button,) = kwargs["view"].children
+    assert (button.label, button.url) == ("Pełna karta", "https://x.pl/c")
 
 
 def test_direct_message_is_answered_in_the_conversation() -> None:
     message = _message("Ziemia jest płaska", [], guild=False)
     incoming = incoming_from(message, MagicMock(id=42))
     assert incoming is not None
-    asyncio.run(incoming.reply("wynik"))
-    message.channel.send.assert_awaited_once_with("wynik")
+    asyncio.run(incoming.reply({"content": "wynik"}))
+    message.channel.send.assert_awaited_once()
+    assert message.channel.send.await_args.args == ("wynik",)
 
 
 def test_bots_are_ignored() -> None:

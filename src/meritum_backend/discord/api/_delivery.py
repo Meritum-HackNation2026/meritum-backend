@@ -21,7 +21,7 @@ from meritum_backend.discord.constants import (
     POLL_ATTEMPTS,
     POLL_SECONDS,
 )
-from meritum_backend.discord.messages import reply_messages
+from meritum_backend.discord.messages import reply_message
 from meritum_backend.discord.ports import InteractionReplies
 
 
@@ -34,6 +34,7 @@ class Interaction:
         token: the interaction token.
         card_url: the full result card of the check.
         first_contact: the user hash has no earlier checks.
+        public: the answer is shown to the whole channel (else ephemeral).
 
     Features:
         US-WTY-06, US-BEZ-07, F-03, F-21
@@ -43,6 +44,7 @@ class Interaction:
     token: str
     card_url: str
     first_contact: bool
+    public: bool = False
 
 
 async def _result(
@@ -70,7 +72,7 @@ async def reply_when_done(
     check_id: str,
     interaction: Interaction,
 ) -> None:
-    """Wait for the check (as GET /api/v1/checks/{id} does), then send its messages.
+    """Wait for the check (as GET /api/v1/checks/{id} does), then send the one reply.
 
     Args:
         jobs: the job queue the check runs on.
@@ -83,10 +85,12 @@ async def reply_when_done(
         US-WTY-06, US-BEZ-07, F-03, F-21
     """
     result = await _result(jobs, cache, check_id)
-    first, *rest = reply_messages(
+    message = reply_message(
         result, interaction.card_url, first_contact=interaction.first_contact
     )
-    app, token = interaction.application_id, interaction.token
-    await replies.edit_original(app, token, first)
-    for text in rest:
-        await replies.follow_up(app, token, text)
+    await replies.edit_original(
+        interaction.application_id,
+        interaction.token,
+        message,
+        public=interaction.public,
+    )

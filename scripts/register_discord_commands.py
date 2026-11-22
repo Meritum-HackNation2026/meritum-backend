@@ -3,8 +3,8 @@
     DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... \
         uv run python scripts/register_discord_commands.py
 
-Run once per Discord app (one for dev, one for prd) and after changing
-src/meritum_backend/discord/constants.py. Overwrites the app's global commands.
+The deploy registers them itself (deploy/deploy.sh); run this by hand only for a new
+app or a local test. Overwrites the app's global commands.
 """
 
 import json

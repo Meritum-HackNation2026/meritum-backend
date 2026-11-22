@@ -11,6 +11,7 @@ from meritum_backend.discord.gateway._handler import (
     Incoming,
     strip_mention,
 )
+from meritum_backend.discord.messages import Message
 
 
 def incoming_from(
@@ -37,11 +38,19 @@ def incoming_from(
     text = strip_mention(message.content, bot.id)
     # a voice message's attachment URL expires: the handler fetches it at once
 
-    async def reply(content: str) -> None:
+    async def reply(body: Message) -> None:
+        embeds = [discord.Embed.from_dict(e) for e in body.get("embeds", [])]
+        view = discord.ui.View()
+        for row in body.get("components", []):
+            for button in row["components"]:
+                view.add_item(
+                    discord.ui.Button(label=button["label"], url=button["url"])
+                )
+        content = body.get("content")
         if in_server:
-            await message.reply(content, mention_author=False)
+            await message.reply(content, embeds=embeds, view=view, mention_author=False)
         else:
-            await message.channel.send(content)
+            await message.channel.send(content, embeds=embeds, view=view)
 
     voice = next((a.url for a in message.attachments if a.is_voice_message()), None)
     return Incoming(str(message.id), str(message.author.id), text, reply, voice)

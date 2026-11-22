@@ -18,10 +18,11 @@ from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 from pydantic import SecretStr
+from tests.discord.fakes import flat
 
 from meritum_backend.checks.adapters import MemoryResultCache
 from meritum_backend.checks.api import get_records, get_result_cache
-from meritum_backend.discord import MESSAGE_MAX_CHARS, reply_messages
+from meritum_backend.discord import Message, reply_message
 from meritum_backend.discord.api import get_replies
 from meritum_backend.discord.constants import (
     DEFERRED_CHANNEL_MESSAGE as DEFERRED,
@@ -33,21 +34,22 @@ from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounte
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings, get_settings
 
+EMBED_LIMIT = 6000  # Discord: characters over one embed
+FIELD_LIMIT = 1024  # Discord: characters of a field value
+TWO_CLAIMS = 2  # the fake worker returns two claims
 _KEY = Ed25519PrivateKey.generate()
 _PUBLIC = _KEY.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
 
 
 class _Discord:
     def __init__(self) -> None:
-        self.sent: list[tuple[str, str]] = []
+        self.sent: list[tuple[Message, bool]] = []
 
-    async def edit_original(self, application_id: str, token: str, text: str) -> None:
+    async def edit_original(
+        self, application_id: str, token: str, message: Message, *, public: bool
+    ) -> None:
         del application_id, token
-        self.sent.append(("edit", text))
-
-    async def follow_up(self, application_id: str, token: str, text: str) -> None:
-        del application_id, token
-        self.sent.append(("follow_up", text))
+        self.sent.append((message, public))
 
 
 class _Worker(InMemoryJobQueue):
@@ -98,6 +100,9 @@ def _app(context: Context, text: str) -> None:
 
 
 def _command(context: Context) -> dict[str, Any]:
+    options = [{"name": "tekst", "value": context.claim_text}]
+    if getattr(context, "public", None) is not None:
+        options.append({"name": "publiczne", "value": context.public})
     payload = {
         "type": 2,
         "application_id": "app",
@@ -105,7 +110,7 @@ def _command(context: Context) -> dict[str, Any]:
         "member": {"user": {"id": "1234567890"}},
         "data": {
             "name": "sprawdz",
-            "options": [{"name": "tekst", "value": context.claim_text}],
+            "options": options,
         },
     }
     body = json.dumps(payload).encode()
@@ -133,62 +138,87 @@ def _gets_result(context: Context) -> None:
 
 
 @then(
-    "pierwsza wiadomość mówi, że odpowiada system AI, i podsumowuje werdykt każdego"
-    " twierdzenia z linkiem do pełnej karty wyniku"
+    "bot podmienia odpowiedź na jedną wiadomość: z informacją, że odpowiada system AI,"
+    " i osadzeniem z werdyktem, najważniejszym cytatem ze źródłem i datą oraz siłą"
+    " podstawy dla każdego twierdzenia"
 )
-def _summary(context: Context) -> None:
-    kind, first = context.discord.sent[0]
-    check_id = context.jobs.enqueued[0].workflow_id
-    assert kind == "edit"
-    assert "systemem AI" in first
-    assert f"/sprawdzenie/{check_id}" in first
-    assert first.count("Fałszywe: ") == len(context.discord.sent) - 1, first
-
-
-@then(
-    "potem bot wysyła po jednej wiadomości na twierdzenie: werdykt, jeden"
-    " najważniejszy cytat albo ocenę fact-checkera ze źródłem i siłę"
-)
-def _per_claim(context: Context) -> None:
-    rest = context.discord.sent[1:]
-    assert [kind for kind, _ in rest] == ["follow_up", "follow_up"]
-    assert all(text.startswith("Fałszywe: ") for _, text in rest)
+def _one_message(context: Context) -> None:
+    assert len(context.discord.sent) == 1
+    message, _ = context.discord.sent[0]
+    assert "systemem AI" in message["content"]
+    fields = message["embeds"][0]["fields"]
+    assert len(fields) == TWO_CLAIMS
+    assert all(f["name"].startswith("Fałszywe: ") for f in fields)
     assert all(
-        "„" in text and "(Urząd Miasta, " in text and "Siła podstawy" in text
-        for _, text in rest
+        "„" in f["value"]
+        and "(Urząd Miasta, " in f["value"]
+        and "Siła podstawy" in f["value"]
+        for f in fields
     )
 
 
-@given("odpowiedź dla twierdzenia przekracza 2000 znaków")
+@then(
+    'pod wiadomością jest przycisk-link "Pełna karta" do wyniku, a w treści nie ma'
+    " surowego adresu"
+)
+def _button(context: Context) -> None:
+    message, _ = context.discord.sent[0]
+    check_id = context.jobs.enqueued[0].workflow_id
+    button = message["components"][0]["components"][0]
+    assert (button["style"], button["label"]) == (5, "Pełna karta")
+    assert button["url"].endswith(f"/sprawdzenie/{check_id}")
+    assert "http" not in flat(message)
+
+
+@given("użytkownik wywołuje /sprawdz z opcją publiczne: True")
+def _public(context: Context) -> None:
+    _app(context, "Ziemia jest płaska")
+    context.public = True
+
+
+@then("odpowiedź jest widoczna dla wszystkich na kanale")
+def _visible(context: Context) -> None:
+    assert context.answer == {"type": DEFERRED, "data": {}}
+    assert context.discord.sent[0][1] is True
+
+
+@then("bez tej opcji odpowiedź zostaje efemeryczna")
+def _ephemeral(context: Context) -> None:
+    context.public = None
+    context.discord.sent.clear()
+    context.answer = _command(context)
+    assert context.answer == {"type": DEFERRED, "data": {"flags": EPHEMERAL}}
+    assert context.discord.sent[0][1] is False
+
+
+@given("wynik nie mieści się w limitach Discorda")
 def _long_reply(context: Context) -> None:
     fragment = "Cytat " + "z" * 590
     claims = [
-        claim_result("Twierdzenie numer " + str(i) + "." * 480, fragment)
-        for i in range(5)
+        claim_result("Twierdzenie numer " + str(i) + "." * 200, fragment)
+        for i in range(12)
     ]
     context.result = check_result("c1", claims)
-    context.quote = f"„{fragment}”"
 
 
-@when("bot dzieli odpowiedź na wiadomości")
-def _splits(context: Context) -> None:
-    context.messages = reply_messages(
+@when("bot buduje odpowiedź")
+def _builds(context: Context) -> None:
+    context.message = reply_message(
         context.result, "https://x.pl/c", first_contact=True
     )
 
 
-@then(
-    "żadna wiadomość nie ma więcej niż 2000 znaków treści, osadzenia mają razem"
-    " najwyżej 6000 znaków, a podział nie przecina cytatu"
-)
+@then("osadzenie ma razem najwyżej 6000 znaków, a bot skraca cytaty, nie twierdzenia")
 def _within_limits(context: Context) -> None:
-    messages = list[str](context.messages)
-    assert len(messages) > 1 + len(context.result.claims)  # the summary was split
-    assert all(len(m) <= MESSAGE_MAX_CHARS for m in messages)
-    # replies are plain content: no embeds, so the 6000-character embed limit holds
-    assert all(isinstance(m, str) for m in messages)
-    quoted = [m for m in messages if "„Cytat" in m]
-    assert all(context.quote in m for m in quoted)
+    (embed,) = context.message["embeds"]
+    total = len(embed["title"]) + sum(
+        len(f["name"]) + len(f["value"]) for f in embed["fields"]
+    )
+    assert total <= EMBED_LIMIT
+    assert len(embed["fields"]) == len(context.result.claims)
+    assert all("Twierdzenie numer" in f["name"] for f in embed["fields"])
+    assert all(len(f["value"]) <= FIELD_LIMIT for f in embed["fields"])
+    assert "…" in embed["fields"][0]["value"]
 
 
 @given("sprawdzenie trwa dłużej niż 3 s")
@@ -203,10 +233,7 @@ def _waits(context: Context) -> None:
     context.answer = _command(context)
 
 
-@then(
-    "bot odpowiada odroczoną odpowiedzią, a wynik wysyła jako wiadomość uzupełniającą"
-)
+@then("bot odpowiada odroczoną odpowiedzią, a wynik wstawia w jej miejsce")
 def _deferred(context: Context) -> None:
     assert context.answer == {"type": DEFERRED, "data": {"flags": EPHEMERAL}}
-    kinds = [kind for kind, _ in context.discord.sent]
-    assert kinds == ["edit", "follow_up", "follow_up"], kinds
+    assert len(context.discord.sent) == 1

@@ -8,6 +8,7 @@ from meritum_core.checks.transcription import MAX_AUDIO_BYTES
 from meritum_core.shared.blobs.adapters import MemoryBlobStore
 from tests.checks.cache_fakes import RESULT, FinishedWorker
 from tests.conftest import MakeProbe
+from tests.discord.fakes import flat
 from tests.discord.test_gateway import gateway_setup, make_incoming
 
 import discord
@@ -15,7 +16,7 @@ from meritum_backend.discord.adapters import CdnVoiceDownloader
 from meritum_backend.discord.constants import FAILURE_TEXT, TRANSCRIPT_HINT
 from meritum_backend.discord.errors import VoiceDownloadError, VoiceTooLargeError
 from meritum_backend.discord.gateway import GatewayHandler, Incoming, incoming_from
-from meritum_backend.discord.messages import reply_messages
+from meritum_backend.discord.messages import reply_message
 
 CDN = "https://cdn.discordapp.com/attachments/1/2/voice-message.ogg?ex=abc"
 
@@ -62,7 +63,7 @@ def test_voice_message_is_downloaded_stored_and_checked_by_audio_id(
     assert cdn.urls == [CDN]
     payload = jobs.enqueued[0].payload.model_dump_json()
     assert '"audio_id":"' in payload
-    assert len(sent) == 1 + len(RESULT.claims)
+    assert len(sent) == 1
 
 
 @pytest.mark.parametrize(
@@ -100,9 +101,9 @@ def test_voice_without_a_downloader_is_a_technical_failure(
 
 def test_transcript_is_shown_with_the_automatic_hint() -> None:
     result = RESULT.model_copy(update={"transcript": "Ziemia jest płaska"})
-    texts = reply_messages(result, "https://x/c", first_contact=False)
-    assert "„Ziemia jest płaska”" in texts[0]
-    assert TRANSCRIPT_HINT in texts[0]
+    text = flat(reply_message(result, "https://x/c", first_contact=False))
+    assert "„Ziemia jest płaska”" in text
+    assert TRANSCRIPT_HINT in text
 
 
 def _message(*, voice: bool) -> MagicMock:

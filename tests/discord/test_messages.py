@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from typing import Any
 
 from meritum_core.checks import CheckResult
 from meritum_core.checks.contracts import (
@@ -10,8 +11,9 @@ from meritum_core.checks.contracts import (
     Premises,
     Source,
 )
+from tests.discord.fakes import flat
 
-from meritum_backend.discord import MESSAGE_MAX_CHARS, reply_messages, split_text
+from meritum_backend.discord import reply_message
 
 CARD = "https://meritum.example/sprawdzenie/c1"
 CLAIM = "Wrocław był jedynym miastem z darmową komunikacją dla 65-latków."
@@ -70,62 +72,90 @@ def _result(*claims: ClaimResult, escalation: Escalation | None = None) -> Check
     )
 
 
-def test_summary_then_one_message_per_claim() -> None:
-    texts = reply_messages(_result(_claim(), _claim()), CARD, first_contact=False)
-    assert texts[0].startswith("Wynik sprawdzenia: 2 twierdzenia. Pełna karta: " + CARD)
-    assert f"Fałszywe: {CLAIM}" in texts[0]
-    assert len(texts) == 3
-    assert texts[1] == (
-        f"Fałszywe: {CLAIM}\n„Bezpłatne przejazdy przysługują osobom od 65 lat.”"
-        " (Urząd Miasta Wrocławia, 01.03.2025)\nSiła podstawy: Umiarkowana"
-    )
+def _size(message: dict[str, Any]) -> int:
+    (embed,) = message["embeds"]
+    fields = sum(len(f["name"]) + len(f["value"]) for f in embed["fields"])
+    return len(embed["title"]) + len(embed.get("description", "")) + fields
 
 
-def test_first_contact_starts_with_ai_notice() -> None:
-    texts = reply_messages(_result(_claim()), CARD, first_contact=True)
-    assert texts[0].startswith("Jestem botem Meritum, systemem AI.")
-    assert "1 twierdzenie." in texts[0]
+def test_one_message_with_a_field_per_claim_and_a_card_button() -> None:
+    message = reply_message(_result(_claim(), _claim()), CARD, first_contact=False)
+    (embed,) = message["embeds"]
+    assert embed["title"] == "Wynik sprawdzenia: 2 twierdzenia"
+    assert embed["color"] == 0xC8213A  # false: design-system --scam
+    assert embed["fields"][0] == {
+        "name": f"Fałszywe: {CLAIM}",
+        "value": "„Bezpłatne przejazdy przysługują osobom od 65 lat.”"
+        " (Urząd Miasta Wrocławia, 01.03.2025)\nSiła podstawy: Umiarkowana",
+    }
+    assert len(embed["fields"]) == 2
+    assert "content" not in message
+    assert message["components"] == [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 5, "label": "Pełna karta", "url": CARD}
+            ],
+        }
+    ]
+    assert CARD not in flat(message)
+
+
+def test_first_contact_puts_the_ai_notice_in_the_content() -> None:
+    message = reply_message(_result(_claim()), CARD, first_contact=True)
+    assert message["content"].startswith("Jestem botem Meritum, systemem AI.")
+    assert message["embeds"][0]["title"] == "Wynik sprawdzenia: 1 twierdzenie"
 
 
 def test_case_number_only_for_created_or_updated_escalation() -> None:
     created = Escalation(state="created", case_id="#S-7")
     recommended = Escalation(state="recommended")
-    with_case = reply_messages(
+    with_case = reply_message(
         _result(_claim(), escalation=created), CARD, first_contact=False
     )
-    without = reply_messages(
+    without = reply_message(
         _result(_claim(), escalation=recommended), CARD, first_contact=False
     )
-    assert "#S-7" in with_case[0]
-    assert "#S-" not in "".join(without)
+    assert "#S-7" in flat(with_case)
+    assert "#S-" not in flat(without)
 
 
-def test_no_result_gives_failure_text() -> None:
-    assert reply_messages(None, CARD, first_contact=False) == [
-        "Nie udało się sprawdzić. To nie jest ocena. Spróbuj później."
-    ]
+def test_no_result_gives_failure_text_without_a_card() -> None:
+    assert reply_message(None, CARD, first_contact=False) == {
+        "content": "Nie udało się sprawdzić. To nie jest ocena. Spróbuj później."
+    }
 
 
-def test_split_keeps_lines_whole_and_under_limit() -> None:
-    quote = "„" + "a" * 590 + "”"
-    text = "\n".join([quote] * 10)
-    parts = split_text(text)
-    assert all(len(part) <= MESSAGE_MAX_CHARS for part in parts)
-    assert all(line == quote for part in parts for line in part.split("\n"))
+def test_long_result_shortens_quotes_and_keeps_every_claim() -> None:
+    fragment = "x" * 600
+    claims = [_claim(fragment) for _ in range(12)]
+    message = reply_message(_result(*claims), CARD, first_contact=True)
+    (embed,) = message["embeds"]
+    assert _size(message) <= 6000
+    assert len(embed["fields"]) == 12
+    assert all(f["name"].startswith("Fałszywe: ") for f in embed["fields"])
+    assert all(len(f["value"]) <= 1024 for f in embed["fields"])
+    assert "…" in embed["fields"][0]["value"]
+    assert "Urząd Miasta Wrocławia" in embed["fields"][0]["value"]
 
 
-def test_split_cuts_a_line_longer_than_a_message() -> None:
-    parts = split_text("x" * 4500)
-    assert [len(p) for p in parts] == [2000, 2000, 500]
+def test_no_more_than_25_fields() -> None:
+    message = reply_message(
+        _result(*[_claim() for _ in range(30)]), CARD, first_contact=False
+    )
+    assert len(message["embeds"][0]["fields"]) == 25
 
 
-def test_result_without_claims_still_links_the_card() -> None:
+def test_result_without_claims_still_has_the_card_button() -> None:
     empty = CheckResult(
         check_id="c1",
         status="out_of_scope",
         message="To nie jest twierdzenie o faktach.",
         corpus_version="test",
     )
-    texts = reply_messages(empty, CARD, first_contact=False)
-    summary = f"Wynik sprawdzenia: 0 twierdzeń. Pełna karta: {CARD}"
-    assert texts == [summary + "\nTo nie jest twierdzenie o faktach."]
+    message = reply_message(empty, CARD, first_contact=False)
+    (embed,) = message["embeds"]
+    assert embed["title"] == "Wynik sprawdzenia: 0 twierdzeń"
+    assert embed["description"] == "To nie jest twierdzenie o faktach."
+    assert embed["fields"] == []
+    assert message["components"][0]["components"][0]["url"] == CARD

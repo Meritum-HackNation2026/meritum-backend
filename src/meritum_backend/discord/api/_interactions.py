@@ -31,6 +31,7 @@ from meritum_backend.discord.constants import (
     EPHEMERAL,
     PING,
     PONG,
+    PUBLIC_OPTION,
     TEXT_OPTION,
 )
 from meritum_backend.discord.ports import InteractionReplies
@@ -92,6 +93,24 @@ def command_text(data: dict[str, Any]) -> str:
     return ""
 
 
+def command_public(data: dict[str, Any]) -> bool:
+    """Whether ``/sprawdz`` asked for the result to be shown to the channel.
+
+    Args:
+        data: the interaction's ``data`` object.
+
+    Returns:
+        True only for ``publiczne: True``; the default and message commands are False.
+
+    Features:
+        US-WTY-06
+    """
+    options = data.get("options") or []
+    return any(
+        o.get("name") == PUBLIC_OPTION and o.get("value") is True for o in options
+    )
+
+
 def get_replies(request: Request) -> InteractionReplies:
     """The Discord sender the app built at startup (overridden in tests).
 
@@ -151,7 +170,7 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
     """Answer a Discord interaction; a command starts the same check as the web form.
 
     The answer is deferred at once (Discord waits 3 s); the result follows as an
-    edit of that answer plus one message per claim.
+    edit of that answer: one embed with a card button.
 
     Args:
         request: the signed HTTP interaction.
@@ -167,7 +186,8 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
         background: runs the reply after the answer.
 
     Returns:
-        PONG for Discord's PING, a deferred answer for a started check, an
+        PONG for Discord's PING, a deferred answer for a started check (ephemeral
+        unless ``publiczne`` is set), an
         ephemeral delete confirmation, else an ephemeral refusal.
 
     Raises:
@@ -202,6 +222,7 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
     hashed = user_hash(settings, user_id)
     first = hashed is None or not await records.list_for(CHANNEL_USER, hashed)
     ports = Ports(jobs, gate, pii, readiness, cache, records, settings)
+    public = command_public(data)
     started = await start(ports, command_text(data), user_id)
     if not isinstance(started, str):
         return started
@@ -210,6 +231,8 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
         token=str(interaction.get("token", "")),
         card_url=card_url(settings, started),
         first_contact=first,
+        public=public,
     )
     background.add_task(reply_when_done, jobs, cache, replies, started, target)
-    return {"type": DEFERRED_CHANNEL_MESSAGE, "data": {"flags": EPHEMERAL}}
+    deferred = {} if public else {"flags": EPHEMERAL}
+    return {"type": DEFERRED_CHANNEL_MESSAGE, "data": deferred}

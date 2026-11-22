@@ -33,6 +33,7 @@ from meritum_backend.discord.constants import (
     SEEN_MESSAGES,
 )
 from meritum_backend.discord.errors import VoiceDownloadError, VoiceTooLargeError
+from meritum_backend.discord.messages import Message
 from meritum_backend.discord.ports import VoiceDownloader
 
 
@@ -44,7 +45,7 @@ class Incoming:
         message_id: Discord's id of the message (the dedup key).
         user_id: the author's Discord id; start hashes it.
         text: the message without the bot's mention.
-        reply: posts one message in the same conversation.
+        reply: posts one message (content, embeds, components) in the same conversation.
         voice_url: the signed URL of a voice message's OGG attachment, if any.
 
     Features:
@@ -54,7 +55,7 @@ class Incoming:
     message_id: str
     user_id: str
     text: str
-    reply: Callable[[str], Awaitable[None]]
+    reply: Callable[[Message], Awaitable[None]]
     voice_url: str | None = None
 
 
@@ -74,19 +75,21 @@ def strip_mention(content: str, bot_id: int) -> str:
     return re.sub(rf"<@!?{bot_id}>", "", content).strip()
 
 
+def _text(content: str) -> Message:
+    return {"content": content}
+
+
 class _Replies:
     """InteractionReplies of a message: every message goes to the same place."""
 
-    def __init__(self, reply: Callable[[str], Awaitable[None]]) -> None:
+    def __init__(self, reply: Callable[[Message], Awaitable[None]]) -> None:
         self._reply = reply
 
-    async def edit_original(self, application_id: str, token: str, text: str) -> None:
-        del application_id, token
-        await self._reply(text)
-
-    async def follow_up(self, application_id: str, token: str, text: str) -> None:
-        del application_id, token
-        await self._reply(text)
+    async def edit_original(
+        self, application_id: str, token: str, message: Message, *, public: bool
+    ) -> None:
+        del application_id, token, public  # a channel message is always visible
+        await self._reply(message)
 
 
 class GatewayHandler:
@@ -129,7 +132,7 @@ class GatewayHandler:
         """
         blobs = self.ports.blobs
         if self._voice is None or blobs is None or incoming.voice_url is None:
-            await incoming.reply(FAILURE_TEXT)
+            await incoming.reply(_text(FAILURE_TEXT))
             return None
         try:
             data = await self._voice.download(incoming.voice_url)
@@ -139,15 +142,14 @@ class GatewayHandler:
         except AudioRefusedError as refused:
             key = refused.key
         except VoiceDownloadError, AudioStoreError:
-            await incoming.reply(FAILURE_TEXT)
+            await incoming.reply(_text(FAILURE_TEXT))
             return None
-        await incoming.reply(
-            AUDIO_REFUSALS[key].format(
-                max_mb=AUDIO_MAX_MB,
-                max_minutes=AUDIO_MAX_MINUTES,
-                formats=", ".join(AUDIO_FORMATS),
-            )
+        refusal = AUDIO_REFUSALS[key].format(
+            max_mb=AUDIO_MAX_MB,
+            max_minutes=AUDIO_MAX_MINUTES,
+            formats=", ".join(AUDIO_FORMATS),
         )
+        await incoming.reply(_text(refusal))
         return None
 
     async def handle(self, incoming: Incoming) -> None:
@@ -170,13 +172,13 @@ class GatewayHandler:
             if audio_id is None:
                 return
         elif not incoming.text:
-            await incoming.reply(ERRORS["errors.empty"])
+            await incoming.reply(_text(ERRORS["errors.empty"]))
             return
         hashed = user_hash(ports.settings, incoming.user_id)
         first = hashed is None or not await ports.records.list_for(CHANNEL_USER, hashed)
         started = await start(ports, incoming.text, incoming.user_id, audio_id)
         if not isinstance(started, str):
-            await incoming.reply(started["data"]["content"])
+            await incoming.reply(_text(started["data"]["content"]))
             return
         target = Interaction(
             application_id="",

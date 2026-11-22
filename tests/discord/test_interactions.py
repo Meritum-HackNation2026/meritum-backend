@@ -16,7 +16,13 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 from tests.checks.cache_fakes import RESULT, FinishedWorker
 from tests.conftest import MakeProbe
-from tests.discord.fakes import FailedWorker, FakeReplies, make_client, repositories
+from tests.discord.fakes import (
+    FailedWorker,
+    FakeReplies,
+    flat,
+    make_client,
+    repositories,
+)
 
 from meritum_backend.channels import channel_user_hash
 from meritum_backend.discord.constants import (
@@ -108,13 +114,15 @@ def test_slash_command_defers_then_sends_the_result(
 ) -> None:
     data = signed(client, _slash("Ziemia jest płaska")).json()
     assert data == {"type": 5, "data": {"flags": 64}}
-    assert jobs.checks()
-    kinds = [kind for kind, _, _ in replies.sent]
-    assert kinds == ["edit"] + ["follow_up"] * len(RESULT.claims)
-    first = replies.sent[0][2]
-    assert first.startswith("Jestem botem Meritum, systemem AI.")
-    assert f"/sprawdzenie/{jobs.checks()[0]}" in first
-    assert {target for _, target, _ in replies.sent} == {"app1/tok1"}
+    ((target, message, public),) = replies.sent
+    assert (target, public) == ("app1/tok1", False)
+    assert message["content"].startswith("Jestem botem Meritum, systemem AI.")
+    (embed,) = message["embeds"]
+    assert len(embed["fields"]) == len(RESULT.claims)
+    button = message["components"][0]["components"][0]
+    assert button["url"].endswith(f"/sprawdzenie/{jobs.checks()[0]}")  # it ran
+    assert (button["style"], button["label"]) == (5, "Pełna karta")
+    assert "http" not in flat(message)  # no raw, cut-off URL in the text
 
 
 def test_check_carries_the_user_hash_not_the_id(
@@ -211,8 +219,8 @@ def test_failed_check_answers_at_once(
     started = time.monotonic()
     signed(client, _slash("Ziemia jest płaska"))
     assert time.monotonic() - started < POLL_SECONDS
-    assert [kind for kind, _, _ in replies.sent] == ["edit"]
-    assert FAILURE_TEXT in replies.sent[0][2]
+    assert len(replies.sent) == 1
+    assert FAILURE_TEXT in flat(replies.sent[0][1])
 
 
 def test_no_ai_notice_for_a_user_with_earlier_checks(
@@ -239,4 +247,4 @@ def test_no_ai_notice_for_a_user_with_earlier_checks(
     asyncio.run(records.save(earlier))
     client = make_client(PUBLIC_HEX, make_probe, FinishedWorker(), replies, records)
     signed(client, _slash("Ziemia jest płaska"))
-    assert "systemem AI" not in replies.sent[0][2]
+    assert "systemem AI" not in flat(replies.sent[0][1])
