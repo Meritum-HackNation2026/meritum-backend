@@ -61,6 +61,9 @@ class Settings(BaseSettings):
         email_worker_url: address of the Cloudflare e-mail Worker (infra/009); with
             its secret, moderators can be notified by e-mail.
         email_worker_signing_secret: the HMAC secret the Worker checks.
+        eval_corpus_version: the corpus snapshot evaluation runs pin.
+        eval_bundle_url: https link to a run's reproduction bundle (``{run_id}``
+            is replaced); the panel's evaluation page when unset.
         sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
             per SMS instead of 70).
 
@@ -88,6 +91,8 @@ class Settings(BaseSettings):
         frozenset()
     )
     files_dir: Path | None = None
+    eval_corpus_version: str = "current"
+    eval_bundle_url: str | None = None
     sms_gateway_username: str | None = None
     sms_gateway_password: SecretStr | None = None
     sms_gateway_webhook_signing_key: SecretStr | None = None

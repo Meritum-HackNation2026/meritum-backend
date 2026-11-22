@@ -16,7 +16,13 @@ from meritum_core.shared.database import DatabaseSettings
 from starlette.middleware.sessions import SessionMiddleware
 
 from meritum_backend.auth.api import router as auth_router
-from meritum_backend.auth.constants import SESSION_COOKIE, SESSION_MAX_AGE, TOKEN_BYTES
+from meritum_backend.auth.constants import (
+    LOCAL_URL,
+    PUBLIC_URLS,
+    SESSION_COOKIE,
+    SESSION_MAX_AGE,
+    TOKEN_BYTES,
+)
 from meritum_backend.auth.factory import build_login
 from meritum_backend.checks.api import audio_router
 from meritum_backend.checks.api import events_router as check_events_router
@@ -24,6 +30,9 @@ from meritum_backend.checks.api import router as checks_router
 from meritum_backend.checks.factory import build_blobs, build_result_cache
 from meritum_backend.discord.api import router as discord_router
 from meritum_backend.discord.factory import build_replies
+from meritum_backend.evaluation import MemoryEvalStore
+from meritum_backend.evaluation.api import router as eval_router
+from meritum_backend.evaluation.constants import PANEL_PATH
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
@@ -125,6 +134,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.announcer = build_announcer(
         settings, repositories, app.state.notifier_configs
     )
+    app.state.eval_store = MemoryEvalStore()
+    app.state.eval_corpus_version = settings.eval_corpus_version
+    base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
+    app.state.eval_bundle_url = settings.eval_bundle_url or f"{base}{PANEL_PATH}"
     secret = settings.session_secret
     key = secret.get_secret_value() if secret is not None else ""
     app.add_middleware(
@@ -153,4 +166,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(handoff_router)
     app.include_router(sms_router)
     app.include_router(notifications_router)
+    app.include_router(eval_router)
     return app
