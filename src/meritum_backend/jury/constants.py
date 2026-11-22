@@ -72,3 +72,26 @@ DEMO_PATH: Final = "/api/v1/auth/demo/"
 
 PEEK_JURY_LINK: Final = "SELECT expires_at FROM jury_links WHERE token_hash = %s"
 """Read a reusable link without locking or consuming it."""
+
+
+DEMO_ID_PATTERN: Final = r"^[0-9a-f]{64}$"
+"""Hex representation of the demo token digest."""
+
+INSERT_DEMO_METADATA: Final = """
+INSERT INTO demo_link_metadata (token_hash, account, issued_at) VALUES (%s, %s, %s)
+"""
+"""Record the metadata in the same transaction as the digest."""
+
+LIST_DEMO_LINKS: Final = """
+SELECT encode(l.token_hash, 'hex') AS id, d.account, d.issued_at, l.expires_at
+FROM demo_link_metadata d JOIN jury_links l USING (token_hash)
+WHERE l.expires_at > %s
+ORDER BY d.issued_at DESC, l.token_hash DESC
+"""
+"""List active demo metadata without including one-time jury links."""
+
+DELETE_DEMO_LINK: Final = """
+DELETE FROM jury_links l USING demo_link_metadata d
+WHERE l.token_hash = d.token_hash AND l.token_hash = %s
+"""
+"""Revoke by digest only if the row represents a demo link."""

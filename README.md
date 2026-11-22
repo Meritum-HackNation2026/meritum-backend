@@ -11,7 +11,7 @@ API Meritum w FastAPI. Zleca długie operacje workerom ([meritum-worker](https:/
 
 | Metoda i ścieżka | Opis |
 | --- | --- |
-| `GET /api/v1/health` | gotowość (patrz „Test gotowości”): 200, gdy niczego nie brakuje, inaczej 503 z nazwami brakujących zmiennych i niedostępnych dostawców (bez wartości) |
+| `GET /api/v1/health` | gotowość (patrz „Test gotowości”): `200 ok` albo `200 degraded` przy awarii tylko opcjonalnych dostawców. Brak wymaganej zależności daje `503 degraded`. Raport zawiera same nazwy zmiennych i dostawców |
 | `GET /api/v1/health/live` | żywotność procesu, bez bazy (healthcheck Dockera) |
 | `POST /api/v1/jobs/ping` | zleca workflow `ping` (test dymny po deployu), zwraca `workflow_id` |
 | `GET /api/v1/jobs/{workflow_id}` | stan zadania: `status`, `output`, `error` |
@@ -53,7 +53,7 @@ Plik ma `expires_at` 30 dni od wysłania. Bucket GCS usuwa go regułą cyklu ży
 - własny raport API: baza (`SELECT 1` rolą API), `MERITUM_CHANNEL_HASH_SALT`, magazyn plików (ta sama fabryka `build_blobs` co przy starcie: wolumen `MERITUM_FILES_DIR` albo `MERITUM_BLOB_PROVIDER` z `MERITUM_BLOB_DIRECTORY` lub `MERITUM_BLOB_BUCKET`) i `MERITUM_DISCORD_BOT_TOKEN`, gdy kanał Discord jest włączony (`MERITUM_DISCORD_PUBLIC_KEY`);
 - raport workera: przy pierwszym sprawdzeniu API zleca workflow `readiness` i czyta jego zdarzenie `readiness` (`ReadinessReport` z core: brakujące zmienne i niedostępni dostawcy workera). Dopóki worker go nie opublikuje, odpowiedź ma `"worker": "not_reported"` i kod 503.
 
-Ten sam raport trafia do logu startu (`not ready: ...` jako ostrzeżenie), gdy worker odpowie albo po 60 s. `POST /api/v1/checks` przy niegotowej usłudze odpowiada 503 ze stanem `technical_failure` i kodem `not_ready`, bez nazw kluczy; raport dla sprawdzeń jest odświeżany co 30 s. Sam brak (albo wygaśnięcie) raportu workera nie blokuje sprawdzeń: `/health` pokazuje `"worker": "not_reported"`, a API loguje ostrzeżenie. Przełącznik to stała `BLOCK_CHECKS_WITHOUT_WORKER_REPORT` w `src/meritum_backend/health/constants.py` (dziś `False`); po wejściu worker#28 ustaw ją na `True`, żeby sprawdzenia bez raportu workera dostawały `not_ready`. Deploy czeka na `/api/v1/health/live`, a niegotową usługę zgłasza ostrzeżeniem z treścią raportu, bez przerywania; przerywa go tylko niedostępna baza API. Raport workera starszy niż 60 s API odświeża nowym workflowem `readiness`, więc po restarcie workera z poprawionymi kluczami `/health` i sprawdzenia wracają bez restartu API. Jeśli worker nie odpowie na zlecony workflow przez 60 s, API zleca go ponownie, a ostatni raport przestaje się liczyć (`"worker": "not_reported"`); przy wyłączonym workerze i odpytywanym `/health` w kolejce przybywa więc jeden workflow `readiness` na minutę. Gdy start przerywa źle skonfigurowany magazyn plików, log przed wyjściem wymienia brakujące zmienne API (`not ready, cannot start: ...`). Klient DBOS w API nie ponawia połączeń (`retry_connection_errors=False`): przy chwilowej awarii bazy każde zlecenie (`check`, `ping`) od razu dostaje 503, zamiast czekać.
+Ten sam raport trafia do logu startu (`not ready: ...` jako ostrzeżenie), gdy worker odpowie albo po 60 s. `POST /api/v1/checks` przy niegotowej usłudze odpowiada 503 ze stanem `technical_failure` i kodem `not_ready`, bez nazw kluczy; raport dla sprawdzeń jest odświeżany co 30 s. Sam brak (albo wygaśnięcie) raportu workera nie blokuje sprawdzeń: `/health` pokazuje `"worker": "not_reported"`, a API loguje ostrzeżenie. Przełącznik to stała `BLOCK_CHECKS_WITHOUT_WORKER_REPORT` w `src/meritum_backend/health/constants.py` (dziś `False`); po wejściu worker#28 ustaw ją na `True`, żeby sprawdzenia bez raportu workera dostawały `not_ready`. Deploy czeka na `/api/v1/health/live`, potem sprawdza `/api/v1/health`. Przy `200 degraded` zapisuje ostrzeżenie i kontynuuje. Gdy sprawdzenie health nie powiedzie się mimo ponowień, przerywa wdrożenie. Raport workera starszy niż 60 s API odświeża nowym workflowem `readiness`, więc po restarcie workera z poprawionymi kluczami `/health` i sprawdzenia wracają bez restartu API. Jeśli worker nie odpowie na zlecony workflow przez 60 s, API zleca go ponownie, a ostatni raport przestaje się liczyć (`"worker": "not_reported"`); przy wyłączonym workerze i odpytywanym `/health` w kolejce przybywa więc jeden workflow `readiness` na minutę. Gdy start przerywa źle skonfigurowany magazyn plików, log przed wyjściem wymienia brakujące zmienne API (`not ready, cannot start: ...`). Klient DBOS w API nie ponawia połączeń (`retry_connection_errors=False`): przy chwilowej awarii bazy każde zlecenie (`check`, `ping`) od razu dostaje 503, zamiast czekać.
 
 ## Kanał Discord
 
@@ -127,8 +127,8 @@ Serwer MCP pozwala sprawdzić twierdzenie z aplikacji czatu (US-WDR-06, US-WTY-0
 | Adres | dev: `https://meritum-dev.gburek.app/mcp`, prd: `https://meritum.gburek.app/mcp` (bez ukośnika na końcu, bo aplikacje czatu nie podążają za przekierowaniami) |
 | Transport | Streamable HTTP |
 | Narzędzia | `check_claim` (jedno twierdzenie albo pytanie o fakt, do 4000 znaków; czeka do 90 s na wynik) i `search_sources` (krótkie fragmenty z katalogu źródeł: tytuł, wydawca, data, link, wersja korpusu; to nie jest werdykt) |
-| Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, albo token dostępu OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp"` |
-| Limity | `check_claim`: 30 na minutę na klienta (wszyscy użytkownicy jednego konektora dzielą ten limit) i wspólne limity z „Limity zapytań”; `search_sources`: 30 na minutę z jednego adresu; ponad limit narzędzie zwraca błąd z prośbą o ponowną próbę za minutę |
+| Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, token dostępu z wbudowanego serwera OAuth (niżej) albo token zewnętrznego serwera OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp", resource_metadata="<adres>/.well-known/oauth-protected-resource/mcp"` |
+| Limity | `check_claim` i `search_sources` mają wspólny limit 30 wywołań na minutę na klienta (według etykiety klucza API lub tożsamości OAuth). `check_claim` podlega też limitom z sekcji „Limity zapytań”, a `search_sources` ma dodatkowo limit 30 wyszukiwań na minutę z jednego adresu. Po przekroczeniu limitu narzędzie prosi o ponowną próbę za minutę. |
 | Retencja | jak w każdym kanale: zapis sprawdzenia 30 dni; „Usuń moje sprawdzenia” działa po skrócie identyfikatora klienta |
 | Identyfikator klienta | etykieta klucza (część przed `=`) albo `client_id`/`sub` tokenu OAuth; API zapisuje tylko skrót HMAC-SHA-256 z `<kanał>:<identyfikator>` i solą `MERITUM_CHANNEL_HASH_SALT`, surowy identyfikator nie trafia do kolejki, bazy ani logów |
 
@@ -154,17 +154,27 @@ claude mcp add --transport http meritum https://meritum-dev.gburek.app/mcp \
 npx @modelcontextprotocol/inspector   # Streamable HTTP, adres jak wyżej, nagłówek X-API-Key
 ```
 
-**claude.ai: klucz API w nagłówku (wg dokumentacji, jeszcze nie próbowane ręcznie).** Własne konektory są na planach Free (jeden), Pro, Max, Team i Enterprise. Uwierzytelnianie nie musi być OAuth: formularz ma sekcję „Request headers” ze stałymi poświadczeniami, które Claude wysyła z każdym żądaniem.
+**claude.ai: zalecane logowanie OAuth („Sign in now”).** Własne konektory są na planach Free (jeden), Pro, Max, Team i Enterprise. claude.ai dostaje z `/mcp` odpowiedź 401 ze wskazaniem metadanych OAuth, więc przy „No sign in” ostrzega: „This server offers OAuth sign-in: choose 'Sign in now' instead”. To ten sam serwer OAuth co dla ChatGPT (niżej). Każda osoba loguje się swoim kontem, limity liczą się na nią (`oauth:<user_id>`), a klucz API nie trafia do formularza.
 
 1. Pro i Max: Customize → Connectors → „+ Add” → „Add custom connector”. W Team i Enterprise konektor dodaje właściciel organizacji (Organization settings → Connectors), a członkowie klikają „Connect”.
-2. Nazwa `Meritum`, adres `https://meritum-dev.gburek.app/mcp`, „Continue”.
-3. Authentication: „No sign in”; w „Request headers” nagłówek `X-API-Key` z kluczem z `MERITUM_MCP_API_KEYS`.
-4. „Add”, w rozmowie „+” → „Connectors”, włącz Meritum.
-5. Napisz: „Sprawdź w Meritum: <twierdzenie>”. Odpowiedź ma mieć werdykt, cytaty z linkami, siłę podstawy i informację o AI.
+2. Nazwa `Meritum`, adres `https://meritum-dev.gburek.app/mcp` (bez ukośnika na końcu), „Continue”.
+3. Authentication: „Sign in now”. Pól OAuth Client ID i Client Secret nie wypełniaj: claude.ai rejestruje się sam przez `POST /api/v1/oauth/register` (klient publiczny, PKCE `S256`).
+4. Przeglądarka przechodzi na logowanie Meritum. Zaloguj się kontem Google (Microsoft tylko wtedy, gdy na serwerze nie ma Google; wybór dostawcy w #146). Kto jest już zalogowany w Meritum, wraca do claude.ai od razu, bo nie ma ekranu zgody.
+5. W rozmowie „+” → „Connectors”, włącz Meritum i napisz: „Sprawdź w Meritum: <twierdzenie>”. Odpowiedź ma mieć werdykt, cytaty z linkami, siłę podstawy i informację o AI.
+
+Token dostępu żyje godzinę, a claude.ai odnawia go tokenem odświeżania przez 7 dni. Po tym czasie albo po zmianie `MERITUM_SESSION_SECRET` trzeba kliknąć „Connect” przy konektorze i zalogować się jeszcze raz.
+
+**claude.ai: klucz API w nagłówku (zapasowo).** Działa na dev z nagłówkiem `X-API-Key`, mimo ostrzeżenia o OAuth. Wszyscy, którzy używają tego samego klucza, dzielą jego limit i identyfikator klienta, więc to droga dla zespołu i na wypadek awarii logowania, nie dla jury.
+
+1. Kroki 1 i 2 jak wyżej.
+2. Authentication: „No sign in”; w „Request headers” nagłówek `X-API-Key` z kluczem z `MERITUM_MCP_API_KEYS`. Ostrzeżenie o OAuth nie blokuje dodania.
+3. „Add”, w rozmowie „+” → „Connectors”, włącz Meritum.
+
+Etykiety przycisków są według formularza claude.ai z 22.11.2026; przy rozbieżności obowiązuje strona producenta.
 
 Serwer musi być osiągalny z internetu na porcie 443 (adresy Meritum to spełniają).
 
-**ChatGPT: OAuth.** ChatGPT nie wyśle klucza API, więc API ma własny, minimalny serwer OAuth 2.1 według specyfikacji autoryzacji MCP (#117). Logowanie to zwykłe logowanie Google albo Microsoft z sekcji „Logowanie (OIDC)”, bez nowych sekretów. Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
+**ChatGPT: OAuth.** ChatGPT nie wyśle klucza API, więc API ma własny, minimalny serwer OAuth 2.1 (ten sam obsługuje claude.ai) według specyfikacji autoryzacji MCP (#117). Logowanie to zwykłe logowanie Google albo Microsoft z sekcji „Logowanie (OIDC)”, bez nowych sekretów. Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
 
 1. <https://chatgpt.com/plugins> → „+” → „Add custom MCP server” (starsza ścieżka: Workspace settings → Apps → Create).
 2. Nazwa `Meritum`, w „Connection” adres `https://meritum-dev.gburek.app/mcp` (Streamable HTTP).
@@ -183,7 +193,7 @@ Jak to działa:
 
 Jedyny zakres to `mcp`, a tokeny mają odbiorcę `<adres>/mcp`. Klient MCP w limitach to `oauth:<user_id>`, więc limity liczą się na osobę.
 
-Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
+Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody (#146) ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
 
 Ścieżki `/.well-known/oauth-*` muszą trafiać do API: nginx aplikacji webowej przekazuje dziś do API tylko `/api/` i `/mcp`.
 
@@ -261,6 +271,8 @@ Rejestr podmiotów przetwarzających (ADR-14, design-system#9): Google LLC i Mic
 
 Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i eksport, `admin` zarządza kontami i listą tematów wysokiego ryzyka. Adresy z `MERITUM_ADMIN_EMAILS` są administratorami od startu; pozostałe role nadaje administrator. Każdy endpoint panelu sprawdza rolę zależnością `StaffGate` (`staff/api.py`), a zmiany stanu wymagają też `CsrfUser`.
 
+`GET /api/v1/export` zwraca sprawdzenia z ostatnich `days` dni we wszystkich kanałach, również bez sprawy moderatora. Gdy zapisów jest więcej niż 10 000, API zwraca 422. Zmniejsz `days`, aby pobrać krótszy okres.
+
 | Endpoint | Role |
 | --- | --- |
 | `GET /api/v1/staff/me` | każda rola; 403 znaczy „brak dostępu do panelu” |
@@ -337,11 +349,11 @@ meritum-core jest przypięty do commita (`rev` w `pyproject.toml`). PR-y z podbi
 `.github/workflows/ci.yml`, jedno uruchomienie na commit:
 
 - `lint` i `tests` idą równolegle na runnerach GCP (`self-hosted, meritum`).
-- `deploy` rusza tylko na `develop` (dev) i `main` (prd), po zielonym `lint` i `tests`, na runnerze `dellpromaxgb10`. `deploy/deploy.sh` buduje obraz na hoście (ARM64), podmienia kontener, czeka na `/api/v1/health/live`, zgłasza wynik `/api/v1/health` (ostrzeżenie przy 503) i, jeśli worker tego środowiska działa, puszcza `ping` przez kolejkę DBOS.
+- `deploy` rusza tylko na `develop` (dev) i `main` (prd), po zielonym `lint` i `tests`, na runnerze `dellpromaxgb10`. `deploy/deploy.sh` buduje obraz na hoście (ARM64), podmienia kontener, czeka na `/api/v1/health/live`, sprawdza `/api/v1/health` (ostrzeżenie przy `200 degraded`, przerwanie po wyczerpaniu ponowień) i, jeśli worker tego środowiska działa, puszcza `ping` przez kolejkę DBOS.
 
 ### Sekrety w kontenerze
 
-Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(secrets)`, `toJSON(vars)`). Jedyna lista tych, które trafiają do kontenera API, jest w `deploy/container_env.sh`: dla gałęzi `develop` skrypt bierze wariant `_DEV`, dla `main` wariant `_PRD`, i podaje go do `docker run` jako `-e NAZWA`, bez wartości w linii poleceń i bez zapisu na dysk. Brak sekretu nie zatrzymuje deployu; wykrywa go test gotowości (#19). Jeśli plik env środowiska ma `MERITUM_FILES_VOLUME` i `MERITUM_FILES_DIR` (wpisuje je platforma, ADR-31), `docker run` montuje ten wolumen plików pod tym katalogiem (`-v "$MERITUM_FILES_VOLUME:$MERITUM_FILES_DIR"`). Każdy wpis z `MERITUM_GCP_MOUNTS` (lista rozdzielona spacjami, wpisy `host:kontener:ro`, infra#28) trafia do `docker run` jako `-v "<wpis>"`, dzięki czemu `GOOGLE_APPLICATION_CREDENTIALS` wskazuje w kontenerze na istniejący plik poświadczeń Workload Identity Federation. Bez tej zmiennej deploy działa dalej i zgłasza ostrzeżenie.
+Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(secrets)`, `toJSON(vars)`). Jedyna lista tych, które trafiają do kontenera API, jest w `deploy/container_env.sh`: dla gałęzi `develop` skrypt bierze wariant `_DEV`, dla `main` wariant `_PRD`, i podaje go do `docker run` jako `-e NAZWA`, bez wartości w linii poleceń i bez zapisu na dysk. Brak wymaganego sekretu zatrzymuje deploy na kontroli gotowości (#19). Jeśli plik env środowiska ma `MERITUM_FILES_VOLUME` i `MERITUM_FILES_DIR` (wpisuje je platforma, ADR-31), `docker run` montuje ten wolumen plików pod tym katalogiem (`-v "$MERITUM_FILES_VOLUME:$MERITUM_FILES_DIR"`). Każdy wpis z `MERITUM_GCP_MOUNTS` (lista rozdzielona spacjami, wpisy `host:kontener:ro`, infra#28) trafia do `docker run` jako `-v "<wpis>"`, dzięki czemu `GOOGLE_APPLICATION_CREDENTIALS` wskazuje w kontenerze na istniejący plik poświadczeń Workload Identity Federation. Bez tej zmiennej deploy działa dalej i zgłasza ostrzeżenie.
 
 | Zmienna w kontenerze | Sekret lub zmienna repo | Zgłoszenie |
 |---|---|---|
@@ -367,6 +379,18 @@ Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli,
 Baza, rola, schemat i plik `~/meritum/envs/api-<env>.env` na hoście pochodzą z platformy w [meritum-infra](https://github.com/Meritum-HackNation2026/meritum-infra) (`onprem/dellpromaxgb10/platform/`). Dostęp do core daje klucz tylko do odczytu w sekrecie repozytorium `MERITUM_CORE_SSH_KEY`.
 
 Gałęzie: zmiany przez PR do `develop`, wydanie przez PR `develop` → `main`. Nie pushuj bezpośrednio do `develop` ani `main`. Na planie Free GitHub nie wymusza tego w repozytoriach prywatnych, więc to zasada zespołu. Gałąź funkcji usuń po merge'u (`gh pr merge --delete-branch` albo przycisk w PR). Automatyczne usuwanie jest wyłączone, bo bez ochrony gałęzi skasowałoby też `develop` po PR `develop` → `main`.
+
+## Lista linków demo (#126)
+
+Administrator zalogowany przez OIDC pobiera `GET /api/v1/staff/demo-links`
+na dev i lokalnie. Lista zawiera identyfikator, konto, datę wydania i termin
+ważności każdego aktywnego linku. Pełny adres jest dostępny w odpowiedzi na
+wydanie. `POST /api/v1/staff/demo-links/revoke` przyjmuje `{"id":"…"}`
+z nagłówkiem `X-CSRF-Token`.
+
+Metadane zapisuje tabela `demo_link_metadata` z migracji 0009 z meritum-core.
+Linki sprzed tej zmiany działają do swojego terminu ważności. Lista obejmuje
+linki wydane po wdrożeniu zapisu metadanych.
 
 ## Dane demo dla jury (dev)
 

@@ -18,7 +18,7 @@ from meritum_backend.notifications.adapters import (
 ALERT = CaseAlert(
     case_id="#S-12",
     reasons=["insufficient_evidence", "user_dispute"],
-    panel_url="https://meritum.example/moderator/cases/S-12",
+    panel_url="https://meritum.example/panel",
 )
 SHARED_KEY = "s3cret"
 
@@ -48,7 +48,7 @@ def test_webhook_posts_the_case_signed_with_the_secret() -> None:
         "event": "case_assigned",
         "case_id": "#S-12",
         "reasons": ["insufficient_evidence", "user_dispute"],
-        "panel_url": "https://meritum.example/moderator/cases/S-12",
+        "panel_url": "https://meritum.example/panel",
     }
 
 

@@ -89,7 +89,7 @@ def _(context: Context) -> None:
         "event": "case_assigned",
         "case_id": "#S-12",
         "reasons": ["insufficient_evidence", "user_dispute"],
-        "panel_url": "https://meritum.example/moderator/cases/S-12",
+        "panel_url": "https://meritum.example/panel",
     }
 
 
@@ -98,7 +98,7 @@ def _(context: Context) -> None:
     store = context.app.state.repositories.notifications
     [note] = asyncio.run(store.list_for("user_id", staff_inbox_id(STAFF_MODERATOR)))
     assert (note.kind, note.case_id) == ("case_assigned", "#S-12")
-    assert note.link == "/moderator/cases/S-12"
+    assert note.link == "/panel"
 
 
 @then('sprawa i Notification "case_assigned" istnieją mimo awarii')

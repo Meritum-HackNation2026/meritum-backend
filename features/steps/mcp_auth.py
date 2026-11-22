@@ -88,6 +88,7 @@ def client_limit(context: Context, limit: int) -> None:
         LimitSettings(checks_per_client_per_minute=limit),
     )
     context.app.dependency_overrides[get_check_gate] = lambda: gate
+    context.mcp_check_gate = gate
 
 
 def _factory(app: FastAPI) -> Callable[..., AsyncClient]:
@@ -119,6 +120,23 @@ def twice(context: Context) -> None:
     Features:
         US-BEZ-02, F-37
     """
+    _call_after_check(context, "check_claim", {"text": _TEXT})
+
+
+@when("klient MCP sprawdza twierdzenie, a potem szuka źródeł")
+def check_then_search(context: Context) -> None:
+    """Spend the client quota on a check and use the same client for a search.
+
+    Args:
+        context: the behave context.
+
+    Features:
+        US-BEZ-02, F-37
+    """
+    _call_after_check(context, "search_sources", {"query": "ostrzeżenia IMGW"})
+
+
+def _call_after_check(context: Context, tool: str, arguments: dict[str, str]) -> None:
     transport = StreamableHttpTransport(
         "http://testserver/mcp",
         headers={"Authorization": "Bearer behave-key"},
@@ -127,9 +145,10 @@ def twice(context: Context) -> None:
 
     async def run() -> str:
         async with run_asgi_lifespan(context.app), Client(transport) as client:
+            context.app.state.check_gate = context.mcp_check_gate
             await client.call_tool("check_claim", {"text": _TEXT})
             try:
-                await client.call_tool("check_claim", {"text": _TEXT})
+                await client.call_tool(tool, arguments)
             except ToolError as exc:
                 return str(exc)
         return ""
@@ -148,3 +167,16 @@ def limit_error(context: Context) -> None:
         US-BEZ-02, F-37
     """
     assert "Za dużo sprawdzeń" in context.tool_error
+
+
+@then("wyszukiwanie kończy się błędem narzędzia o limicie")
+def search_limit_error(context: Context) -> None:
+    """The search tool reports the rate limit.
+
+    Args:
+        context: the behave context.
+
+    Features:
+        US-BEZ-02, F-37
+    """
+    assert "Za dużo wyszukiwań" in context.tool_error

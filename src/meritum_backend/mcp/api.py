@@ -10,7 +10,7 @@ Features:
 
 import asyncio
 import time
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import FastAPI
 from fastmcp import FastMCP
@@ -22,6 +22,7 @@ from meritum_core.checks import AnalysisStatus, CheckResult
 from pydantic import Field
 from starlette.routing import Route
 
+from meritum_backend.channels import ChannelHashSalt, channel_user_hash
 from meritum_backend.limits import REGION_HEADER, origin_of
 from meritum_backend.mcp._search import SourceSearch, search_sources
 from meritum_backend.mcp.adapters import McpAuthMiddleware
@@ -44,6 +45,7 @@ from meritum_backend.mcp.constants import (
     TOOL_NAME,
     WAIT_SECONDS,
 )
+from meritum_backend.mcp.ports import McpClient
 
 
 def _http_client(app: FastAPI) -> AsyncClient:
@@ -74,11 +76,12 @@ async def _result_of(http: AsyncClient, check_id: str) -> CheckResult:
     raise ToolError(msg)
 
 
-def build_mcp(app: FastAPI) -> StarletteWithLifespan:
+def build_mcp(app: FastAPI, salt: ChannelHashSalt = None) -> StarletteWithLifespan:
     """Build the MCP ASGI app that serves the check tool at ``/mcp``.
 
     Args:
         app: the FastAPI app whose checks API the tool calls.
+        salt: the salt the checks API uses to hash MCP client ids.
 
     Returns:
         The Streamable HTTP app; the caller adds its routes and runs its lifespan.
@@ -112,9 +115,19 @@ def build_mcp(app: FastAPI) -> StarletteWithLifespan:
         query: Annotated[str, Field(description=QUERY_DESCRIPTION)],
     ) -> SourceSearch:
         state = app.state
+        request = get_http_request()
+        identity = cast(
+            "McpClient", request.state.mcp_client
+        )  # set by MCP auth middleware
+        client = (
+            channel_user_hash(CHANNEL, identity.client_id, salt)
+            if salt is not None
+            else identity.client_id
+        )
         return await search_sources(
             query,
-            origin=origin_of(get_http_request()),
+            origin=origin_of(request),
+            client=client,
             gate=state.check_gate,
             pii=state.pii_gate,
             corpus=state.corpus_search,

@@ -15,6 +15,7 @@ from meritum_backend.auth.constants import (
     TOKEN_BYTES,
 )
 from meritum_backend.jury.api._demo import router as demo_router
+from meritum_backend.jury.api._demo_admin import router as demo_admin_router
 from meritum_backend.jury.api._redemption import Store
 from meritum_backend.jury.api._redemption import router as redemption_router
 from meritum_backend.jury.constants import (
@@ -30,6 +31,7 @@ from meritum_backend.staff.api import RealAdmin
 router = APIRouter(prefix="/api/v1", tags=["jury"])
 router.include_router(redemption_router)
 router.include_router(demo_router)
+router.include_router(demo_admin_router)
 
 
 class IssuedJuryLink(BaseModel):

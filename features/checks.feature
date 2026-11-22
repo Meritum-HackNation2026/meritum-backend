@@ -78,3 +78,9 @@ Feature: Kontrole działającego API
     Given zalogowany obywatel z 2 sprawdzeniami
     When wybiera „Usuń konto”
     Then konto, historia sprawdzeń i powiadomienia konta są usunięte
+
+  Scenario: „Usuń moją historię” zostawia powiadomienia o sprawach i systemowe
+    Given zalogowany użytkownik ma sprawdzenie z powiadomieniem check_done, powiadomienie case_assigned o sprawie #S-1 i powiadomienie system
+    When wysyła DELETE /api/v1/me/checks
+    Then GET /api/v1/notifications zwraca tylko powiadomienia case_assigned i system
+    And GET /api/v1/me/checks zwraca pustą listę

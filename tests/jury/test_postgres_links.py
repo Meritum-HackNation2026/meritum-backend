@@ -12,6 +12,7 @@ from hashlib import sha256
 import pytest
 
 from meritum_backend.jury.adapters import PostgresJuryLinks
+from meritum_backend.jury.ports import DemoLink
 
 
 def _digest() -> bytes:
@@ -55,3 +56,24 @@ def test_issuing_a_link_drops_expired_ones(api_url: str) -> None:
         return await links.consume(old, now)
 
     assert asyncio.run(run()) is None
+
+
+@pytest.mark.integration
+def test_demo_metadata_is_shared_and_can_revoke_only_demo_links(api_url: str) -> None:
+    digest, jury, now = _digest(), _digest(), datetime.now(UTC)
+    expires = now + timedelta(hours=1)
+    demo = DemoLink(digest.hex(), "admin", now, expires)
+    writer, reader = PostgresJuryLinks(api_url), PostgresJuryLinks(api_url)
+
+    async def run() -> None:
+        await writer.save(jury, expires)
+        await writer.save(digest, expires, demo=demo)
+        assert await reader.active_demo(now) == [demo]
+        assert await reader.active_demo(expires) == []
+        assert not await reader.remove(jury, demo_only=True)
+        assert await reader.remove(digest, demo_only=True)
+        assert await writer.peek(digest, now) is None
+        assert await writer.active_demo(now) == []
+        assert await writer.consume(jury, now) == expires
+
+    asyncio.run(run())

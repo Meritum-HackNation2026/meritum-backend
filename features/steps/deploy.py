@@ -225,3 +225,12 @@ def worker_not_reported(context: Context) -> None:
     """
     assert context.response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert context.response.json()["worker"] == "not_reported"
+
+
+@then('odpowiedź ma kod 200 i stan "{state}" oraz wymienia dostawcę "{provider}"')
+def degraded_health(context: Context, state: str, provider: str) -> None:
+    """The health response reports the optional outage without an HTTP error."""
+    assert context.response.status_code == HTTPStatus.OK
+    body = context.response.json()
+    assert body["status"] == state
+    assert provider in body["unavailable_providers"]

@@ -73,3 +73,10 @@ def test_ping_is_rate_limited_per_client(client: TestClient) -> None:
     assert "Spróbuj ponownie" in response.json()["detail"]
     assert response.json()["message_key"] == "errors.rate_limited"
     assert client.get("/api/v1/jobs/wf-1").status_code == 200  # reads are not limited
+
+
+def test_moderation_reads_the_shared_case_and_topic_store() -> None:
+    # the worker writes cases to the app repositories; the panel must read the same
+    state = create_app().state
+    assert state.cases is state.repositories.cases
+    assert state.topics is state.repositories.topics

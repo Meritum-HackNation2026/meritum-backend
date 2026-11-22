@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from meritum_core.checks.contracts import CaseClaim, CheckRecord, ModeratorCase
 from tests.staff.test_staff_api import ADMIN, member
 
+from meritum_backend.export import api as export_api
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
 
@@ -60,7 +61,7 @@ def app() -> FastAPI:
     asyncio.run(records.save(_record(99, NOW - timedelta(days=30))))
     claims = [
         CaseClaim(claim="Paszport zdrożeje.", check_ids=[f"c{i}", "c99"])
-        for i in range(10)
+        for i in range(9)  # c9 has no moderator case.
     ]
     case = ModeratorCase(
         id="#S-1",
@@ -128,12 +129,15 @@ def test_json_and_csv_are_masked(app: FastAPI) -> None:
     analyst = member(app, "analyst")
     body = analyst.get(URL, params={"format": "json"}).json()
     assert len(body["checks"]) == 10
+    uncased = next(row for row in body["checks"] if row["check_id"] == "c9")
+    assert uncased["case_ids"] == []
     assert body["cases"][0]["id"] == "#S-1"
     text = analyst.get(URL, params={"format": "csv"})
     assert text.headers["content-type"].startswith("text/csv")
     rows = list(csv.DictReader(io.StringIO(text.text)))
     assert len(rows) == 10
     assert rows[0]["case_ids"] == "#S-1"
+    assert not next(row for row in rows if row["check_id"] == "c9")["case_ids"]
     assert all(not r["question_masked"].startswith("=") for r in rows)
     for forbidden in (HASH, "channel_user_hash", "session_id"):
         assert forbidden not in text.text
@@ -153,3 +157,14 @@ def test_other_roles_and_anonymous_are_refused(app: FastAPI) -> None:
 
 def test_unknown_format_is_a_validation_error(app: FastAPI) -> None:
     assert member(app, "analyst").get(URL, params={"format": "xml"}).status_code == 422
+
+
+def test_export_requires_a_shorter_window_above_the_record_limit(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(export_api, "MAX_EXPORT_CHECKS", 9)
+
+    response = member(app, "analyst").get(URL)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "too many checks to export; reduce days"

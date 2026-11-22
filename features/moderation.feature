@@ -123,3 +123,25 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given moderator wkleja fragment, którego nie ma w tekście źródła
     When wysyła odpowiedź
     Then API odrzuca ją z informacją, który cytat nie przeszedł
+
+  Scenario: moderator zamyka sprawę bez odpowiedzi
+    Given otwarta sprawa "#S-12" z dwoma pytającymi
+    When moderator zamyka sprawę z powodem "sprawa testowa"
+    Then sprawa ma stan "closed"
+    And żaden pytający nie dostaje powiadomienia
+    And zamknięcie zapisuje adres moderatora i powód "sprawa testowa"
+
+  Scenario: zamknięcie sprawy, która nie jest otwarta
+    Given sprawa "#S-12" ma stan "answered"
+    When moderator zamyka sprawę z powodem "sprawa testowa"
+    Then API odpowiada 409 i sprawa ma stan "answered"
+
+  Scenario: zamknąć sprawę może tylko moderator
+    Given otwarta sprawa "#S-12" z dwoma pytającymi
+    When analityk zamyka sprawę z powodem "sprawa testowa"
+    Then API odpowiada 403 i sprawa ma stan "open"
+
+  Scenario: Administrator widzi aktywne linki demo bez tokenów
+    Given administrator utworzył link demo dla konta technicznego "obywatel"
+    When administrator pobiera listę linków demo
+    Then lista zawiera metadane wydanego linku bez tokenu
