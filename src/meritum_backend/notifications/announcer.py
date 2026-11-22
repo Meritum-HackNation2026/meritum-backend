@@ -111,16 +111,15 @@ class CaseAnnouncer:
 
     async def _announce(self, case_id: str) -> None:
         case = await self._cases.get(case_id)
-        path = CASE_PANEL_PATH.format(case=case_id.removeprefix("#"))
         alert = CaseAlert(
             case_id=case_id,
             reasons=[] if case is None else list(case.reasons),
-            panel_url=self._base + path,
+            panel_url=self._base + CASE_PANEL_PATH,
         )
         emails = await self._moderators()
         now = datetime.now(UTC)
         for email in emails:
-            await self._inbox.save(self._note(email, case_id, path, now))
+            await self._inbox.save(self._note(email, case_id, CASE_PANEL_PATH, now))
         config = await self._configs.get()
         notifier = None if config is None else self._make(config, emails)
         if notifier is not None:
