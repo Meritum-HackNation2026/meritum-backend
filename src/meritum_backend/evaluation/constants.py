@@ -4,6 +4,7 @@ Features:
     US-OBS-06, US-OBS-05, F-28
 """
 
+from datetime import timedelta
 from typing import Final
 
 from meritum_core.checks.contracts import StaffRole
@@ -51,3 +52,34 @@ RUN_FAILED_STATES: Final = frozenset(
 
 RUN_RUNNING_STATES: Final = frozenset({"PENDING"})
 """Workflow statuses of a run the worker is executing."""
+
+CONNECT_TIMEOUT: Final = 3
+"""Maximum seconds spent establishing a database connection."""
+
+INSERT_EVAL_RUN: Final = (
+    "INSERT INTO eval_runs (id, user_id, started_at, run) VALUES (%s, %s, %s, %s)"
+)
+"""SQL: store a run."""
+LIST_EVAL_RUNS: Final = (
+    "SELECT id, user_id, started_at, run FROM eval_runs ORDER BY started_at DESC"
+)
+"""SQL: runs, newest first."""
+GET_EVAL_RUN: Final = "SELECT id, user_id, started_at, run FROM eval_runs WHERE id = %s"
+"""SQL: one run by id."""
+
+INSERT_EVAL_DATASET: Final = (
+    "INSERT INTO eval_datasets (id, name, blob_id, cases) VALUES (%s, %s, %s, %s)"
+)
+"""SQL: store a dataset."""
+GET_EVAL_DATASET: Final = (
+    "SELECT id, name, blob_id, cases FROM eval_datasets WHERE id = %s"
+)
+"""SQL: one dataset by id."""
+
+DATASET_CSV_TYPE: Final = "text/csv; charset=utf-8"
+"""Content type stored for an uploaded CSV case file."""
+DATASET_JSON_TYPE: Final = "application/json; charset=utf-8"
+"""Content type stored for an uploaded JSON case file."""
+
+DATASET_RETENTION: Final = timedelta(days=365)
+"""How long an uploaded case file stays in the blob store."""

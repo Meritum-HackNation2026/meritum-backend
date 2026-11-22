@@ -34,7 +34,8 @@ class Dataset(BaseModel):
     Attributes:
         id: the id a run names as its ``dataset``.
         name: the uploaded file's name.
-        cases: the validated cases.
+        cases: the validated cases (empty when read back from PostgreSQL).
+        blob_id: the blob store id of the raw file; set on upload.
 
     Features:
         US-OBS-05, F-26
@@ -44,7 +45,8 @@ class Dataset(BaseModel):
 
     id: str
     name: Annotated[str, Field(min_length=1, max_length=200)]
-    cases: tuple[EvalCaseInput, ...]
+    cases: tuple[EvalCaseInput, ...] = ()
+    blob_id: str | None = None
 
 
 class RunRef(BaseModel):

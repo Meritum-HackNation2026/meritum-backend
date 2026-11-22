@@ -1,7 +1,7 @@
-"""In-memory ``EvalStore``.
+"""In-memory ``EvalStore`` for local development and tests.
 
 shortcut: runs and case files are lost on a restart and not shared between API
-replicas; a table needs a core migration (the API role has no DDL, backend#85).
+replicas; deployed environments use PostgreSQL (core migration 0005).
 """
 
 from meritum_backend.evaluation.models import Dataset, RunRef

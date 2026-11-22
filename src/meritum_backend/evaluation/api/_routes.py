@@ -4,14 +4,10 @@ For analysts and administrators; the latest golden-set summary is public (US-ZRD
 The worker scores a run; the API enqueues it and reads the result from the queue.
 """
 
-import uuid
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, HTTPException, Request, status
 from meritum_core.checks.contracts import EvalRun
 
 from meritum_backend.auth.api import CsrfUser
-from meritum_backend.evaluation._datasets import parse_cases
 from meritum_backend.evaluation._runs import (
     case_verdicts,
     compare,
@@ -24,50 +20,27 @@ from meritum_backend.evaluation._start import (
     UnknownDatasetError,
     enqueue_run,
 )
+from meritum_backend.evaluation.api._deps import Analyst, Starter, Store
+from meritum_backend.evaluation.api._upload import router as upload_router
 from meritum_backend.evaluation.constants import (
-    MAX_UPLOAD_BYTES,
     NO_DATASET_DETAIL,
     NO_FINISHED_RUN_DETAIL,
     NO_RUN_DETAIL,
     QUEUE_DOWN_DETAIL,
     RUN_LIST_LIMIT,
-    RUN_ROLES,
 )
 from meritum_backend.evaluation.models import (
     CaseVerdict,
     Comparison,
-    Dataset,
-    DatasetSaved,
     RunSummary,
     Started,
     StartRun,
 )
 from meritum_backend.evaluation.ports import EvalStore
 from meritum_backend.jobs.api import Jobs
-from meritum_backend.staff import StaffMember
-from meritum_backend.staff.api import StaffGate
 
 router = APIRouter(prefix="/api/v1/eval", tags=["evaluation"])
-
-
-def get_eval_store(request: Request) -> EvalStore:
-    """The run index the app built (overridden in tests).
-
-    Args:
-        request: the current request (holds the app state).
-
-    Returns:
-        The app's evaluation store.
-
-    Features:
-        US-OBS-06, F-28
-    """
-    return request.app.state.eval_store
-
-
-Store = Annotated[EvalStore, Depends(get_eval_store)]
-Analyst = Annotated[StaffMember, Depends(StaffGate(RUN_ROLES, allow_jury=True))]
-Starter = Annotated[StaffMember, Depends(StaffGate(RUN_ROLES))]
+router.include_router(upload_router)
 
 
 async def _run_or_404(store: EvalStore, jobs: Jobs, run_id: str) -> EvalRun:
@@ -210,37 +183,3 @@ async def run_cases(
         US-OBS-06, F-28
     """
     return case_verdicts(await _run_or_404(store, jobs, run_id))
-
-
-@router.post("/datasets", status_code=status.HTTP_201_CREATED)
-async def upload_dataset(
-    file: UploadFile, _member: Starter, _csrf: CsrfUser, store: Store
-) -> DatasetSaved:
-    """Store a case file (CSV or JSON, at least 30 cases) to run on later.
-
-    Args:
-        file: the uploaded file.
-        _member: the analyst or administrator.
-        _csrf: the account, CSRF checked (rejects a read-only session).
-        store: the run index.
-
-    Returns:
-        The dataset id and its case count.
-
-    Raises:
-        HTTPException: 413 above the size limit, 422 for an invalid file.
-
-    Features:
-        US-OBS-05, F-26
-    """
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "case file too large")
-    name = file.filename or "cases.csv"
-    try:
-        cases = parse_cases(name, data)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
-    dataset = Dataset(id=uuid.uuid4().hex, name=name[:200], cases=tuple(cases))
-    await store.add_dataset(dataset)
-    return DatasetSaved(id=dataset.id, cases=len(cases))

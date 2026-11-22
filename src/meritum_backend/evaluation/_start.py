@@ -75,6 +75,7 @@ async def enqueue_run(
         run_id=ref.run_id,
         case_set=ref.case_set,
         case_file=ref.case_file,
+        dataset_blob_id=None if dataset is None else dataset.blob_id,
         corpus_version=ref.corpus_version,
         user_id=ref.user_id,
     )

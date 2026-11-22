@@ -12,7 +12,9 @@ from meritum_core.checks.contracts import EvalCaseResult, EvalMetrics, EvalRun
 from meritum_core.jobs.contracts import EVAL_RUN, EvalRunOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
+from meritum_core.shared.blobs.adapters import MemoryBlobStore
 
+from meritum_backend.evaluation.api import get_blobs
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.main import create_app
 from meritum_backend.settings import Settings
@@ -90,6 +92,8 @@ def analyst(context: Context) -> None:
     app = create_app(Settings(admin_emails=STAFF_ADMIN))
     context.worker = FinishedWorker()
     app.dependency_overrides[get_jobs] = lambda: context.worker
+    blobs = MemoryBlobStore()
+    app.dependency_overrides[get_blobs] = lambda: blobs
     admin = signed_in(app, STAFF_ADMIN)
     body = {"email": "analyst@example.com", "role": "analyst"}
     admin.post("/api/v1/staff", json=body, headers=csrf(admin))
