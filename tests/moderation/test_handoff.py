@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import override
 
@@ -15,6 +16,9 @@ from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 from pydantic import JsonValue
 
+from meritum_backend.checks.adapters import MemoryResultCache
+from meritum_backend.checks.api import get_result_cache
+from meritum_backend.checks.cache import cache_entry
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import limiter
 from meritum_backend.main import create_app
@@ -221,3 +225,25 @@ def test_a_case_that_was_not_saved_is_not_announced() -> None:
     client.post(f"{CLAIMS}/0/escalate")
 
     assert announcer.cases == []
+
+
+@pytest.mark.parametrize("route", ["escalate", "dispute"])
+def test_a_result_served_from_the_cache_can_be_handed_off(route: str) -> None:
+    cache = MemoryResultCache()
+    entry = cache_entry(RESULT, datetime.now(UTC))
+    assert entry is not None
+    asyncio.run(
+        cache.link("hit-1", "key", entry)
+    )  # a hit has no workflow, only an entry
+    worker = _saved()
+    client = _client(worker)
+    client.app.dependency_overrides[get_result_cache] = lambda: cache  # ty: ignore[missing-attribute]
+    response = client.post(f"/api/v1/checks/hit-1/claims/0/{route}")
+    assert response.status_code == 200
+    assert [j.payload.model_dump()["check_id"] for j in worker.enqueued] == ["hit-1"]
+    assert (
+        client.post(
+            f"/api/v1/checks/hit-1/claims/{len(entry.claims)}/{route}"
+        ).status_code
+        == 404
+    )
