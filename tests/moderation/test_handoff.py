@@ -130,7 +130,7 @@ def test_a_case_not_saved_in_time_gives_no_number(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "meritum_backend.moderation.api._handoff.ESCALATION_WAIT_SECONDS", 0.05
+        "meritum_backend.moderation.api._workflow.ESCALATION_WAIT_SECONDS", 0.05
     )
     response = _client(Worker("PENDING", None)).post(f"{CLAIMS}/0/escalate")
     assert response.status_code == 503
@@ -194,3 +194,30 @@ def test_a_reason_over_4000_characters_is_too_long() -> None:
     assert response.status_code == 422
     assert response.json() == {"message_key": "errors.too_long"}
     assert len(worker.enqueued) == 1
+
+
+class _Announcer:
+    def __init__(self) -> None:
+        self.cases: list[str] = []
+
+    async def announce(self, case_id: str) -> None:
+        self.cases.append(case_id)
+
+
+@pytest.mark.parametrize("route", ["escalate", "dispute"])
+def test_a_saved_case_is_announced_to_the_moderators(route: str) -> None:
+    client = _client(_saved())
+    client.app.state.announcer = announcer = _Announcer()  # ty: ignore[missing-attribute]
+
+    client.post(f"{CLAIMS}/0/{route}")
+
+    assert announcer.cases == ["#S-12"]
+
+
+def test_a_case_that_was_not_saved_is_not_announced() -> None:
+    client = _client(Worker("ERROR", None))
+    client.app.state.announcer = announcer = _Announcer()  # ty: ignore[missing-attribute]
+
+    client.post(f"{CLAIMS}/0/escalate")
+
+    assert announcer.cases == []

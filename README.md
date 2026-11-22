@@ -190,9 +190,12 @@ Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i ekspor
 | --- | --- |
 | `GET /api/v1/staff/me` | każda rola; 403 znaczy „brak dostępu do panelu” |
 | `GET`, `POST /api/v1/staff`, `DELETE /api/v1/staff/{email}` | `admin` |
+| `GET`, `PUT`, `DELETE /api/v1/staff/notifications` | `admin`: cel powiadomień moderatorów |
 | `GET /api/v1/moderation/cases` | `moderator`, `admin` |
 | `GET /api/v1/moderation/topics` | każda rola (lista jest jawna dla personelu) |
 | `POST /api/v1/moderation/topics`, `DELETE /api/v1/moderation/topics/{name}` | `admin` |
+
+Powiadomienia o nowej lub zaktualizowanej sprawie (`notifications/`): po zapisaniu sprawy przez „Przekaż moderatorom” albo „Zgłoś błąd” moderatorzy i administratorzy dostają w skrzynce `case_assigned` (adres skrzynki to `staff:` i skrót adresu e-mail, czytany po zalogowaniu zweryfikowanym adresem), a administrator wybiera dodatkowo jeden cel: `webhook` (JSON `{event, case_id, reasons, panel_url}` podpisany HMAC-SHA256 sekretem z konfiguracji, nagłówki `X-Meritum-Timestamp` i `X-Meritum-Signature: sha256=<hex z "<timestamp>.<body>">`), `google_chat` (adres przestrzeni) albo `email` (Worker Cloudflare z infra/009 pod `MERITUM_EMAIL_WORKER_URL`, na adresy moderatorów). Wysyłka idzie po odpowiedzi, ma 4 próby (1 s, 2 s, 4 s przerwy) i po ostatniej tylko zapisuje błąd w logu; nie blokuje sprawy. Treść nie ma danych osobowych ani identyfikatorów kanałów. Konfiguracja leży w tabeli `notifier_config` (poza lokalnym środowiskiem, gdzie jest w pamięci); sekret nigdy nie wraca w API. Sprawy, które powstają poza tą ścieżką (np. samoczynnie w workerze), backend nie ogłasza.
 
 Konta personelu zapisuje repozytorium z core. Przy `MERITUM_DATABASE_PROVIDER=postgres` nadane role zostają po restarcie API. Schemat aplikacji musi mieć migrację `0003_staff_accounts.sql`, którą wykonuje deploy workera z odpowiednią wersją core. Lokalnie i w CI domyślny provider `memory` używa repozytorium w pamięci z core. Sprawy i tematy panelu są na razie w pamięci procesu.
 
@@ -280,6 +283,8 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 | `MERITUM_SMS_GATEWAY_PASSWORD` | `SMS_GATEWAY_PASSWORD_{DEV,PRD}` (sekret) | #29 |
 | `MERITUM_SMS_GATEWAY_WEBHOOK_SIGNING_KEY` | `SMS_GATEWAY_WEBHOOK_SIGNING_KEY_{DEV,PRD}` (sekret) | #29 |
 | `MERITUM_SMS_GATEWAY_NUMBER` | `SMS_GATEWAY_NUMBER_{DEV,PRD}` (sekret) | #29 |
+| `MERITUM_EMAIL_WORKER_URL` | `EMAIL_WORKER_URL_{DEV,PRD}` (zmienna) | #34 |
+| `MERITUM_EMAIL_WORKER_SIGNING_SECRET` | `MERITUM_EMAIL_WORKER_SIGNING_SECRET_{DEV,PRD}` (sekret) | #34 |
 
 Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli, potem dodaj sekret w ustawieniach repozytorium.
 

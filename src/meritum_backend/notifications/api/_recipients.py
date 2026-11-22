@@ -12,6 +12,7 @@ from meritum_core.notifications import RecipientKind
 from meritum_backend.auth import Account
 from meritum_backend.auth.api import current_user
 from meritum_backend.checks import SESSION_HEADER
+from meritum_backend.notifications.announcer import staff_inbox_id
 from meritum_backend.notifications.constants import (
     NO_RECIPIENT_DETAIL,
     SESSION_ID_MAX,
@@ -81,6 +82,8 @@ def recipients(
         found.append(("session_id", session))
     if account is not None:
         found.append(("user_id", f"{account.provider}:{account.subject}"))
+        if account.email is not None and account.email_verified:
+            found.append(("user_id", staff_inbox_id(account.email)))
     if not found:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, NO_RECIPIENT_DETAIL)
     return found

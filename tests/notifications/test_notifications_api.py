@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from fastapi import FastAPI
@@ -13,7 +14,10 @@ from tests.notifications.conftest import (
     sign_in,
 )
 
+from meritum_backend.auth import Account
 from meritum_backend.checks import SESSION_HEADER
+from meritum_backend.notifications import staff_inbox_id
+from meritum_backend.notifications.api import signed_in_account
 
 URL = "/api/v1/notifications"
 MINE = {SESSION_HEADER: SESSION}
@@ -102,3 +106,18 @@ def test_clear_deletes_only_own_notifications(client: TestClient, save: Save) ->
 
 def test_inbox_without_a_session_or_account_is_400(client: TestClient) -> None:
     assert client.get(URL).status_code == 400
+
+
+def test_a_verified_staff_address_reads_its_staff_inbox(app: FastAPI) -> None:
+    address = "mod@example.com"
+    app.dependency_overrides[signed_in_account] = lambda: Account(
+        provider="google", subject="42", email=address, email_verified=True
+    )
+    store = app.state.repositories.notifications
+    asyncio.run(
+        store.save(note("n1", session_id=None, user_id=staff_inbox_id(address)))
+    )
+
+    listed = TestClient(app).get("/api/v1/notifications").json()
+
+    assert [n["id"] for n in listed] == ["n1"]

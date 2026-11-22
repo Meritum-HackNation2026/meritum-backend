@@ -21,6 +21,8 @@ container_vars=(
   "MERITUM_SMS_GATEWAY_PASSWORD     SMS_GATEWAY_PASSWORD"             # #29 sms-gate.app Basic Auth
   "MERITUM_SMS_GATEWAY_WEBHOOK_SIGNING_KEY  SMS_GATEWAY_WEBHOOK_SIGNING_KEY" # #29 webhook HMAC key
   "MERITUM_SMS_GATEWAY_NUMBER       SMS_GATEWAY_NUMBER"               # #29 the gateway's own number
+  "MERITUM_EMAIL_WORKER_URL         EMAIL_WORKER_URL"                 # #34 e-mail Worker address (repo variable)
+  "MERITUM_EMAIL_WORKER_SIGNING_SECRET  MERITUM_EMAIL_WORKER_SIGNING_SECRET" # #34 HMAC secret of the e-mail Worker
 )
 
 container_env() {
