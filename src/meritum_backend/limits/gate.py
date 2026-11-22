@@ -18,6 +18,7 @@ from meritum_backend.limits.constants import (
     KEY_SECRET_BYTES,
     RATE_LIMITED,
     REGION_SCOPE,
+    SEARCH_SCOPE,
     WINDOW_SECONDS,
 )
 from meritum_backend.limits.models import Origin, Refusal
@@ -92,6 +93,23 @@ class CheckGate:
         """
         key = self._key(EVENTS_SCOPE, origin.ip)
         if await self._over(key, self.limits.event_streams_per_ip_per_minute):
+            return RATE_LIMITED
+        return None
+
+    async def search_refusal(self, origin: Origin) -> Refusal | None:
+        """Count one corpus search and say why it may not run, if it may not.
+
+        Searches have their own per-address budget, so they never use up the
+        budget for starting a check.
+
+        Args:
+            origin: the client address and region.
+
+        Returns:
+            RATE_LIMITED, or None when the search may run.
+        """
+        key = self._key(SEARCH_SCOPE, origin.ip)
+        if await self._over(key, self.limits.searches_per_ip_per_minute):
             return RATE_LIMITED
         return None
 

@@ -48,7 +48,7 @@ from meritum_backend.limits import (
     start_pruning,
     too_many_requests,
 )
-from meritum_backend.mcp import build_mcp
+from meritum_backend.mcp import build_corpus_reader, build_mcp
 from meritum_backend.moderation import InMemoryAnswerStore, InMemorySourceDocuments
 from meritum_backend.moderation.api import answer_router, handoff_router
 from meritum_backend.moderation.api import router as moderation_router
@@ -139,6 +139,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.announcer = build_announcer(
         settings, repositories, app.state.notifier_configs
     )
+    app.state.corpus_search, app.state.source_catalogue = build_corpus_reader()
+    app.state.mcp_corpus_version = settings.mcp_corpus_version
     app.state.eval_store = MemoryEvalStore()
     app.state.eval_corpus_version = settings.eval_corpus_version
     base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)

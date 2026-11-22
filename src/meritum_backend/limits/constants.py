@@ -18,6 +18,10 @@ WINDOW_SECONDS: Final = 60
 CHECKS_PER_IP_PER_MINUTE: Final = 10
 """Checks one client address may start per minute (MERITUM_CHECKS_PER_IP_PER_MINUTE)."""
 
+SEARCHES_PER_IP_PER_MINUTE: Final = 30
+"""Corpus searches (MCP ``search_sources``) one address may run per minute
+(MERITUM_SEARCHES_PER_IP_PER_MINUTE); a search is cheaper than a check."""
+
 CHECKS_PER_REGION_PER_MINUTE: Final = 3000
 """Checks one country may start per minute (MERITUM_CHECKS_PER_REGION_PER_MINUTE).
 
@@ -68,6 +72,9 @@ REGION_SCOPE: Final = "region"
 
 CHANNEL_SCOPE: Final = "channel"
 """Key prefix of per-channel counters in the shared table."""
+
+SEARCH_SCOPE: Final = "search"
+"""Key prefix of per-address counters of corpus searches (MCP ``search_sources``)."""
 
 EVENTS_SCOPE: Final = "events"
 """Key prefix of per-address counters of progress streams (GET .../events)."""

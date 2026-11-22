@@ -5,7 +5,7 @@ result cache, the salted client hash and the AI disclosure are the ones of every
 other channel (ADR-08). Nothing here decides a verdict.
 
 Features:
-    US-WDR-06, US-WTY-09, US-BEZ-06, F-37, F-42, F-20, ADR-17
+    US-WDR-06, US-WTY-09, US-BEZ-06, F-37, F-42, F-20, ADR-17, ADR-32
 """
 
 import asyncio
@@ -21,7 +21,8 @@ from httpx2 import ASGITransport, AsyncClient
 from meritum_core.checks import AnalysisStatus, CheckResult
 from pydantic import Field
 
-from meritum_backend.limits import REGION_HEADER
+from meritum_backend.limits import REGION_HEADER, origin_of
+from meritum_backend.mcp._search import SourceSearch, search_sources
 from meritum_backend.mcp.constants import (
     ACCEPTED,
     CHANNEL,
@@ -29,6 +30,9 @@ from meritum_backend.mcp.constants import (
     ENDPOINT,
     INTERNAL_URL,
     POLL_SECONDS,
+    QUERY_DESCRIPTION,
+    SEARCH_TOOL_DESCRIPTION,
+    SEARCH_TOOL_NAME,
     SERVER_NAME,
     TEXT_DESCRIPTION,
     TIMEOUT_TEXT,
@@ -96,5 +100,20 @@ def build_mcp(app: FastAPI) -> StarletteWithLifespan:
                 raise ToolError(msg)
             return await _result_of(http, started.json()["check_id"])
 
+    async def search(
+        query: Annotated[str, Field(description=QUERY_DESCRIPTION)],
+    ) -> SourceSearch:
+        state = app.state
+        return await search_sources(
+            query,
+            origin=origin_of(get_http_request()),
+            gate=state.check_gate,
+            pii=state.pii_gate,
+            corpus=state.corpus_search,
+            catalogue=state.source_catalogue,
+            corpus_version=state.mcp_corpus_version,
+        )
+
     server.tool(name=TOOL_NAME, description=TOOL_DESCRIPTION)(check_claim)
+    server.tool(name=SEARCH_TOOL_NAME, description=SEARCH_TOOL_DESCRIPTION)(search)
     return server.http_app(path=ENDPOINT)
