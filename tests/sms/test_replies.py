@@ -1,9 +1,9 @@
 import asyncio
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import override
 
 from meritum_core.checks import CheckResult
-from meritum_core.checks.contracts import ClaimResult
+from meritum_core.checks.contracts import AiMarker, ClaimResult
 from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
@@ -29,6 +29,9 @@ RESULT = CheckResult(
     ],
     limitations=["Korpus obejmuje tylko źródła polskie."],
     corpus_version="test",
+    ai_marker=AiMarker(
+        provider="stub", model="stub", generated_at=datetime(2026, 11, 21, tzinfo=UTC)
+    ),
 )
 
 

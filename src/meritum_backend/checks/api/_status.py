@@ -33,12 +33,13 @@ from meritum_backend.checks.api._cache import (
     serve_from_cache,
     served,
 )
+from meritum_backend.checks.api._disclosure import ai_disclosure
 from meritum_backend.checks.api._identity import identity
 from meritum_backend.checks.api._keyed import InvalidCheck, KeyedErrorsRoute, invalid
 from meritum_backend.checks.api._pii import PiiGate
 from meritum_backend.checks.constants import (
+    AI_DISCLOSURE_EXAMPLE,
     AI_DISCLOSURE_HEADER,
-    AI_DISCLOSURE_VALUE,
     BAD_SESSION_DETAIL,
     INVALID_URL_KEY,
     NO_SESSION_DETAIL,
@@ -145,7 +146,9 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
             channel_user_hash=hashed,
             received_at=received_at,
         )
-    except ValidationError:  # the only field left to fail is session_id
+    except (
+        ValidationError
+    ):  # only the session can fail here: its length, or a body id unlike it
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     if not await readiness.ready():
         return not_ready_response()
@@ -167,7 +170,8 @@ async def _latest_progress(jobs: JobQueue, check_id: str) -> AnalysisStatus | No
     latest = None
     # a running workflow's stream stays open, so a poll reads it briefly;
     # live steps go through GET /api/v1/checks/{id}/events.
-    with contextlib.suppress(TimeoutError):
+    # a value written under an older contract (no ai_marker) is no progress
+    with contextlib.suppress(TimeoutError, ValidationError):
         async with asyncio.timeout(PROGRESS_WAIT_SECONDS):
             async for value in jobs.stream(check_id, PROGRESS_KEY, AnalysisStatus):
                 latest = without_early_verdict(value)
@@ -187,8 +191,9 @@ def _output_result(state: JobState) -> CheckResult | None:
             "headers": {
                 AI_DISCLOSURE_HEADER: {
                     "description": "Set with a result: machine-readable marker of"
-                    " AI-generated content (AI Act art. 50(2)).",
-                    "schema": {"type": "string", "example": AI_DISCLOSURE_VALUE},
+                    " AI-generated content (AI Act art. 50(2)); model, provider"
+                    " and date come from result.ai_marker when it is set.",
+                    "schema": {"type": "string", "example": AI_DISCLOSURE_EXAMPLE},
                 }
             }
         }
@@ -227,5 +232,5 @@ async def check_status(
         if result is not None:
             await fill(cache, result, datetime.now(UTC))
     if result is not None:
-        response.headers[AI_DISCLOSURE_HEADER] = AI_DISCLOSURE_VALUE
+        response.headers[AI_DISCLOSURE_HEADER] = ai_disclosure(result)
     return AnalysisStatus(check_id=check_id, steps=steps, result=result)

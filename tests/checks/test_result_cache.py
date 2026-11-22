@@ -126,3 +126,26 @@ async def _expiry() -> None:
     await cache.fill("chk-1", entry)
     assert await cache.lookup("key", NOW + timedelta(hours=1)) == entry
     assert await cache.lookup("key", NOW + timedelta(hours=2)) is None
+
+
+def test_a_hit_carries_the_ai_marker_of_the_check_that_wrote_it(
+    make_client: MakeClient,
+) -> None:
+    channels = Channels(make_client, FinishedWorker())
+    first = channels.check("web", TEXT, "session-aaaaaaaaaa")
+    hit = channels.check("extension", TEXT, "session-bbbbbbbbbb")
+    assert first.ai_marker == hit.ai_marker == RESULT.ai_marker
+
+
+def test_a_hit_keeps_the_out_of_scope_code(make_client: MakeClient) -> None:
+    question = CheckResult(
+        check_id="x",
+        status="out_of_scope",
+        message="To nie jest pytanie o informację.",
+        out_of_scope_code="not_informational",
+        corpus_version=RESULT.corpus_version,
+    )
+    channels = Channels(make_client, FinishedWorker(question))
+    channels.check("web", TEXT, "session-aaaaaaaaaa")
+    hit = channels.check("extension", TEXT, "session-bbbbbbbbbb")
+    assert hit.out_of_scope_code == "not_informational"

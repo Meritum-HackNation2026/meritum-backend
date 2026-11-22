@@ -7,13 +7,15 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, CheckResult
 from meritum_core.jobs.constants import PROGRESS_KEY
-from meritum_core.jobs.contracts import CONTRACT_VERSION, CheckOutput
+from meritum_core.jobs.contracts import CONTRACT_VERSION, CheckInput, CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
 
 from meritum_backend.checks.constants import RECEIVED, SESSION_HEADER
 from meritum_backend.limits import CheckGate, get_check_gate
 from meritum_backend.limits.adapters import FixedPendingChecks
+
+from .cache_fakes import RESULT, FinishedWorker
 
 type MakeClient = Callable[[InMemoryJobQueue], TestClient]
 
@@ -69,6 +71,11 @@ def test_bad_input_gets_a_copy_key_and_starts_nothing(
     [
         ({"channel": "web", "text": "Czy to prawda?"}, {}, SESSION_HEADER),
         ({"channel": "web", "text": "Czy to prawda?"}, {SESSION_HEADER: "x"}, "valid"),
+        (
+            {"channel": "web", "text": "Czy to prawda?", "session_id": "other-0123456"},
+            SESSION,
+            "valid",
+        ),
     ],
 )
 def test_without_a_browser_session_nothing_starts(
@@ -169,3 +176,50 @@ def test_rejected_input_does_not_use_up_the_budget(
         assert client.post("/api/v1/checks", json=WEB_TEXT).status_code == 400
     assert client.post("/api/v1/checks", json=WEB_TEXT, headers=SESSION).is_success
     assert len(jobs.enqueued) == 1
+
+
+def test_a_body_session_equal_to_the_header_starts_the_check(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    body = {
+        "channel": "web",
+        "text": "Czy to prawda?",
+        "session_id": "session-0123456789",
+    }
+    assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
+    (job,) = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    assert job.payload.session_id == job.payload.request.session_id
+
+
+def test_the_ai_disclosure_header_names_the_model_of_the_ai_marker(
+    make_client: MakeClient,
+) -> None:
+    client = make_client(FinishedWorker())
+    body = {"channel": "web", "text": "Czy to prawda?"}
+    check_id = client.post("/api/v1/checks", json=body, headers=SESSION).json()[
+        "check_id"
+    ]
+    response = client.get(f"/api/v1/checks/{check_id}")
+    assert response.headers["AI-Disclosure"] == (
+        'mode=ai-originated; model="anthropic/claude-haiku-5-5";'
+        ' provider="openrouter"; date=@1795262400'
+    )
+
+
+def test_the_ai_disclosure_header_keeps_control_characters_out(
+    make_client: MakeClient,
+) -> None:
+    marker = RESULT.ai_marker
+    assert marker is not None
+    tricky = marker.model_copy(update={"model": 'a\r\nX-Evil: 1"\\b'})
+    client = make_client(
+        FinishedWorker(RESULT.model_copy(update={"ai_marker": tricky}))
+    )
+    body = {"channel": "web", "text": "Czy to prawda?"}
+    check_id = client.post("/api/v1/checks", json=body, headers=SESSION).json()[
+        "check_id"
+    ]
+    response = client.get(f"/api/v1/checks/{check_id}")
+    assert "X-Evil" not in response.headers
+    assert 'model="aX-Evil: 1\\"\\\\b"' in response.headers["AI-Disclosure"]

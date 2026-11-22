@@ -1,15 +1,16 @@
 import json
 from collections.abc import Callable
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import override
 
 from fastapi.testclient import TestClient
 from meritum_core.checks import AnalysisStatus, AnalysisStep, CheckResult
-from meritum_core.checks.contracts import ClaimResult
+from meritum_core.checks.contracts import AiMarker, ClaimResult
 from meritum_core.jobs.constants import CONTRACT_VERSION, PROGRESS_KEY
 from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
+from pydantic import RootModel
 
 type MakeClient = Callable[[InMemoryJobQueue], TestClient]
 
@@ -36,6 +37,9 @@ VERDICT = CheckResult(
     ],
     limitations=["Korpus obejmuje tylko źródła polskie."],
     corpus_version="test",
+    ai_marker=AiMarker(
+        provider="stub", model="stub", generated_at=datetime(2026, 11, 21, tzinfo=UTC)
+    ),
 )
 
 
@@ -200,3 +204,22 @@ def test_a_message_without_verdicts_is_sent_before_verification(
         AnalysisStatus(check_id="wf-1", steps=value, result=RESULT),
     )
     assert events(make_client(jobs))[0].result == RESULT
+
+
+def _publish_pre_v6_result(jobs: InMemoryJobQueue) -> None:
+    done = steps(receive="done", verify_citations="done", write_answer="done")
+    status = AnalysisStatus(check_id="wf-1", steps=done, result=VERDICT)
+    old = status.model_dump(mode="json", exclude={"result": {"ai_marker"}})
+    jobs.publish("wf-1", PROGRESS_KEY, RootModel[dict[str, object]](old))
+
+
+def test_a_result_written_before_the_ai_marker_is_no_progress(
+    make_client: MakeClient,
+) -> None:
+    jobs = RunningJobs()
+    _publish_pre_v6_result(jobs)
+    client = make_client(jobs)
+    polled = client.get("/api/v1/checks/wf-1")
+    assert polled.status_code == 200
+    assert polled.json()["result"] is None
+    assert [e.result for e in events(client)] == []
