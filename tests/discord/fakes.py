@@ -1,11 +1,13 @@
 """Fakes of the Discord tests: the app on in-memory ports and a recording client."""
 
-from typing import override
+from typing import cast, override
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from meritum_core.checks.fakes import InMemoryCheckRecordRepository
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from meritum_core.jobs.ports import JobState
+from meritum_core.observability import AppRepositories
 from pydantic import SecretStr
 from tests.checks.cache_fakes import FinishedWorker
 from tests.checks.conftest import OFFLINE_DB
@@ -31,6 +33,11 @@ class FakeReplies:
 
     async def follow_up(self, application_id: str, token: str, text: str) -> None:
         self.sent.append(("follow_up", f"{application_id}/{token}", text))
+
+
+def repositories(client: TestClient) -> AppRepositories:
+    """The app's in-memory repositories behind a test client."""
+    return cast("AppRepositories", cast("FastAPI", client.app).state.repositories)
 
 
 def make_client(

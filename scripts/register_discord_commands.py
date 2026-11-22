@@ -1,4 +1,4 @@
-"""Register Meritum's Discord commands (/sprawdz and "Sprawdź w Meritum") for one app.
+"""Register Meritum's Discord commands (/sprawdz, /usun-moje-dane, …) for one app.
 
     DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... \
         uv run python scripts/register_discord_commands.py

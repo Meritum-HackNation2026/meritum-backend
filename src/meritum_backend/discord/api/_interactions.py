@@ -5,7 +5,7 @@ requests get 401 (Discord itself probes this and drops endpoints that accept the
 Without MERITUM_DISCORD_PUBLIC_KEY the endpoint does not exist (404).
 
 Features:
-    US-WTY-06, US-BEZ-07, F-03, F-21, ADR-08
+    US-WTY-06, US-BEZ-05, US-BEZ-06, US-BEZ-07, F-03, F-20, F-21, ADR-08
 """
 
 import json
@@ -18,6 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from meritum_backend.auth.constants import LOCAL_URL, PUBLIC_URLS
 from meritum_backend.checks.api import Cache, PiiGate, Records
 from meritum_backend.discord.api._delivery import Interaction, reply_when_done
+from meritum_backend.discord.api._erase import delete_my_data
 from meritum_backend.discord.api._intake import Ports, start, user_hash
 from meritum_backend.discord.constants import (
     APPLICATION_COMMAND,
@@ -26,6 +27,7 @@ from meritum_backend.discord.constants import (
     CHECK,
     CHECK_MESSAGE,
     DEFERRED_CHANNEL_MESSAGE,
+    DELETE_MY_DATA,
     EPHEMERAL,
     PING,
     PONG,
@@ -35,6 +37,7 @@ from meritum_backend.discord.ports import InteractionReplies
 from meritum_backend.health.api import Ready
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import Gate
+from meritum_backend.privacy.api import Eraser
 from meritum_backend.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1/discord", tags=["discord"])
@@ -130,6 +133,7 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
     cache: Cache,
     records: Records,
     replies: Replies,
+    eraser: Eraser,
     background: BackgroundTasks,
 ) -> dict[str, Any]:
     """Answer a Discord interaction; a command starts the same check as the web form.
@@ -147,18 +151,19 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
         cache: the result cache.
         records: check records; none for the user hash means first contact.
         replies: the Discord sender of the result.
+        eraser: deletes records on /usun-moje-dane.
         background: runs the reply after the answer.
 
     Returns:
-        PONG for Discord's PING, a deferred answer for a started check, else an
-        ephemeral message saying why the check did not start.
+        PONG for Discord's PING, a deferred answer for a started check, an
+        ephemeral delete confirmation, else an ephemeral refusal.
 
     Raises:
         HTTPException: 404 when Discord is not configured, 401 for a bad signature,
             400 for an interaction type Meritum does not handle.
 
     Features:
-        US-WTY-06, US-BEZ-07, F-03, F-21, ADR-08
+        US-WTY-06, US-BEZ-05, US-BEZ-06, US-BEZ-07, F-03, F-20, F-21, ADR-08
     """
     public_key = settings.discord_public_key
     if public_key is None or not public_key:
@@ -178,11 +183,14 @@ async def interactions(  # ruff: ignore[too-many-arguments, too-many-positional-
         return {"type": PONG}
     if interaction.get("type") != APPLICATION_COMMAND:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "unsupported interaction")
+    data = interaction.get("data") or {}
+    if data.get("name") == DELETE_MY_DATA:
+        return await delete_my_data(settings, _user_id(interaction), eraser, jobs)
     user_id = _user_id(interaction)
     hashed = user_hash(settings, user_id)
     first = hashed is None or not await records.list_for(CHANNEL_USER, hashed)
     ports = Ports(jobs, gate, pii, readiness, cache, records, settings)
-    started = await start(ports, command_text(interaction.get("data") or {}), user_id)
+    started = await start(ports, command_text(data), user_id)
     if not isinstance(started, str):
         return started
     target = Interaction(

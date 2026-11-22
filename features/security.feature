@@ -32,6 +32,11 @@ Feature: Bezpieczeństwo danych wejściowych
     When przychodzi nowe sprawdzenie
     Then odpowiedź ma kod 429 z komunikatem, a workflow nie jest zlecany
 
+  Scenario: polecenie na Discordzie
+    Given użytkownik Discorda ma 2 sprawdzenia
+    When wysyła polecenie /usun-moje-dane
+    Then zapisy z jego skrótem z solą są usunięte, a bot potwierdza to wiadomością widoczną tylko dla niego
+
   Scenario: identyfikator sesji nie trafia do logów
     Given żądanie DELETE /api/v1/sessions/<session_id>/checks
     When serwer zapisuje log dostępu
