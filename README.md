@@ -114,6 +114,61 @@ curl -X POST -u "$SMS_GATEWAY_USERNAME:$SMS_GATEWAY_PASSWORD" -H "Content-Type: 
 
 Próba na żywo (ręcznie, poza CI): wyślij przez bramkę SMS na jej własny numer i sprawdź w logach `meritum-api-dev` wpis `POST /api/v1/sms/webhook ... 202`.
 
+## Konektor MCP
+
+Serwer MCP pozwala sprawdzić twierdzenie z aplikacji czatu (US-WDR-06, US-WTY-09, F-37, F-42, ADR-17). Działa w tym samym procesie co API, więc sprawdzenie przechodzi przez to samo maskowanie danych osobowych, te same limity i pamięć wyników co formularz, a odpowiedź niesie werdykt, cytaty z linkami, siłę podstawy i informację, że wynik tworzy system AI.
+
+| | |
+|---|---|
+| Adres | dev: `https://meritum-dev.gburek.app/mcp`, prd: `https://meritum.gburek.app/mcp` (bez ukośnika na końcu, bo aplikacje czatu nie podążają za przekierowaniami) |
+| Transport | Streamable HTTP |
+| Narzędzia | `check_claim` (jedno twierdzenie albo pytanie o fakt, do 4000 znaków; czeka do 90 s na wynik) i `search_sources` (krótkie fragmenty z katalogu źródeł: tytuł, wydawca, data, link, wersja korpusu; to nie jest werdykt) |
+| Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, albo token dostępu OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp"` |
+| Limity | `check_claim`: 30 na minutę na klienta (wszyscy użytkownicy jednego konektora dzielą ten limit) i wspólne limity z „Limity zapytań”; `search_sources`: 30 na minutę z jednego adresu; ponad limit narzędzie zwraca błąd z prośbą o ponowną próbę za minutę |
+| Retencja | jak w każdym kanale: zapis sprawdzenia 30 dni; „Usuń moje sprawdzenia” działa po skrócie identyfikatora klienta |
+| Identyfikator klienta | etykieta klucza (część przed `=`) albo `client_id`/`sub` tokenu OAuth; API zapisuje tylko skrót HMAC-SHA-256 z `<kanał>:<identyfikator>` i solą `MERITUM_CHANNEL_HASH_SALT`, surowy identyfikator nie trafia do kolejki, bazy ani logów |
+
+### Konfiguracja
+
+| Zmienna | Opis |
+|---|---|
+| `MERITUM_MCP_API_KEYS` | pary `etykieta=klucz` rozdzielone przecinkami; jedna etykieta na konektor, żeby dało się odebrać dostęp jednemu klientowi. Deploy bierze je z sekretu repozytorium `MERITUM_MCP_API_KEYS_{DEV,PRD}` (patrz „Sekrety w kontenerze”) |
+| `MERITUM_MCP_OAUTH_INTROSPECTION_URL`, `MERITUM_MCP_OAUTH_CLIENT_ID`, `MERITUM_MCP_OAUTH_CLIENT_SECRET` | serwer OAuth, który wydaje tokeny aplikacjom czatu; muszą być ustawione wszystkie trzy |
+
+Bez żadnej z tych zmiennych `/mcp` odpowiada 401 każdemu. Klucze generuj losowo (`openssl rand -base64 32`), nie wklejaj ich do zgłoszeń, logów ani zrzutów ekranu.
+
+### Jak podłączyć klienta
+
+Stan na 2026-11-22 według oficjalnych instrukcji: [Claude](https://support.claude.com/en/articles/11175166), [ChatGPT](https://help.openai.com/en/articles/12584461) i [tryb deweloperski ChatGPT](https://developers.openai.com/api/docs/guides/developer-mode). Przy rozbieżności obowiązuje strona producenta.
+
+**Claude Code i inspektor MCP: przetestowana droga z kluczem API.**
+
+```bash
+# $MERITUM_MCP_KEY: klucz z listy MERITUM_MCP_API_KEYS
+claude mcp add --transport http meritum https://meritum-dev.gburek.app/mcp \
+  --header "Authorization: Bearer $MERITUM_MCP_KEY"
+npx @modelcontextprotocol/inspector   # Streamable HTTP, adres jak wyżej, nagłówek X-API-Key
+```
+
+**claude.ai: klucz API w nagłówku (wg dokumentacji, jeszcze nie próbowane ręcznie).** Własne konektory są na planach Free (jeden), Pro, Max, Team i Enterprise. Uwierzytelnianie nie musi być OAuth: formularz ma sekcję „Request headers” ze stałymi poświadczeniami, które Claude wysyła z każdym żądaniem.
+
+1. Pro i Max: Customize → Connectors → „+ Add” → „Add custom connector”. W Team i Enterprise konektor dodaje właściciel organizacji (Organization settings → Connectors), a członkowie klikają „Connect”.
+2. Nazwa `Meritum`, adres `https://meritum-dev.gburek.app/mcp`, „Continue”.
+3. Authentication: „No sign in”; w „Request headers” nagłówek `X-API-Key` z kluczem z `MERITUM_MCP_API_KEYS`.
+4. „Add”, w rozmowie „+” → „Connectors”, włącz Meritum.
+5. Napisz: „Sprawdź w Meritum: <twierdzenie>”. Odpowiedź ma mieć werdykt, cytaty z linkami, siłę podstawy i informację o AI.
+
+Serwer musi być osiągalny z internetu na porcie 443 (adresy Meritum to spełniają).
+
+**ChatGPT: tylko OAuth albo brak uwierzytelniania.** Dokumentacja OpenAI wymienia „OAuth”, „No authentication” i „OAuth or no authentication”; nagłówka z kluczem API ani stałego tokenu tam nie ma. Klucz API z tej sekcji nie podłączy więc ChatGPT, a wyłączenie uwierzytelniania na `/mcp` łamałoby ADR-17. ChatGPT zadziała dopiero z serwerem OAuth wpisanym w `MERITUM_MCP_OAUTH_*` (Meritum sprawdza wtedy tokeny introspekcją). Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
+
+1. <https://chatgpt.com/plugins> → „+” → „Add custom MCP server” (starsza ścieżka: Workspace settings → Apps → Create).
+2. Nazwa `Meritum`, w „Connection” adres serwera (Streamable HTTP).
+3. Authentication: OAuth z danymi serwera OAuth.
+4. „I understand and want to continue” → „Create as a plugin”, zainstaluj i wpisz `@Meritum` w rozmowie.
+
+Zespół nie ma jeszcze serwera OAuth dla aplikacji czatu, więc ChatGPT nie jest na przetestowanej ścieżce. Ręczne próby w obu usługach (data, wersja, zrzuty) trafiają do opisu PR i do zgłoszeń o znalezionych problemach. Żaden krok CI nie łączy się z tymi usługami.
+
 ## Usuwanie danych
 
 Obywatel usuwa swoje sprawdzenia w każdym kanale (US-BEZ-05, F-20). Przeglądarka i wtyczka wołają `DELETE /api/v1/sessions/{session_id}/checks`; losowy identyfikator sesji zna tylko jej właściciel, więc nie jest potrzebne logowanie. Nagłówek `X-Meritum-Session` jest opcjonalny: gdy wskazuje inną sesję, odpowiedź to 403, ale to chroni przed pomyłką klienta, a nie przed kimś, kto zna cudzy identyfikator. Każde żądanie zleca workflow, więc endpoint ma limit 10 na minutę z jednego adresu. Discord, SMS i MCP nie mają sesji przeglądarki i wołają `delete_subject(kind, value, eraser, jobs)` z pakietu `meritum_backend.privacy` ze skrótem z solą (`channel_user_hash`), a zalogowane konto z `user_id`. Surowego identyfikatora kanału funkcja nie przyjmie.
@@ -285,6 +340,7 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 | `MERITUM_SMS_GATEWAY_NUMBER` | `SMS_GATEWAY_NUMBER_{DEV,PRD}` (sekret) | #29 |
 | `MERITUM_EMAIL_WORKER_URL` | `EMAIL_WORKER_URL_{DEV,PRD}` (zmienna) | #34 |
 | `MERITUM_EMAIL_WORKER_SIGNING_SECRET` | `MERITUM_EMAIL_WORKER_SIGNING_SECRET_{DEV,PRD}` (sekret) | #34 |
+| `MERITUM_MCP_API_KEYS` | `MERITUM_MCP_API_KEYS_{DEV,PRD}` (sekret) | #43, #44 (klucze klientów MCP, `etykieta=klucz,etykieta2=klucz2`) |
 
 Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli, potem dodaj sekret w ustawieniach repozytorium.
 
