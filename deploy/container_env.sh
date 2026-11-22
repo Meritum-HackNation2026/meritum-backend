@@ -24,6 +24,8 @@ container_vars=(
   "MERITUM_EMAIL_WORKER_URL         EMAIL_WORKER_URL"                 # #34 e-mail Worker address (repo variable)
   "MERITUM_EMAIL_WORKER_SIGNING_SECRET  MERITUM_EMAIL_WORKER_SIGNING_SECRET" # #34 HMAC secret of the e-mail Worker
   "MERITUM_MCP_API_KEYS             MERITUM_MCP_API_KEYS"             # #43, #44 MCP clients: label=key,label2=key2
+  "MERITUM_JURY_LOGIN               JURY_LOGIN"                       # jury login to the panel (repo variable)
+  "MERITUM_JURY_PASSWORD            JURY_PASSWORD"                    # jury password to the panel
 )
 
 container_env() {
