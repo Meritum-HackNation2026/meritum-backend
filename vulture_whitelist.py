@@ -3,6 +3,7 @@
 Run: ``uv run vulture`` (paths come from ``[tool.vulture]`` in pyproject.toml).
 """
 
+from meritum_backend.archives import ArchiveRecord, ArchiveView
 from meritum_backend.auth import Account
 from meritum_backend.auth.models import Me
 from meritum_backend.checks.api import AudioRejected, HistoryItem
@@ -28,3 +29,5 @@ SourceSearch.fragments  # tool result field, serialised by FastMCP
 HistoryItem.question_masked  # response field, serialised by FastAPI
 delete_my_history  # FastAPI route
 delete_my_account  # FastAPI route
+ArchiveRecord.archived_at  # column of page_archives, returned to the client
+ArchiveView.archived_at  # shown in the archive view

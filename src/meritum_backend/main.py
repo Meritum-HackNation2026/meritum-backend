@@ -15,6 +15,8 @@ from meritum_core.security import PiiGateSettings, build_pii_gate
 from meritum_core.shared.database import DatabaseSettings
 from starlette.middleware.sessions import SessionMiddleware
 
+from meritum_backend.archives.api import router as archives_router
+from meritum_backend.archives.factory import build_archive_store
 from meritum_backend.auth.api import router as auth_router
 from meritum_backend.auth.constants import (
     LOCAL_URL,
@@ -150,6 +152,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.mcp_auth = build_mcp_auth(McpSettings())
     app.state.mcp_corpus_version = settings.mcp_corpus_version
     app.state.eval_store = build_eval_store(settings)
+    app.state.archives = build_archive_store(settings)
     app.state.eval_corpus_version = settings.eval_corpus_version
     base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
     app.state.eval_bundle_url = settings.eval_bundle_url or f"{base}{PANEL_PATH}"
@@ -168,6 +171,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.add_exception_handler(CheckRefusedError, check_refused)
     app.include_router(health_router)
     app.include_router(jobs_router)
+    app.include_router(archives_router)
     app.include_router(discord_router)
     app.include_router(auth_router)
     app.include_router(checks_router)
