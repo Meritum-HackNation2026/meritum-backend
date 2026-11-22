@@ -351,3 +351,22 @@ Nowy sekret: dopisz wiersz do listy w `deploy/container_env.sh` i do tej tabeli,
 Baza, rola, schemat i plik `~/meritum/envs/api-<env>.env` na hoście pochodzą z platformy w [meritum-infra](https://github.com/Meritum-HackNation2026/meritum-infra) (`onprem/dellpromaxgb10/platform/`). Dostęp do core daje klucz tylko do odczytu w sekrecie repozytorium `MERITUM_CORE_SSH_KEY`.
 
 Gałęzie: zmiany przez PR do `develop`, wydanie przez PR `develop` → `main`. Nie pushuj bezpośrednio do `develop` ani `main`. Na planie Free GitHub nie wymusza tego w repozytoriach prywatnych, więc to zasada zespołu. Gałąź funkcji usuń po merge'u (`gh pr merge --delete-branch` albo przycisk w PR). Automatyczne usuwanie jest wyłączone, bo bez ochrony gałęzi skasowałoby też `develop` po PR `develop` → `main`.
+
+## Dane demo dla jury (dev)
+
+`scripts/seed_demo.py` zasila konta demo (backend#53) przykładowymi danymi, żeby jury nie widziało pustych ekranów: 6 sprawdzeń (prawda, fałsz, częściowo poparte, opinia, link, twierdzenie zdrowotne), sprawa moderatora z odpowiedzią, jedno uruchomienie ewaluacji i powiadomienie `moderator_answer` dla obywatela. Skrypt używa tylko publicznego API z uwierzytelnieniem (nic nie zapisuje w bazie), działa wyłącznie na dev i lokalnie (inny adres kończy się odmową) i jest idempotentny: krok, którego wynik już istnieje, jest pomijany. Prawdziwych danych osobowych nie ma.
+
+Potrzebne dane (nie wpisuj ich do repozytorium ani zgłoszeń):
+
+| Zmienna | Skąd |
+|---|---|
+| `MERITUM_DEMO_CITIZEN_LINK`, `MERITUM_DEMO_ADMIN_LINK` | linki demo „obywatel” i „admin” z `POST /api/v1/staff/demo-links` (wydaje je administrator zalogowany OIDC, dev, do 7 dni) |
+| `MERITUM_MODERATOR_SESSION` (opcjonalna) | wartość ciasteczka `meritum_session` moderatora zalogowanego w przeglądarce; odpowiedź na sprawę wymaga roli moderatora, której konto demo admina nie ma. Bez niej krok odpowiedzi jest pomijany |
+
+```bash
+uv run python scripts/seed_demo.py --dry-run      # co by powstało, bez zapisów
+uv run python scripts/seed_demo.py                # właściwe uruchomienie
+uv run python scripts/seed_demo.py --audio nagranie.ogg --image zrzut.png   # opcjonalnie audio i obraz
+```
+
+Ponowne uruchomienie niczego nie dubluje: sprawdzenia rozpoznaje po historii konta obywatela, sprawę po `check_id` w jej twierdzeniach, ewaluację po istniejącej liście uruchomień. Wyjątek: `--audio` i `--image` dodają za każdym razem nowe sprawdzenie. Adres zmienia `--url` albo `MERITUM_SEED_URL` (domyślnie dev). Test: `tests/scripts/test_seed_demo.py`.
