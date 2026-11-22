@@ -3,7 +3,7 @@
 ``COMMANDS`` is registered by scripts/register_discord_commands.py.
 
 Features:
-    US-WTY-06, US-BEZ-07, F-03, F-21
+    US-WTY-06, US-BEZ-05, US-BEZ-06, US-BEZ-07, F-03, F-20, F-21
 """
 
 from typing import Any, Final
@@ -13,6 +13,9 @@ CHECK: Final = "sprawdz"
 
 CHECK_MESSAGE: Final = "Sprawdź w Meritum"
 """Message command name: the Apps menu on any message."""
+
+DELETE_MY_DATA: Final = "usun-moje-dane"
+"""Slash command name: delete this Discord user's check records."""
 
 TEXT_OPTION: Final = "tekst"
 """Option of the slash command that carries the text to check."""
@@ -42,8 +45,20 @@ COMMANDS: Final[list[dict[str, Any]]] = [
         **_WHERE,
     },
     {"name": CHECK_MESSAGE, "type": 3, **_WHERE},
+    {
+        "name": DELETE_MY_DATA,
+        "type": 1,
+        "description": "Delete your check records",
+        "description_localizations": {
+            "pl": "Usuń zapisy twoich sprawdzeń",
+        },
+        **_WHERE,
+    },
 ]
 """Global application commands of the Meritum Discord app."""
+
+DELETED: Final = "Usunęliśmy zapisy twoich sprawdzeń."
+"""copy/pl.json channel_privacy.deleted: confirm /usun-moje-dane."""
 
 PING: Final = 1
 """Interaction type: Discord probes the endpoint."""

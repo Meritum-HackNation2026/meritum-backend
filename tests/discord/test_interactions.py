@@ -11,16 +11,21 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from meritum_core.checks.contracts import CheckRecord
 from meritum_core.checks.fakes import InMemoryCheckRecordRepository
+from meritum_core.jobs.contracts import DELETE_SUBJECT
+from meritum_core.jobs.fakes import InMemoryJobQueue
 from pydantic import SecretStr
 from tests.checks.cache_fakes import RESULT, FinishedWorker
 from tests.conftest import MakeProbe
-from tests.discord.fakes import FailedWorker, FakeReplies, make_client
+from tests.discord.fakes import FailedWorker, FakeReplies, make_client, repositories
 
 from meritum_backend.channels import channel_user_hash
 from meritum_backend.discord.constants import (
+    CHANNEL_USER,
     CHECK,
     CHECK_MESSAGE,
     COMMANDS,
+    DELETE_MY_DATA,
+    DELETED,
     FAILURE_TEXT,
     POLL_SECONDS,
     TEXT_OPTION,
@@ -150,7 +155,45 @@ def test_too_short_text_is_explained(client: TestClient) -> None:
 
 def test_commands_match_the_handler() -> None:
     names = {c["name"] for c in COMMANDS}
-    assert names == {CHECK, CHECK_MESSAGE}
+    assert names == {CHECK, CHECK_MESSAGE, DELETE_MY_DATA}
+
+
+def test_usun_moje_dane_deletes_records_and_replies_ephemerally(
+    make_probe: MakeProbe, replies: FakeReplies
+) -> None:
+    jobs = InMemoryJobQueue()
+    client = make_client(PUBLIC_HEX, make_probe, jobs, replies)
+    repos = repositories(client)
+    hashed = channel_user_hash("discord", "1234567890", SecretStr("salt"))
+    now = datetime.now(UTC)
+    for i in range(2):
+        record = CheckRecord(
+            check_id=f"c{i}",
+            session_id=hashed,
+            channel="discord",
+            channel_user_hash=hashed,
+            received_at=now,
+            answered_at=now,
+            question_masked="Pytanie",
+            status="done",
+            verdicts=["false"],
+            source_ids=[],
+            corpus_version="test",
+            models=[],
+            retention_until=now + timedelta(days=30),
+        )
+        asyncio.run(repos.records.save(record))
+    payload = {
+        "type": 2,
+        "application_id": "app1",
+        "token": "tok1",
+        "member": {"user": {"id": "1234567890"}},
+        "data": {"name": DELETE_MY_DATA},
+    }
+    body = signed(client, payload).json()
+    assert body == {"type": 4, "data": {"content": DELETED, "flags": 64}}
+    assert asyncio.run(repos.records.list_for(CHANNEL_USER, hashed)) == []
+    assert jobs.enqueued[0].spec == DELETE_SUBJECT
 
 
 def test_signed_body_that_is_not_an_object_is_rejected(client: TestClient) -> None:
