@@ -3,9 +3,11 @@
 import asyncio
 import time
 
+import pytest
 from tests.mcp_oauth.support import BASE
 
 from meritum_backend.mcp_oauth import OAuthServer, build_signer
+from meritum_backend.settings import Settings
 
 
 def _server(now: list[float]) -> OAuthServer:
@@ -39,3 +41,23 @@ def test_code_expires_after_a_minute() -> None:
     now[0] += 61
 
     assert server.redeem(code, "cid", "https://a/cb", "v" * 64) is None
+
+
+def test_client_registered_before_the_allowlist_loses_its_other_redirects() -> None:
+    old = OAuthServer(
+        build_signer("k"), BASE, redirects=frozenset({"https://a.example/cb"})
+    )
+    client_id = old.register(["https://a.example/cb", "http://localhost:1/cb"])
+    assert client_id is not None
+
+    assert _server([0.0]).redirect_uris(client_id) == ["http://localhost:1/cb"]
+
+
+def test_allowlist_comes_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "MERITUM_MCP_OAUTH_REDIRECT_URIS", "https://a.example/cb, https://b.example/cb"
+    )
+
+    allowed = Settings().mcp_oauth_redirect_uris
+
+    assert allowed == frozenset({"https://a.example/cb", "https://b.example/cb"})
