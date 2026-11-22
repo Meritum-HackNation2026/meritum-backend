@@ -22,14 +22,15 @@ from meritum_backend.mcp_oauth.constants import (
 from meritum_backend.mcp_oauth.models import AuthorizeRequest
 
 
-def redirect_allowed(uri: str) -> bool:
+def redirect_allowed(uri: str, allowed: frozenset[str]) -> bool:
     """Whether a client may register this redirect URI.
 
     Args:
         uri: the redirect URI.
+        allowed: the exact URIs allowed besides loopback ones.
 
     Returns:
-        True for an https URI with a host, or http to a loopback host, without
+        True for one of ``allowed``, or http(s) to a loopback host, without
         a fragment or credentials and at most ``URI_MAX`` characters.
 
     Features:
@@ -41,9 +42,8 @@ def redirect_allowed(uri: str) -> bool:
     except ValueError:
         return False
     is_clean = len(uri) <= URI_MAX and not parts.fragment and "@" not in parts.netloc
-    is_https = parts.scheme == "https" and bool(host)
-    is_loopback = parts.scheme == "http" and host in LOOPBACK_HOSTS
-    return is_clean and (is_https or is_loopback)
+    is_loopback = parts.scheme in {"http", "https"} and host in LOOPBACK_HOSTS
+    return is_clean and (is_loopback or uri in allowed)
 
 
 def challenge_valid(challenge: str) -> bool:
