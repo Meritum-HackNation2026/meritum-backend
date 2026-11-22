@@ -3,6 +3,7 @@
 from typing import cast
 
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from meritum_core.jobs.contracts import CheckInput
 from meritum_core.jobs.fakes import InMemoryJobQueue
 
@@ -34,11 +35,9 @@ def test_anonymous_check_has_no_user_id(make_client: MakeClient) -> None:
 
 def test_signed_in_check_has_the_provider_user_id(make_client: MakeClient) -> None:
     jobs = InMemoryJobQueue()
-    client = make_client(jobs)
-    client.base_url = "https://testserver"  # the session cookie is Secure
-    cast("FastAPI", client.app).dependency_overrides[get_login] = lambda: FakeLogin(
-        "42", "o@example.com"
-    )
+    app = cast("FastAPI", make_client(jobs).app)
+    client = TestClient(app, base_url="https://testserver")  # cookie is Secure
+    app.dependency_overrides[get_login] = lambda: FakeLogin("42", "o@example.com")
     state = client.get("/api/v1/auth/login/google", follow_redirects=False)
     state = state.headers["location"].split("state=")[1].split("&")[0]
     client.get(
