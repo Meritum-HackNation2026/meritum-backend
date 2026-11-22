@@ -1,14 +1,12 @@
 """Export API: checks and cases for the analyst's tools (JSON, CSV, STIX 2.1)."""
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from meritum_core.checks import CheckRecordRepository
-from meritum_core.checks.contracts import CheckRecord
 from meritum_core.moderation import ModeratorCaseRepository
 
 from meritum_backend.export._stix import build_bundle
@@ -21,8 +19,10 @@ from meritum_backend.export._tabular import (
 from meritum_backend.export.constants import (
     CSV_MEDIA_TYPE,
     DEFAULT_DAYS,
+    EXPORT_LIMIT_DETAIL,
     EXPORT_ROLES,
     MAX_DAYS,
+    MAX_EXPORT_CHECKS,
     STIX_MEDIA_TYPE,
 )
 from meritum_backend.staff import StaffMember
@@ -84,9 +84,6 @@ async def export(
 ) -> Response:
     """Export the checks of the last ``days`` days and the cases, masked.
 
-    shortcut: the record port has no "list all", so the checks are the ones the
-    cases cover; switch to a port query when core adds one.
-
     Args:
         _member: a signed-in analyst or administrator.
         records: the check record store.
@@ -97,19 +94,18 @@ async def export(
     Returns:
         The export in the chosen format.
 
+    Raises:
+        HTTPException: the selected period has too many records.
+
     Features:
         US-OBS-03, F-36
     """
     now = datetime.now(UTC)
-    all_cases = await cases.list_cases()
-    ids = dict.fromkeys(i for case in all_cases for i in case.check_ids)
-    found = await asyncio.gather(*(records.get(i) for i in ids))
     since = now - timedelta(days=days)
-    window: list[CheckRecord] = sorted(
-        (r for r in found if r is not None and r.received_at >= since),
-        key=lambda r: r.received_at,
-        reverse=True,
-    )
+    window = await records.list_between(since, now, MAX_EXPORT_CHECKS + 1)
+    if len(window) > MAX_EXPORT_CHECKS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, EXPORT_LIMIT_DETAIL)
+    all_cases = await cases.list_cases()
     if export_format is ExportFormat.STIX:
         return JSONResponse(
             build_bundle(window, all_cases, now), media_type=STIX_MEDIA_TYPE

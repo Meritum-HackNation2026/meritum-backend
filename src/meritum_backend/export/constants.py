@@ -14,6 +14,12 @@ DEFAULT_DAYS: Final = 7
 MAX_DAYS: Final = 365
 """Longest window a caller may ask for."""
 
+MAX_EXPORT_CHECKS: Final = 10_000
+"""Most check records one export can render in memory."""
+
+EXPORT_LIMIT_DETAIL: Final = "too many checks to export; reduce days"
+"""Error detail for a date range that exceeds the export limit."""
+
 STIX_MEDIA_TYPE: Final = "application/stix+json;version=2.1"
 """Media type of a STIX 2.1 bundle."""
 
