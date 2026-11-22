@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from meritum_core.checks import CheckRequest
-from meritum_core.security import PiiGatePort, mask_personal_data
+from meritum_core.security import MARKERS, PiiGatePort, mask_personal_data
 from pydantic import HttpUrl
 from pydantic_core import ErrorDetails
 
@@ -17,7 +17,6 @@ from meritum_backend.checks.constants import (
     FOREIGN_LINK,
     INVALID_URL_KEY,
     MARKER_OPEN,
-    MARKERS,
     TEXT_FIELDS,
     TEXT_MAX_CHARS,
     TOO_LONG_ERROR,
