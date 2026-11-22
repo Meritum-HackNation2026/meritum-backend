@@ -73,7 +73,9 @@ def test_discord_never_shows_the_internal_message() -> None:
 
 
 def test_sms_says_what_to_do_instead_of_a_failure() -> None:
-    assert reply_texts(_result(), first_contact=False, gsm7=False) == [NO_CLAIMS]
+    link = "https://x/c/1"
+    texts = reply_texts(_result(), first_contact=False, gsm7=False, link=link)
+    assert texts == [f"{NO_CLAIMS} {link}"]
 
 
 def test_texts_match_the_synced_copy() -> None:
