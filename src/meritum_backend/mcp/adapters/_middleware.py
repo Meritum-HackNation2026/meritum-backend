@@ -57,7 +57,10 @@ class McpAuthMiddleware:
             else None
         )
         if client is None:
-            challenge = f'Bearer realm="{REALM}"'
+            metadata = getattr(self._owner.state, "mcp_resource_metadata", None)
+            challenge = f'Bearer realm="{REALM}"' + (
+                f', resource_metadata="{metadata}"' if metadata else ""
+            )
             reply = JSONResponse(
                 {"error": "unauthorized", "message": UNAUTHORIZED_TEXT},
                 status_code=401,

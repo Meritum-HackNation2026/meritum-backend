@@ -164,14 +164,30 @@ npx @modelcontextprotocol/inspector   # Streamable HTTP, adres jak wyżej, nagł
 
 Serwer musi być osiągalny z internetu na porcie 443 (adresy Meritum to spełniają).
 
-**ChatGPT: tylko OAuth albo brak uwierzytelniania.** Dokumentacja OpenAI wymienia „OAuth”, „No authentication” i „OAuth or no authentication”; nagłówka z kluczem API ani stałego tokenu tam nie ma. Klucz API z tej sekcji nie podłączy więc ChatGPT, a wyłączenie uwierzytelniania na `/mcp` łamałoby ADR-17. ChatGPT zadziała dopiero z serwerem OAuth wpisanym w `MERITUM_MCP_OAUTH_*` (Meritum sprawdza wtedy tokeny introspekcją). Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
+**ChatGPT: OAuth.** ChatGPT nie wyśle klucza API, więc API ma własny, minimalny serwer OAuth 2.1 według specyfikacji autoryzacji MCP (#117). Logowanie to zwykłe logowanie Google albo Microsoft z sekcji „Logowanie (OIDC)”, bez nowych sekretów. Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
 
 1. <https://chatgpt.com/plugins> → „+” → „Add custom MCP server” (starsza ścieżka: Workspace settings → Apps → Create).
-2. Nazwa `Meritum`, w „Connection” adres serwera (Streamable HTTP).
-3. Authentication: OAuth z danymi serwera OAuth.
-4. „I understand and want to continue” → „Create as a plugin”, zainstaluj i wpisz `@Meritum` w rozmowie.
+2. Nazwa `Meritum`, w „Connection” adres `https://meritum-dev.gburek.app/mcp` (Streamable HTTP).
+3. Authentication: „OAuth”. Pola klienta zostaw puste: ChatGPT sam znajdzie serwer i zarejestruje się (dynamiczna rejestracja).
+4. „I understand and want to continue” → „Create as a plugin”, zainstaluj, zaloguj się kontem Google (albo Microsoft, gdy Google nie jest skonfigurowany) i wpisz `@Meritum` w rozmowie.
 
-Zespół nie ma jeszcze serwera OAuth dla aplikacji czatu, więc ChatGPT nie jest na przetestowanej ścieżce. Ręczne próby w obu usługach (data, wersja, zrzuty) trafiają do opisu PR i do zgłoszeń o znalezionych problemach. Żaden krok CI nie łączy się z tymi usługami.
+Jak to działa:
+
+| Endpoint | Rola |
+|---|---|
+| `GET /.well-known/oauth-protected-resource[/mcp]` | RFC 9728: zasób `<adres>/mcp` i jego serwer autoryzacji; odpowiedź 401 z `/mcp` wskazuje go w `WWW-Authenticate: Bearer resource_metadata="…"` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414: wystawcą jest sam adres publiczny, PKCE tylko `S256`, klient publiczny (`none`), parametr `iss` w odpowiedzi (RFC 9207) |
+| `POST /api/v1/oauth/register` | RFC 7591: adresy przekierowania tylko `https` albo `http` na localhost, bez fragmentu, najwyżej 5 |
+| `GET /api/v1/oauth/authorize` | kod autoryzacji z PKCE; niezalogowany idzie przez logowanie OIDC i wraca na `/api/v1/oauth/authorize/resume` |
+| `POST /api/v1/oauth/token` | kod (60 s, jednorazowy, zgodny klient, `redirect_uri` i weryfikator PKCE) albo token odświeżania; token dostępu żyje 1 h, odświeżania 7 dni |
+
+Jedyny zakres to `mcp`, a tokeny mają odbiorcę `<adres>/mcp`. Klient MCP w limitach to `oauth:<user_id>`, więc limity liczą się na osobę.
+
+Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
+
+Ścieżki `/.well-known/oauth-*` muszą trafiać do API: nginx aplikacji webowej przekazuje dziś do API tylko `/api/` i `/mcp`.
+
+Ręczne próby w ChatGPT i claude.ai (data, wersja, zrzuty) trafiają do opisu PR i do zgłoszeń o znalezionych problemach. Żaden krok CI nie łączy się z tymi usługami.
 
 ## Usuwanie danych
 
