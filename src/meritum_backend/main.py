@@ -48,7 +48,8 @@ from meritum_backend.limits import (
     start_pruning,
     too_many_requests,
 )
-from meritum_backend.moderation.api import handoff_router
+from meritum_backend.moderation import InMemoryAnswerStore, InMemorySourceDocuments
+from meritum_backend.moderation.api import answer_router, handoff_router
 from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.notifications.api import config_router as notifier_config_router
@@ -127,6 +128,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.sms = build_sms(settings)
     app.state.discord_replies = build_replies()
     app.state.cases, app.state.topics = build_moderation()
+    app.state.answers = InMemoryAnswerStore()
+    app.state.source_documents = InMemorySourceDocuments()
     repositories = build_app_repositories(DatabaseSettings())
     app.state.repositories = repositories
     app.state.staff = build_staff(repositories)
@@ -160,6 +163,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(staff_router)
     app.include_router(jury_router)
     app.include_router(moderation_router)
+    app.include_router(answer_router)
     app.include_router(check_events_router)
     app.include_router(audio_router)
     app.include_router(privacy_router)

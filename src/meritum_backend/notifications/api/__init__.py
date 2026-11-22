@@ -15,13 +15,19 @@ from meritum_backend.notifications.api._inbox import (
     get_ticks,
     router,
 )
-from meritum_backend.notifications.api._recipients import signed_in_account
+from meritum_backend.notifications.api._recipients import (
+    Recipient,
+    recipients,
+    signed_in_account,
+)
 
 __all__ = [
+    "Recipient",
     "config_router",
     "get_configs",
     "get_notifications",
     "get_ticks",
+    "recipients",
     "router",
     "signed_in_account",
 ]
