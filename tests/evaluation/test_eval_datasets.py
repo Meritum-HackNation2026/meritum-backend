@@ -16,6 +16,8 @@ def test_uploaded_set_runs_as_a_user_file(app: FastAPI, queue: Queue) -> None:
     assert run.status_code == 202
     payload = queue.enqueued[0].payload
     assert (payload.case_set, payload.case_file) == ("user_file", "cases.csv")  # ty: ignore[missing-attribute]
+    assert payload.dataset_blob_id is not None  # ty: ignore[missing-attribute]
+    assert str(payload.dataset_blob_id).startswith("dataset_")  # ty: ignore[missing-attribute]
 
 
 def test_json_upload_is_accepted(app: FastAPI) -> None:

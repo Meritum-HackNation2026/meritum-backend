@@ -6,7 +6,7 @@ Features:
     US-OBS-06, US-OBS-05, US-POW-05, F-28
 """
 
+from meritum_backend.evaluation.factory import build_eval_store
 from meritum_backend.evaluation.ports import EvalStore
-from meritum_backend.evaluation.store import MemoryEvalStore
 
-__all__ = ["EvalStore", "MemoryEvalStore"]
+__all__ = ["EvalStore", "build_eval_store"]
