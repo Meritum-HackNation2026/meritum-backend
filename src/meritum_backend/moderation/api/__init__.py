@@ -6,6 +6,7 @@ Features:
 
 from meritum_backend.moderation.api._answer import router as answer_router
 from meritum_backend.moderation.api._cases import router
+from meritum_backend.moderation.api._close import router as close_router
 from meritum_backend.moderation.api._handoff import router as handoff_router
 
-__all__ = ["answer_router", "handoff_router", "router"]
+__all__ = ["answer_router", "close_router", "handoff_router", "router"]

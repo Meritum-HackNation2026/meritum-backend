@@ -15,11 +15,19 @@ from meritum_backend.moderation._answers import (
     InMemorySourceDocuments,
     SourceDocuments,
 )
+from meritum_backend.moderation._closures import (
+    CaseClosure,
+    ClosureStore,
+    InMemoryClosureStore,
+)
 
 __all__ = [
     "Answer",
     "AnswerStore",
+    "CaseClosure",
+    "ClosureStore",
     "InMemoryAnswerStore",
+    "InMemoryClosureStore",
     "InMemorySourceDocuments",
     "SourceDocuments",
 ]
