@@ -33,6 +33,7 @@ from meritum_backend.discord.factory import build_replies
 from meritum_backend.evaluation.api import router as eval_router
 from meritum_backend.evaluation.constants import PANEL_PATH
 from meritum_backend.evaluation.factory import build_eval_store
+from meritum_backend.export.api import router as export_router
 from meritum_backend.health.api import router as health_router
 from meritum_backend.health.factory import build_readiness
 from meritum_backend.jobs.api import router as jobs_router
@@ -176,6 +177,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(sms_router)
     app.include_router(notifications_router)
     app.include_router(eval_router)
+    app.include_router(export_router)
     mcp_app = build_mcp(app)
     app.router.routes.extend(
         mcp_app.routes

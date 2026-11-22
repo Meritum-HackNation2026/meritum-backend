@@ -16,3 +16,9 @@ Feature: Ewaluacja jakości z poziomu aplikacji
     And dwa zakończone przebiegi
     When analityk otwiera GET /api/v1/eval/runs/compare z identyfikatorami obu przebiegów
     Then dostaje różnice mierników i listę przypadków, które zmieniły wynik
+
+  Scenario: paczka STIX dla OpenCTI
+    Given zalogowany analityk i 10 sprawdzeń z ostatniego tygodnia
+    When pobiera GET /api/v1/export?format=stix
+    Then dostaje paczkę STIX 2.1, która przechodzi walidację schematu
+    And żadna pozycja nie zawiera channel_user_hash, session_id ani niezamaskowanych pytań
