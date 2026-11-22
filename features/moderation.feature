@@ -112,3 +112,14 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     And administrator cofnął link demo
     When członek jury otwiera link demo
     Then dostaje odmowę i pozostaje bez sesji
+
+  Scenario: odpowiedź do pytających, których zapisy istnieją
+    Given sprawa z twierdzeniami z 3 sesji, z których jedna usunęła swoje zapisy
+    When moderator wysyła odpowiedź z cytatem ze źródła z katalogu
+    Then 2 istniejące sesje dostają powiadomienie "moderator_answer" z linkiem
+    And sprawa przechodzi w stan "answered"
+
+  Scenario: cytat niedosłowny
+    Given moderator wkleja fragment, którego nie ma w tekście źródła
+    When wysyła odpowiedź
+    Then API odrzuca ją z informacją, który cytat nie przeszedł

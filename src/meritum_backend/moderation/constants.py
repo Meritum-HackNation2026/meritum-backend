@@ -40,3 +40,33 @@ DISPUTE_DONE_KEY: Final = "result.report_error_done"
 
 CLAIM_NOT_FOUND_DETAIL: Final = "claim not found"
 """404 detail: no finished check with this id, or no claim at this index."""
+
+ANSWER_TEXT_MAX_CHARS: Final = 2000
+"""Longest moderator answer."""
+
+ANSWER_QUOTES_MAX: Final = 5
+"""Most quotes one answer carries."""
+
+QUOTE_MAX_CHARS: Final = 500
+"""Longest quoted fragment."""
+
+ANSWER_PATH: Final = "/odpowiedzi/{case}"
+"""In-app path of an answer; ``{case}`` is the case number without ``#``."""
+
+ANSWER_NOTIFICATION_DAYS: Final = 30
+"""How long a ``moderator_answer`` notification stays in the inbox."""
+
+CASE_ID_PATTERN: Final = r"^#S-\d+$"
+"""Shape of a moderator case id."""
+
+CASE_NOT_FOUND_DETAIL: Final = "case not found"
+"""404 detail: no case with this id."""
+
+ANSWER_NOT_FOUND_DETAIL: Final = "answer not found"
+"""404 detail: no answer, or the caller was not told about it."""
+
+CASE_NOT_OPEN_DETAIL: Final = "case is not open"
+"""409 detail: the case was already answered or closed."""
+
+QUOTES_REFUSED_DETAIL: Final = "quote not found verbatim in its source"
+"""422 message: names the rejected quotes by index."""
