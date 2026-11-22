@@ -8,6 +8,7 @@ from meritum_backend.auth.models import Me
 from meritum_backend.checks.api import AudioRejected
 from meritum_backend.discord.gateway import MeritumClient
 from meritum_backend.evaluation.models import Comparison
+from meritum_backend.mcp import SourceSearch
 from meritum_backend.notifications import NotifierConfigView
 from meritum_backend.settings import Settings
 from meritum_backend.staff import StaffMember
@@ -22,3 +23,4 @@ StaffMember.read_only  # response field, serialised by FastAPI
 MeritumClient.on_message  # called by discord.py for each Gateway message
 NotifierConfigView.secret_set  # response field, serialised by FastAPI
 Comparison.changed_cases  # response field, serialised by FastAPI
+SourceSearch.fragments  # tool result field, serialised by FastMCP

@@ -62,6 +62,7 @@ class Settings(BaseSettings):
             its secret, moderators can be notified by e-mail.
         email_worker_signing_secret: the HMAC secret the Worker checks.
         eval_corpus_version: the corpus snapshot evaluation runs pin.
+        mcp_corpus_version: the corpus snapshot the MCP tool search_sources pins.
         eval_bundle_url: https link to a run's reproduction bundle (``{run_id}``
             is replaced); the panel's evaluation page when unset.
         sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
@@ -92,6 +93,7 @@ class Settings(BaseSettings):
     )
     files_dir: Path | None = None
     eval_corpus_version: str = "current"
+    mcp_corpus_version: str = "current"
     eval_bundle_url: str | None = None
     sms_gateway_username: str | None = None
     sms_gateway_password: SecretStr | None = None
