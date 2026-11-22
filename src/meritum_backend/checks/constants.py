@@ -14,7 +14,6 @@ from meritum_core.checks.transcription import (
     MAX_AUDIO_SECONDS,
     AudioFormat,
 )
-from meritum_core.security.constants import EMAIL_MARKER, PESEL_MARKER, PHONE_MARKER
 
 SESSION_HEADER: Final = "X-Meritum-Session"
 """Header with the random browser session id; frontend and extension send it too."""
@@ -30,9 +29,6 @@ INVALID_URL_KEY: Final = "errors.invalid_url"
 
 TEXT_MAX_CHARS: Final = 4000
 """Longest text, as CheckRequest.text in meritum-core; masking never goes past it."""
-
-MARKERS: Final = (PHONE_MARKER, EMAIL_MARKER, PESEL_MARKER)
-"""Every personal-data marker mask_personal_data writes."""
 
 MARKER_OPEN: Final = "["
 """First character of every personal-data marker of meritum-core ("[telefon]")."""

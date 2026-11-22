@@ -155,4 +155,4 @@ filterwarnings = [
 ]
 
 [tool.uv.sources]
-meritum-core = { git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git", rev = "873e784890720679a6a2c5daf155e83e21ef9c7c" }
+meritum-core = { git = "ssh://git@github.com/Meritum-HackNation2026/meritum-core.git", rev = "522748d96447b9cb96793c152aa4861efdb8510f" }

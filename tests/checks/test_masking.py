@@ -139,6 +139,25 @@ def test_masking_never_leaves_half_a_marker(
     assert job.payload.request.text == "x" * 3993 + " "
 
 
+def test_gate_marker_cut_by_the_limit_is_dropped(
+    client: TestClient, jobs: InMemoryJobQueue
+) -> None:
+    """A SDP gate marker ("[dowód osobisty]") is not cut in half either."""
+    gate = SimpleNamespace(
+        mask=AsyncMock(
+            side_effect=lambda text: MaskedText(
+                text=text.replace("ABC123456", "[dowód osobisty]"), replaced=1
+            )
+        )
+    )
+    client.app.dependency_overrides[get_pii_gate] = lambda: gate  # ty: ignore[missing-attribute]  # TestClient.app is the FastAPI app
+    body = {"channel": "web", "text": "x" * 3990 + " ABC123456"}
+    assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
+    [job] = jobs.enqueued
+    assert isinstance(job.payload, CheckInput)
+    assert job.payload.request.text == "x" * 3990 + " "
+
+
 def test_link_is_enqueued_as_sent(client: TestClient, jobs: InMemoryJobQueue) -> None:
     body = {"channel": "web", "url": "https://example.com/a?b=1"}
     assert client.post("/api/v1/checks", json=body, headers=SESSION).status_code == 202
