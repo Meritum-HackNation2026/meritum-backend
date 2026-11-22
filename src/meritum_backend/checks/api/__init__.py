@@ -12,6 +12,8 @@ from meritum_backend.checks.api._cache import (
     get_result_cache,
 )
 from meritum_backend.checks.api._events import router as events_router
+from meritum_backend.checks.api._history import HistoryItem
+from meritum_backend.checks.api._history import router as history_router
 from meritum_backend.checks.api._images import router as image_router
 from meritum_backend.checks.api._pii import PiiGate, get_pii_gate
 from meritum_backend.checks.api._status import (
@@ -43,6 +45,7 @@ __all__ = [
     "AudioRejected",
     "AudioStoreError",
     "Cache",
+    "HistoryItem",
     "InvalidCheck",
     "KeyedErrorsRoute",
     "PiiGate",
@@ -54,6 +57,7 @@ __all__ = [
     "get_pii_gate",
     "get_records",
     "get_result_cache",
+    "history_router",
     "image_router",
     "router",
     "start_check",

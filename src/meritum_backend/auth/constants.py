@@ -89,3 +89,6 @@ SESSION_EXPIRES: Final = "expires"
 
 SESSION_READ_ONLY: Final = "read_only"
 """Signed session flag for accounts that may only read evaluation data."""
+
+USER_ID_MAX: Final = 64
+"""Longest ``user_id`` core accepts on a check record or notification."""

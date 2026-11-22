@@ -20,6 +20,8 @@ from meritum_core.jobs.ports import JobQueue
 from meritum_core.observability import SubjectEraser
 from pydantic import BaseModel, ValidationError
 
+from meritum_backend.auth import Account
+from meritum_backend.auth.api import CsrfUser
 from meritum_backend.checks import SESSION_HEADER
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import limiter
@@ -149,3 +151,72 @@ async def delete_session_checks(
             status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE_DETAIL
         ) from exc
     return DeletedChecks(deleted=deleted)
+
+
+account_router = APIRouter(prefix="/api/v1/me", tags=["privacy"])
+
+
+async def _delete_account_data(
+    account: Account, jobs: Jobs, eraser: Eraser
+) -> DeletedChecks:
+    try:
+        deleted = await delete_subject("user_id", account.user_id, eraser, jobs)
+    except Exception as exc:  # DBOS and psycopg wrap driver errors in their own types
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE_DETAIL
+        ) from exc
+    return DeletedChecks(deleted=deleted)
+
+
+@account_router.delete(
+    "/checks", status_code=status.HTTP_202_ACCEPTED, response_model=DeletedChecks
+)
+async def delete_my_history(
+    account: CsrfUser, jobs: Jobs, eraser: Eraser
+) -> DeletedChecks:
+    """Delete the signed-in citizen's history („Usuń moją historię”).
+
+    Same path as the browser session's deletion: records, notifications and
+    case links now, DBOS data and files in the ``delete_subject`` workflow.
+    The account stays signed in.
+
+    Args:
+        account: the signed-in account (CSRF token checked).
+        jobs: the job queue port.
+        eraser: the app's SubjectEraser.
+
+    Returns:
+        How many records and notifications were deleted right away.
+
+    Features:
+        US-SPR-10, US-BEZ-05, F-31, ADR-13
+    """
+    return await _delete_account_data(account, jobs, eraser)
+
+
+@account_router.delete(
+    "", status_code=status.HTTP_202_ACCEPTED, response_model=DeletedChecks
+)
+async def delete_my_account(
+    request: Request, account: CsrfUser, jobs: Jobs, eraser: Eraser
+) -> DeletedChecks:
+    """Delete the account („Usuń konto”): its history, notifications and session.
+
+    Meritum keeps no account row, only the provider's id on the account's
+    records, so deleting those and ending the session removes the account.
+
+    Args:
+        request: the request whose session is cleared.
+        account: the signed-in account (CSRF token checked).
+        jobs: the job queue port.
+        eraser: the app's SubjectEraser.
+
+    Returns:
+        How many records and notifications were deleted right away.
+
+    Features:
+        US-SPR-10, US-BEZ-05, F-31, ADR-13
+    """
+    deleted = await _delete_account_data(account, jobs, eraser)
+    request.session.clear()
+    return deleted
