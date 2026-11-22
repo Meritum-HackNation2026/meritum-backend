@@ -9,6 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, SecretStr
 
 from meritum_backend.auth import Account
 from meritum_backend.auth.constants import (
@@ -21,6 +22,7 @@ from meritum_backend.auth.constants import (
 from meritum_backend.jury.api._redemption import Store, admit
 from meritum_backend.jury.constants import (
     DEMO_ACCOUNTS,
+    DEMO_ADMIN,
     DEMO_ENVS,
     DEMO_PROVIDER,
     LINK_PATTERN,
@@ -121,3 +123,64 @@ async def open_demo_link(
         }
     )
     return RedirectResponse(DEMO_ACCOUNTS[account], status.HTTP_303_SEE_OTHER, NO_STORE)
+
+
+class PasswordLogin(BaseModel):
+    """Login and password the jury got in the submission.
+
+    Attributes:
+        login: the configured jury login.
+        password: the configured jury password.
+
+    Features:
+        US-OBS-06, US-MOD-05, F-28, F-25
+    """
+
+    login: str
+    password: SecretStr
+
+
+@router.post("/auth/password", status_code=status.HTTP_204_NO_CONTENT)
+async def password_login(
+    body: PasswordLogin,
+    request: Request,
+    origin: ClientOrigin,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    """Sign the jury in as the demo administrator with a login and password.
+
+    Args:
+        body: the login and password.
+        request: the request holding the session.
+        origin: the client address used for rate limiting.
+        settings: the configured jury login and password.
+
+    Raises:
+        HTTPException: 404 when no jury password is configured, 401 on a wrong
+            login or password, 429 when rate limited.
+
+    Features:
+        US-OBS-06, US-MOD-05, F-28, F-25
+    """
+    if settings.jury_login is None or settings.jury_password is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, headers=NO_STORE)
+    await admit(request, origin.ip)
+    login_ok = secrets.compare_digest(body.login.encode(), settings.jury_login.encode())
+    password_ok = secrets.compare_digest(
+        body.password.get_secret_value().encode(),
+        settings.jury_password.get_secret_value().encode(),
+    )
+    if not (login_ok and password_ok):
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "wrong login or password", NO_STORE
+        )
+    request.session.clear()
+    request.session.update(
+        {
+            SESSION_ACCOUNT: Account(
+                provider=DEMO_PROVIDER, subject=DEMO_ADMIN
+            ).model_dump(),
+            SESSION_CSRF: secrets.token_urlsafe(TOKEN_BYTES),
+            SESSION_SINCE: int(time.time()),
+        }
+    )

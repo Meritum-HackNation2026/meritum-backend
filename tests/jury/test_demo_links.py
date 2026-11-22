@@ -175,3 +175,23 @@ def test_list_omits_expired_and_jury_links(app: FastAPI) -> None:
             type("D", (), {"now": staticmethod(lambda _tz: soon + timedelta(1))}),
         )
         assert admin.get(PATH).json() == []
+
+
+def test_jury_password_signs_in_as_demo_admin() -> None:
+    settings = Settings(database_url=DB, jury_login="jury", jury_password="pass-1234")  # ruff: ignore[hardcoded-password-func-arg]
+    app = create_app(settings)
+    app.dependency_overrides[get_settings] = lambda: settings
+    visitor = anonymous(app)
+    login = "/api/v1/auth/password"
+    wrong = visitor.post(login, json={"login": "jury", "password": "nope"})
+    assert wrong.status_code == 401
+    assert visitor.get("/api/v1/staff/me").status_code == 401
+    ok = visitor.post(login, json={"login": "jury", "password": "pass-1234"})
+    assert ok.status_code == 204
+    assert visitor.get("/api/v1/staff/me").json()["role"] == "admin"
+    assert visitor.get(PATH).status_code == 403  # cannot issue links or add staff
+
+
+def test_jury_password_is_off_without_settings(app: FastAPI) -> None:
+    body = {"login": "x", "password": "x"}
+    assert anonymous(app).post("/api/v1/auth/password", json=body).status_code == 404

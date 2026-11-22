@@ -67,6 +67,9 @@ class Settings(BaseSettings):
             is replaced); the panel's evaluation page when unset.
         sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
             per SMS instead of 70).
+        jury_login: login of the jury's panel access; with the password it signs
+            in as the demo administrator.
+        jury_password: password of the jury's panel access.
 
     Features:
         none (infrastructure)
@@ -102,6 +105,8 @@ class Settings(BaseSettings):
     email_worker_url: str | None = None
     email_worker_signing_secret: SecretStr | None = None
     sms_gsm7: bool = False
+    jury_login: str | None = None
+    jury_password: SecretStr | None = None
 
 
 def get_settings() -> Settings:
