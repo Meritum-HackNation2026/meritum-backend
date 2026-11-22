@@ -17,6 +17,7 @@ from meritum_core.checks import SubjectKind
 from meritum_core.jobs.constants import HASH_PATTERN
 from meritum_core.jobs.contracts import DELETE_SUBJECT, DeleteSubjectInput
 from meritum_core.jobs.ports import JobQueue
+from meritum_core.notifications import NotificationRepository
 from meritum_core.observability import SubjectEraser
 from pydantic import BaseModel, ValidationError
 
@@ -168,6 +169,17 @@ async def _delete_account_data(
     return DeletedChecks(deleted=deleted)
 
 
+async def _clear_account_inbox(request: Request, account: Account) -> int:
+    # the eraser keeps case and system notifications; a deleted account keeps none
+    inbox: NotificationRepository = request.app.state.repositories.notifications
+    try:
+        return await inbox.delete_for("user_id", account.user_id)
+    except Exception as exc:  # psycopg wraps driver errors in its own types
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, UNAVAILABLE_DETAIL
+        ) from exc
+
+
 @account_router.delete(
     "/checks", status_code=status.HTTP_202_ACCEPTED, response_model=DeletedChecks
 )
@@ -176,9 +188,10 @@ async def delete_my_history(
 ) -> DeletedChecks:
     """Delete the signed-in citizen's history („Usuń moją historię”).
 
-    Same path as the browser session's deletion: records, notifications and
-    case links now, DBOS data and files in the ``delete_subject`` workflow.
-    The account stays signed in.
+    Same path as the browser session's deletion: records, notifications about
+    checks and case links now, DBOS data and files in the ``delete_subject``
+    workflow. Case assignments, system messages and evaluation run
+    notifications stay (core's ``ERASED_KINDS``). The account stays signed in.
 
     Args:
         account: the signed-in account (CSRF token checked).
@@ -204,6 +217,8 @@ async def delete_my_account(
 
     Meritum keeps no account row, only the provider's id on the account's
     records, so deleting those and ending the session removes the account.
+    Unlike „Usuń moją historię”, every notification of the account goes,
+    case assignments and system messages included.
 
     Args:
         request: the request whose session is cleared.
@@ -218,5 +233,6 @@ async def delete_my_account(
         US-SPR-10, US-BEZ-05, F-31, ADR-13
     """
     deleted = await _delete_account_data(account, jobs, eraser)
+    rest = await _clear_account_inbox(request, account)
     request.session.clear()
-    return deleted
+    return DeletedChecks(deleted=deleted.deleted + rest)
