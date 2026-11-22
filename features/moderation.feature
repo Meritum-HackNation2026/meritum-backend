@@ -123,3 +123,8 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given moderator wkleja fragment, którego nie ma w tekście źródła
     When wysyła odpowiedź
     Then API odrzuca ją z informacją, który cytat nie przeszedł
+
+  Scenario: Administrator widzi aktywne linki demo bez tokenów
+    Given administrator utworzył link demo dla konta technicznego "obywatel"
+    When administrator pobiera listę linków demo
+    Then lista zawiera metadane wydanego linku bez tokenu
