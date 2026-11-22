@@ -94,3 +94,28 @@ FROM corpus.documents
 WHERE source_id = ANY(%s)
 """
 """Read-only lookup of the link and publisher of found sources (infra/004)."""
+
+INTROSPECTION_TIMEOUT_SECONDS: Final = 3.0
+"""How long a token check waits for the OAuth server before it denies access."""
+
+API_KEY_HEADER: Final = "X-API-Key"
+"""Header for connectors that send a plain key; else ``Authorization: Bearer``."""
+
+REALM: Final = "meritum-mcp"
+"""Realm of the WWW-Authenticate challenge."""
+
+UNAUTHORIZED_TEXT: Final = (
+    "Wymagane uwierzytelnienie. Wyślij klucz API w nagłówku "
+    "'Authorization: Bearer <klucz>' albo 'X-API-Key: <klucz>', albo token "
+    "dostępu OAuth w nagłówku 'Authorization: Bearer <token>'."
+)
+"""Body of the 401 answer: how to authenticate, never what was wrong with a secret."""
+
+RATE_LIMITED_CHECK_TEXT: Final = "Za dużo sprawdzeń. Spróbuj ponownie za minutę."
+"""Tool error when the client is over its check limit."""
+
+TOO_MANY_REQUESTS: Final = 429
+"""Status of POST /api/v1/checks that refused a check for a limit."""
+
+BEARER_PREFIX: Final = "bearer "
+"""Start of an ``Authorization`` value that carries a key or token, any case."""
