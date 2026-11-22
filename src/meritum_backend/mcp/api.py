@@ -13,16 +13,18 @@ import time
 from typing import Annotated
 
 from fastapi import FastAPI
-from fastmcp import Context, FastMCP
+from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.http import StarletteWithLifespan
 from httpx2 import ASGITransport, AsyncClient
 from meritum_core.checks import AnalysisStatus, CheckResult
 from pydantic import Field
+from starlette.routing import Route
 
 from meritum_backend.limits import REGION_HEADER, origin_of
 from meritum_backend.mcp._search import SourceSearch, search_sources
+from meritum_backend.mcp.adapters import McpAuthMiddleware
 from meritum_backend.mcp.constants import (
     ACCEPTED,
     CHANNEL,
@@ -31,11 +33,13 @@ from meritum_backend.mcp.constants import (
     INTERNAL_URL,
     POLL_SECONDS,
     QUERY_DESCRIPTION,
+    RATE_LIMITED_CHECK_TEXT,
     SEARCH_TOOL_DESCRIPTION,
     SEARCH_TOOL_NAME,
     SERVER_NAME,
     TEXT_DESCRIPTION,
     TIMEOUT_TEXT,
+    TOO_MANY_REQUESTS,
     TOOL_DESCRIPTION,
     TOOL_NAME,
     WAIT_SECONDS,
@@ -85,16 +89,20 @@ def build_mcp(app: FastAPI) -> StarletteWithLifespan:
     server = FastMCP(SERVER_NAME)
 
     async def check_claim(
-        text: Annotated[str, Field(description=TEXT_DESCRIPTION)], ctx: Context
+        text: Annotated[str, Field(description=TEXT_DESCRIPTION)],
     ) -> CheckResult:
-        # the id is hashed with the salt by the checks API; the raw id never leaves it
+        # the authenticated client, never a name the caller picks; the checks API
+        # hashes it with the salt and limits by the hash, the raw id never leaves it
+        client = get_http_request().state.mcp_client
         body = {
             "channel": CHANNEL,
             "text": text,
-            "channel_user_id": ctx.client_id or ctx.session_id,
+            "channel_user_id": client.client_id,
         }
         async with _http_client(app) as http:
             started = await http.post(CHECKS_PATH, json=body)
+            if started.status_code == TOO_MANY_REQUESTS:
+                raise ToolError(RATE_LIMITED_CHECK_TEXT)
             if started.status_code != ACCEPTED:
                 msg = f"{started.status_code}: {started.text}"
                 raise ToolError(msg)
@@ -116,4 +124,9 @@ def build_mcp(app: FastAPI) -> StarletteWithLifespan:
 
     server.tool(name=TOOL_NAME, description=TOOL_DESCRIPTION)(check_claim)
     server.tool(name=SEARCH_TOOL_NAME, description=SEARCH_TOOL_DESCRIPTION)(search)
-    return server.http_app(path=ENDPOINT)
+    mcp_app = server.http_app(path=ENDPOINT)
+    # main.py mounts only these routes, so app-level middleware would not run
+    for route in mcp_app.routes:
+        if isinstance(route, Route):
+            route.app = McpAuthMiddleware(route.app, owner=app)
+    return mcp_app

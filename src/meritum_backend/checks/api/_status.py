@@ -152,7 +152,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         raise HTTPException(status.HTTP_400_BAD_REQUEST, BAD_SESSION_DETAIL) from None
     if not await readiness.ready():
         return not_ready_response()
-    if (refusal := await gate.refusal(origin, request.channel)) is not None:
+    if (refusal := await gate.refusal(origin, request.channel, hashed)) is not None:
         raise CheckRefusedError(refusal)
     try:
         hit = await serve_from_cache(jobs, cache, records, payload)

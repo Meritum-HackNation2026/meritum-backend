@@ -13,9 +13,11 @@ from functools import cache
 from meritum_backend.limits.constants import (
     BUSY,
     CHANNEL_SCOPE,
+    CLIENT_SCOPE,
     EVENTS_SCOPE,
     IP_SCOPE,
     KEY_SECRET_BYTES,
+    MCP_CHANNEL,
     RATE_LIMITED,
     REGION_SCOPE,
     SEARCH_SCOPE,
@@ -50,12 +52,15 @@ class CheckGate:
     pending: PendingChecks
     limits: LimitSettings
 
-    async def refusal(self, origin: Origin, channel: str) -> Refusal | None:
+    async def refusal(
+        self, origin: Origin, channel: str, client: str | None = None
+    ) -> Refusal | None:
         """Count the check and say why it may not start, if it may not.
 
         Args:
             origin: the client address and region.
             channel: the channel of the check.
+            client: the hash of the channel user id; MCP clients are limited by it.
 
         Returns:
             RATE_LIMITED or BUSY, or None when the check may start.
@@ -71,6 +76,13 @@ class CheckGate:
                 self.limits.checks_per_channel_per_minute,
             ),
         )
+        if client is not None and channel == MCP_CHANNEL:
+            limits += (
+                (
+                    self._key(CLIENT_SCOPE, client),
+                    self.limits.checks_per_client_per_minute,
+                ),
+            )
         for key, limit in limits:
             if await self._over(key, limit):
                 return RATE_LIMITED

@@ -27,10 +27,12 @@ from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
+from meritum_backend.mcp.adapters import ApiKeyAuthenticator
 from meritum_backend.settings import Settings, get_settings
 
 _SALT = SecretStr("behave-salt")
 _CLIENT = "chatgpt-behave"
+_KEY = "behave-key"  # a test key, not a secret
 _RESULT = CheckResult.model_validate_json(
     (Path(__file__).parents[1] / "fixtures" / "check_result.json").read_text("utf-8")
 )
@@ -63,6 +65,7 @@ def _prepare(context: Context, result: CheckResult) -> None:
     app.dependency_overrides[get_settings] = lambda: settings
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     app.dependency_overrides[get_check_gate] = lambda: gate
+    app.state.mcp_auth = ApiKeyAuthenticator({_CLIENT: _KEY})
     context.use_ready_probe(app)
     context.app = app
 
@@ -131,14 +134,14 @@ def call_tool(context: Context, text: str) -> None:
         US-WDR-06, F-37, ADR-17
     """
     transport = StreamableHttpTransport(
-        "http://testserver/mcp", httpx_client_factory=_factory(context.app)
+        "http://testserver/mcp",
+        headers={"Authorization": f"Bearer {_KEY}"},
+        httpx_client_factory=_factory(context.app),
     )
 
     async def run() -> dict[str, Any]:
         async with run_asgi_lifespan(context.app), Client(transport) as client:
-            called = await client.call_tool(
-                "check_claim", {"text": text}, meta={"client_id": _CLIENT}
-            )
+            called = await client.call_tool("check_claim", {"text": text})
             return called.structured_content or {}
 
     context.answer = asyncio.run(run())

@@ -44,3 +44,37 @@ class SourceCatalogue(Protocol):
             Info per known id; unknown ids are absent.
         """
         ...
+
+
+class McpClient(BaseModel, frozen=True):
+    """A client that passed authentication.
+
+    Attributes:
+        client_id: stable id of the connector (key label or OAuth client id);
+            hashed with the salt before it is stored or counted (US-BEZ-06).
+
+    Features:
+        US-WDR-06, US-BEZ-02, F-37
+    """
+
+    client_id: str
+
+
+class McpAuthenticator(Protocol):
+    """Recognises an MCP client by its credential (port).
+
+    Features:
+        US-WDR-06, US-BEZ-02, F-37, ADR-17
+    """
+
+    async def authenticate(self, credential: str) -> McpClient | None:
+        """Check an API key or an OAuth access token.
+
+        Args:
+            credential: the secret from the request header.
+
+        Returns:
+            The client, or None when the credential is unknown, expired or
+            the provider cannot be reached (fail closed).
+        """
+        ...

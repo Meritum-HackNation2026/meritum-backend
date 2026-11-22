@@ -56,3 +56,19 @@ Feature: Bezpieczeństwo danych wejściowych
     Given dwa żądania z tym samym identyfikatorem użytkownika Discorda
     When API liczy skrót
     Then oba mają ten sam channel_user_hash
+
+  Scenario: klient MCP bez uprawnień
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    When żądanie do /mcp przychodzi bez klucza i bez tokenu OAuth
+    Then serwer odpowiada 401 z opisem metody uwierzytelniania i nie zleca sprawdzenia
+
+  Scenario: klient MCP z błędnym kluczem
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    When żądanie do /mcp przychodzi z kluczem, którego serwer nie zna
+    Then serwer odpowiada 401 z opisem metody uwierzytelniania i nie zleca sprawdzenia
+
+  Scenario: klient MCP przekracza limit sprawdzeń
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    And limit 1 sprawdzenia na minutę dla klienta MCP
+    When klient MCP woła narzędzie sprawdzania dwa razy
+    Then drugie wywołanie kończy się błędem narzędzia o limicie, bez werdyktu

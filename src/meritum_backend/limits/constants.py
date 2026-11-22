@@ -22,6 +22,10 @@ SEARCHES_PER_IP_PER_MINUTE: Final = 30
 """Corpus searches (MCP ``search_sources``) one address may run per minute
 (MERITUM_SEARCHES_PER_IP_PER_MINUTE); a search is cheaper than a check."""
 
+CHECKS_PER_CLIENT_PER_MINUTE: Final = 30
+"""Checks one MCP client (the hash of its id, US-BEZ-06) may start per minute
+(MERITUM_CHECKS_PER_CLIENT_PER_MINUTE); all users of one connector share it."""
+
 CHECKS_PER_REGION_PER_MINUTE: Final = 3000
 """Checks one country may start per minute (MERITUM_CHECKS_PER_REGION_PER_MINUTE).
 
@@ -72,6 +76,12 @@ REGION_SCOPE: Final = "region"
 
 CHANNEL_SCOPE: Final = "channel"
 """Key prefix of per-channel counters in the shared table."""
+
+MCP_CHANNEL: Final = "mcp"
+"""The channel whose clients are counted by id hash."""
+
+CLIENT_SCOPE: Final = "client"
+"""Key prefix of per-client counters (hash of the channel user id)."""
 
 SEARCH_SCOPE: Final = "search"
 """Key prefix of per-address counters of corpus searches (MCP ``search_sources``)."""

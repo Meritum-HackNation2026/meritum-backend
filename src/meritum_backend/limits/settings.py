@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from meritum_backend.channels import ChannelHashSalt
 from meritum_backend.limits.constants import (
     CHECKS_PER_CHANNEL_PER_MINUTE,
+    CHECKS_PER_CLIENT_PER_MINUTE,
     CHECKS_PER_IP_PER_MINUTE,
     CHECKS_PER_REGION_PER_MINUTE,
     EVENT_STREAMS_PER_IP_PER_MINUTE,
@@ -23,6 +24,8 @@ class LimitSettings(BaseSettings):
 
     Attributes:
         checks_per_ip_per_minute: checks one client address may start per minute.
+        checks_per_client_per_minute: checks one MCP client (its id hash) may
+            start per minute.
         checks_per_region_per_minute: checks one country may start per minute.
         checks_per_channel_per_minute: checks one channel may start per minute.
         event_streams_per_ip_per_minute: progress streams one client address
@@ -43,6 +46,7 @@ class LimitSettings(BaseSettings):
     )
 
     checks_per_ip_per_minute: PositiveInt = CHECKS_PER_IP_PER_MINUTE
+    checks_per_client_per_minute: PositiveInt = CHECKS_PER_CLIENT_PER_MINUTE
     checks_per_region_per_minute: PositiveInt = CHECKS_PER_REGION_PER_MINUTE
     checks_per_channel_per_minute: PositiveInt = CHECKS_PER_CHANNEL_PER_MINUTE
     event_streams_per_ip_per_minute: PositiveInt = EVENT_STREAMS_PER_IP_PER_MINUTE

@@ -19,10 +19,13 @@ from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.main import create_app
+from meritum_backend.mcp.adapters import ApiKeyAuthenticator
 from meritum_backend.settings import Settings, get_settings
 
 CLAIM = "Czy od wczoraj w Pcimiu bilety autobusowe można kupić tylko przez aplikację?"
 SALT = SecretStr("test-salt")
+KEY = "test-key-123"
+CLIENT = "chatgpt-1"
 OFFLINE_DB = "postgresql://x:x@127.0.0.1:1/x"
 
 
@@ -32,6 +35,7 @@ def build_app(jobs: InMemoryJobQueue, make_probe: MakeProbe) -> FastAPI:
     gate = CheckGate(MemoryRateCounter(), FixedPendingChecks(), LimitSettings())
     cache = MemoryResultCache()
     probe = make_probe(InMemoryJobQueue(), report=worker_report())
+    app.state.mcp_auth = ApiKeyAuthenticator({CLIENT: KEY})
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_jobs] = lambda: jobs
     app.dependency_overrides[get_check_gate] = lambda: gate
@@ -45,6 +49,7 @@ def call_tool(
     arguments: dict[str, Any],
     tool: str = "check_claim",
     gate: CheckGate | None = None,
+    headers: dict[str, str] | None = None,
 ) -> Any:  # ruff: ignore[any-type]
     def factory(
         headers: dict[str, str] | None = None,
@@ -64,13 +69,15 @@ def call_tool(
 
     async def run() -> Any:  # ruff: ignore[any-type]
         transport = StreamableHttpTransport(
-            "http://testserver/mcp", httpx_client_factory=factory
+            "http://testserver/mcp",
+            headers=headers
+            if headers is not None
+            else {"Authorization": f"Bearer {KEY}"},
+            httpx_client_factory=factory,
         )
         async with run_asgi_lifespan(app), Client(transport) as client:
             if gate is not None:
                 app.state.check_gate = gate  # the lifespan built the real one
-            return await client.call_tool(
-                tool, arguments, meta={"client_id": "chatgpt-1"}
-            )
+            return await client.call_tool(tool, arguments)
 
     return asyncio.run(run())
