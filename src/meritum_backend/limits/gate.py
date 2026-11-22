@@ -76,16 +76,15 @@ class CheckGate:
                 self.limits.checks_per_channel_per_minute,
             ),
         )
-        if client is not None and channel == MCP_CHANNEL:
-            limits += (
-                (
-                    self._key(CLIENT_SCOPE, client),
-                    self.limits.checks_per_client_per_minute,
-                ),
-            )
         for key, limit in limits:
             if await self._over(key, limit):
                 return RATE_LIMITED
+        if (
+            client is not None
+            and channel == MCP_CHANNEL
+            and await self._client_over(client)
+        ):
+            return RATE_LIMITED
         most = self.limits.max_pending_checks
         if await self.pending.count(most) >= most:
             return BUSY
@@ -108,14 +107,15 @@ class CheckGate:
             return RATE_LIMITED
         return None
 
-    async def search_refusal(self, origin: Origin) -> Refusal | None:
+    async def search_refusal(self, origin: Origin, client: str) -> Refusal | None:
         """Count one corpus search and say why it may not run, if it may not.
 
-        Searches have their own per-address budget, so they never use up the
-        budget for starting a check.
+        Searches have their own per-address budget and share the MCP client
+        budget with checks.
 
         Args:
             origin: the client address and region.
+            client: the MCP client hash, or the client id when no salt is configured.
 
         Returns:
             RATE_LIMITED, or None when the search may run.
@@ -123,7 +123,14 @@ class CheckGate:
         key = self._key(SEARCH_SCOPE, origin.ip)
         if await self._over(key, self.limits.searches_per_ip_per_minute):
             return RATE_LIMITED
+        if await self._client_over(client):
+            return RATE_LIMITED
         return None
+
+    async def _client_over(self, client: str) -> bool:
+        return await self._over(
+            self._key(CLIENT_SCOPE, client), self.limits.checks_per_client_per_minute
+        )
 
     async def forget_finished(self) -> None:
         """Drop the counts of finished windows (keys live one window only)."""

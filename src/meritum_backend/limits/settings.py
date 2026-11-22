@@ -24,8 +24,8 @@ class LimitSettings(BaseSettings):
 
     Attributes:
         checks_per_ip_per_minute: checks one client address may start per minute.
-        checks_per_client_per_minute: checks one MCP client (its id hash) may
-            start per minute.
+        checks_per_client_per_minute: combined checks and searches one MCP
+            client may start per minute.
         checks_per_region_per_minute: checks one country may start per minute.
         checks_per_channel_per_minute: checks one channel may start per minute.
         event_streams_per_ip_per_minute: progress streams one client address

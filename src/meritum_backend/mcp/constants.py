@@ -81,7 +81,7 @@ BLANK_QUERY_TEXT: Final = "Zapytanie nie może być puste."
 """Tool error for a blank query."""
 
 RATE_LIMITED_TEXT: Final = "Za dużo wyszukiwań. Spróbuj ponownie za minutę."
-"""Tool error when the address is over its search limit."""
+"""Tool error when the address or the MCP client is over its limit."""
 
 CORPUS_UNAVAILABLE_TEXT: Final = (
     "Katalog źródeł jest chwilowo niedostępny. Spróbuj ponownie za chwilę."

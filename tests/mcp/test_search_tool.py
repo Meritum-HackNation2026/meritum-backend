@@ -12,12 +12,17 @@ from meritum_core.corpus import (
 )
 from meritum_core.jobs.fakes import InMemoryJobQueue
 from tests.conftest import MakeProbe
-from tests.mcp.support import build_app, call_tool
+from tests.mcp.support import CLIENT, KEY, build_app, call_tool
 
 from meritum_backend.limits import CheckGate, LimitSettings
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.mcp import FRAGMENT_MAX_CHARS, RESULT_LIMIT, SourceInfo
-from meritum_backend.mcp.adapters import MemorySourceCatalogue
+from meritum_backend.mcp.adapters import (
+    AnyOfAuthenticator,
+    ApiKeyAuthenticator,
+    MemorySourceCatalogue,
+)
+from meritum_backend.mcp_oauth import OAuthServer
 
 QUERY = "ostrzeżenia IMGW Mazowsze"
 FULL_TEXT = "IMGW wydał ostrzeżenie drugiego stopnia dla Mazowsza. " * 40
@@ -154,3 +159,32 @@ def test_searches_over_the_limit_are_refused(make_probe: MakeProbe) -> None:
         _search(make_probe, corpus, gate=gate)
 
     assert len(corpus.calls) == 1
+
+
+def test_search_limit_is_counted_per_authenticated_client(
+    make_probe: MakeProbe,
+) -> None:
+    gate = CheckGate(
+        MemoryRateCounter(),
+        FixedPendingChecks(),
+        LimitSettings(checks_per_client_per_minute=1),
+    )
+    corpus = FakeCorpus()
+    app = build_app(InMemoryJobQueue(), make_probe)
+    app.state.corpus_search = corpus
+    oauth = app.state.mcp_oauth
+    assert isinstance(oauth, OAuthServer)
+    token = oauth.tokens("google:1", "test-client").access_token
+    app.state.mcp_auth = AnyOfAuthenticator([ApiKeyAuthenticator({CLIENT: KEY}), oauth])
+    arguments = {"query": QUERY}
+    call_tool(app, arguments, "search_sources", gate)
+
+    with pytest.raises(ToolError, match="Za dużo wyszukiwań"):
+        call_tool(app, arguments, "search_sources", gate)
+
+    oauth_headers = {"Authorization": f"Bearer {token}"}
+    call_tool(app, arguments, "search_sources", gate, oauth_headers)
+    with pytest.raises(ToolError, match="Za dużo wyszukiwań"):
+        call_tool(app, arguments, "search_sources", gate, oauth_headers)
+
+    assert len(corpus.calls) == 2

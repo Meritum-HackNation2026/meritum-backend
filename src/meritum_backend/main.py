@@ -201,7 +201,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(export_router)
     app.include_router(oauth_metadata_router)
     app.include_router(oauth_router)
-    mcp_app = build_mcp(app)
+    mcp_app = build_mcp(app, settings.channel_hash_salt)
     app.router.routes.extend(
         mcp_app.routes
     )  # exactly /mcp: chat apps do not follow a redirect

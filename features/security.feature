@@ -77,3 +77,9 @@ Feature: Bezpieczeństwo danych wejściowych
     And limit 1 sprawdzenia na minutę dla klienta MCP
     When klient MCP woła narzędzie sprawdzania dwa razy
     Then drugie wywołanie kończy się błędem narzędzia o limicie, bez werdyktu
+
+  Scenario: Wyszukiwanie źródeł korzysta z limitu klienta MCP
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    And limit 1 sprawdzenia na minutę dla klienta MCP
+    When klient MCP sprawdza twierdzenie, a potem szuka źródeł
+    Then wyszukiwanie kończy się błędem narzędzia o limicie

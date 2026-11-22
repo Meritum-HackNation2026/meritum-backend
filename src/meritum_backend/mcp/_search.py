@@ -82,6 +82,7 @@ async def search_sources(  # ruff: ignore[too-many-arguments]
     query: str,
     *,
     origin: Origin,
+    client: str,
     gate: CheckGate,
     pii: PiiGatePort,
     corpus: CorpusSearchPort,
@@ -93,7 +94,8 @@ async def search_sources(  # ruff: ignore[too-many-arguments]
     Args:
         query: the caller's query.
         origin: the caller's address and region, for the search limit.
-        gate: counts the search against the address's budget.
+        client: the authenticated client's identifier for the shared budget.
+        gate: counts the search against the address and client budgets.
         pii: masks personal data in the query.
         corpus: the corpus search port (ADR-32).
         catalogue: gives title, publisher and link of found sources.
@@ -110,7 +112,7 @@ async def search_sources(  # ruff: ignore[too-many-arguments]
     """
     if not query.strip():
         raise ToolError(BLANK_QUERY_TEXT)
-    if await gate.search_refusal(origin):
+    if await gate.search_refusal(origin, client):
         raise ToolError(RATE_LIMITED_TEXT)
     safe = await masked_text(query.strip(), QUERY_MAX_CHARS, pii)
     try:
