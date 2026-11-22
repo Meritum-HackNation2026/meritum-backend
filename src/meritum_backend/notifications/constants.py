@@ -33,8 +33,8 @@ STAFF_INBOX_PREFIX: Final = "staff:"
 STAFF_INBOX_HASH_CHARS: Final = 32
 """Hex chars of the address hash; with ``staff:`` it fits the 64 allowed."""
 
-CASE_PANEL_PATH: Final = "/moderator/cases/{case}"
-"""Panel path of one case; ``{case}`` is the number without ``#``."""
+CASE_PANEL_PATH: Final = "/panel"
+"""Frontend path of the moderator panel; it has no per-case route."""
 
 NOTIFICATION_RETENTION_DAYS: Final = 30
 """How long a ``case_assigned`` notification stays in the inbox."""

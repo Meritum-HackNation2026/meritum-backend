@@ -102,7 +102,7 @@ def test_a_new_case_reaches_the_target_with_number_reasons_and_panel_link() -> N
         CaseAlert(
             case_id="#S-12",
             reasons=["insufficient_evidence"],
-            panel_url="https://meritum.example/moderator/cases/S-12",
+            panel_url="https://meritum.example/panel",
         )
     ]
 
@@ -117,7 +117,7 @@ def test_moderators_and_admins_get_case_assigned_in_their_inbox_analysts_do_not(
     for email in ("mod@example.com", "boss@example.com"):
         [note] = asyncio.run(rig.inbox.list_for("user_id", staff_inbox_id(email)))
         assert (note.kind, note.case_id) == ("case_assigned", "#S-12")
-        assert note.link == "/moderator/cases/S-12"
+        assert note.link == "/panel"
     assert not asyncio.run(
         rig.inbox.list_for("user_id", staff_inbox_id("ana@example.com"))
     )

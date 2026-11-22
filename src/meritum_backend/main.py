@@ -64,7 +64,6 @@ from meritum_backend.mcp_oauth.constants import MCP_PATH, RESOURCE_METADATA_PATH
 from meritum_backend.moderation import InMemoryAnswerStore, InMemorySourceDocuments
 from meritum_backend.moderation.api import answer_router, handoff_router
 from meritum_backend.moderation.api import router as moderation_router
-from meritum_backend.moderation.factory import build_moderation
 from meritum_backend.notifications.api import config_router as notifier_config_router
 from meritum_backend.notifications.api import router as notifications_router
 from meritum_backend.notifications.factory import build_announcer, build_config_store
@@ -142,11 +141,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.admin_emails = settings.admin_emails
     app.state.sms = build_sms(settings)
     app.state.discord_replies = build_replies()
-    app.state.cases, app.state.topics = build_moderation()
     app.state.answers = InMemoryAnswerStore()
     app.state.source_documents = InMemorySourceDocuments()
     repositories = build_app_repositories(DatabaseSettings())
     app.state.repositories = repositories
+    # one store with the worker, which writes the cases (#128)
+    app.state.cases, app.state.topics = repositories.cases, repositories.topics
     app.state.staff = build_staff(repositories)
     app.state.notifier_configs = build_config_store(settings)
     app.state.announcer = build_announcer(
