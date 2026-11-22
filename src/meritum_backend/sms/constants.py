@@ -1,12 +1,14 @@
 """Constants of the SMS channel: the gateway's webhook and API, reply copy.
 
 The Polish texts mirror design-system ``copy/pl.json`` (synced, never edited here);
-the SMS replies carry no links, Polish operators filter them (team decision, #29).
+the last SMS of a reply ends with the link to the full result card (#151, owner's
+call, replacing the no-links decision of #29).
 
 Features:
     US-WTY-07, US-BEZ-06, US-BEZ-07, F-32, F-21
 """
 
+import re
 from typing import Final
 
 SIGNATURE_HEADER: Final = "X-Signature"
@@ -68,14 +70,20 @@ FINISHED_STATUSES: Final = frozenset(
 )
 """DBOS workflow statuses that will not change any more."""
 
-UCS2_LIMIT: Final = 70
-"""Characters of one SMS when any character is outside GSM-7 (Polish diacritics)."""
+MAX_PARTS: Final = 3
+"""Most parts of one reply; sms-gate.app splits a long text into a multipart SMS."""
 
-GSM7_LIMIT: Final = 160
-"""Characters of one SMS in GSM-7."""
+UCS2_PART: Final = 67
+"""Characters of one part of a multipart UCS-2 SMS (Polish diacritics); 70 alone."""
+
+GSM7_PART: Final = 153
+"""Characters of one part of a multipart GSM-7 SMS; 160 alone."""
+
+SENTENCE_GAP: Final = re.compile(r"(?<=[.!?])\s+")
+"""Space after a sentence's end: a long reply is shortened between sentences."""
 
 ELLIPSIS: Final = "…"
-"""Ends a reply cut to one SMS; in GSM-7 mode it becomes ``...``."""
+"""Ends a reply cut inside its first sentence; in GSM-7 mode it becomes ``...``."""
 
 GSM7_ELLIPSIS: Final = "..."
 """ELLIPSIS in GSM-7, which has no single-character ellipsis."""

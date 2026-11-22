@@ -28,6 +28,7 @@ from pydantic import BaseModel, SecretStr, ValidationError
 from meritum_backend.channels import channel_user_hash
 from meritum_backend.checks import masked
 from meritum_backend.checks.api import PiiGate
+from meritum_backend.discord.api import card_url
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import CheckGate, Gate, Origin
 from meritum_backend.privacy import delete_subject, get_eraser
@@ -48,7 +49,7 @@ from meritum_backend.sms.delivery import reply_when_done
 from meritum_backend.sms.models import GatewayEvent
 from meritum_backend.sms.numbers import e164
 from meritum_backend.sms.ports import SmsSender
-from meritum_backend.sms.replies import one_sms
+from meritum_backend.sms.replies import fit
 from meritum_backend.sms.signature import signature_is_valid
 
 router = APIRouter(prefix="/api/v1/sms", tags=["sms"])
@@ -194,8 +195,9 @@ async def webhook(  # ruff: ignore[too-many-arguments]  # FastAPI dependencies, 
     check_id = f"{CHANNEL}-{hashlib.sha256(event_key).hexdigest()[:EVENT_HASH_CHARS]}"
     if await jobs.state(check_id) is not None:
         return Received(status="duplicate")
+    link = card_url(settings, check_id)
     sending = _Sending(
-        jobs, sms, records, pii, gate, background, sender, settings.sms_gsm7
+        jobs, sms, records, pii, gate, background, sender, settings.sms_gsm7, link
     )
     return await _start_check(sending, check_id, text, hashed)
 
@@ -210,6 +212,7 @@ class _Sending:
     background: BackgroundTasks
     phone_number: str
     gsm7: bool
+    link: str
 
 
 async def _start_check(
@@ -219,7 +222,7 @@ async def _start_check(
         payload = await _check_input(text, hashed, sending.pii)
     except ValidationError:
         if len(text) > TEXT_MAX_CHARS:
-            too_long = one_sms(TOO_LONG_TEXT, gsm7=sending.gsm7)
+            too_long = fit(TOO_LONG_TEXT, gsm7=sending.gsm7)
             sending.background.add_task(
                 sending.sms.send, sending.phone_number, too_long
             )
@@ -238,5 +241,6 @@ async def _start_check(
         sending.phone_number,
         first_contact=first,
         gsm7=sending.gsm7,
+        link=sending.link,
     )
     return Received(status="accepted")

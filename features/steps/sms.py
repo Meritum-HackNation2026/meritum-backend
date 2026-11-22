@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import re
 import time
 from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
@@ -34,7 +35,7 @@ from meritum_backend.main import create_app
 from meritum_backend.privacy import get_eraser
 from meritum_backend.settings import Settings, get_settings
 from meritum_backend.sms.api import get_records, get_sms
-from meritum_backend.sms.constants import AI_NOTICE, UCS2_LIMIT
+from meritum_backend.sms.constants import AI_NOTICE, MAX_PARTS, UCS2_PART
 
 KEY = "behave-signing-key"
 SALT = SecretStr("behave-salt")
@@ -141,17 +142,24 @@ def _check_finishes(context: Context) -> None:
 
 @then(
     "pierwsza odpowiedź mówi, że odpowiada system AI, i podaje werdykt głównego"
-    " twierdzenia bez linku"
+    " twierdzenia"
 )
 def _first_reply(context: Context) -> None:
     texts = [text for _, text in context.gateway.sent]
-    assert texts == [AI_NOTICE, "Nie podlega weryfikacji"], texts
-    assert all("http" not in text for text in texts)
+    assert texts[0] == AI_NOTICE, texts
+    assert texts[1].startswith("Nie podlega weryfikacji "), texts
 
 
-@then("każdy SMS odpowiedzi ma najwyżej 70 znaków w UCS-2")
+@then("ostatni SMS odpowiedzi kończy się linkiem do pełnego wyniku")
+def _ends_with_link(context: Context) -> None:
+    last = context.gateway.sent[-1][1]
+    assert re.search(r" https?://\S+/sprawdzenie/sms-[0-9a-f]+$", last), last
+
+
+@then("każdy SMS odpowiedzi mieści się w 3 częściach UCS-2")
 def _within_limit(context: Context) -> None:
-    assert all(len(text) <= UCS2_LIMIT for _, text in context.gateway.sent)
+    limit = UCS2_PART * MAX_PARTS
+    assert all(len(text) <= limit for _, text in context.gateway.sent)
 
 
 @given("numer ma zapisane sprawdzenia")
@@ -226,10 +234,9 @@ def _mms_checked(context: Context) -> None:
 
 @then("odpowiada SMS-em z werdyktem")
 def _mms_answered(context: Context) -> None:
-    assert context.gateway.sent == [
-        (SENDER, AI_NOTICE),
-        (SENDER, "Nie podlega weryfikacji"),
-    ]
+    [(_, notice), (_, verdict)] = context.gateway.sent
+    assert notice == AI_NOTICE
+    assert verdict.startswith("Nie podlega weryfikacji http")
 
 
 @then("backend potwierdza odbiór (2xx) i nic nie sprawdza")

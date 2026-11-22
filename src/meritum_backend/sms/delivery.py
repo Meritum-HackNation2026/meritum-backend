@@ -34,6 +34,7 @@ async def reply_when_done(  # ruff: ignore[too-many-arguments]  # a background t
     *,
     first_contact: bool,
     gsm7: bool,
+    link: str,
 ) -> None:
     """Wait for the check, then send its verdict (or the failure text).
 
@@ -44,11 +45,12 @@ async def reply_when_done(  # ruff: ignore[too-many-arguments]  # a background t
         phone_number: where the reply goes.
         first_contact: the AI notice goes first.
         gsm7: the sms_gsm7 setting.
+        link: the full result card; ends the last SMS.
 
     Features:
         US-WTY-07, US-BEZ-07, F-32, F-21
     """
     state = await _finished(jobs, check_id)
     result = check_result(state) if state is not None else None
-    for text in reply_texts(result, first_contact=first_contact, gsm7=gsm7):
+    for text in reply_texts(result, first_contact=first_contact, gsm7=gsm7, link=link):
         await sms.send(phone_number, text)

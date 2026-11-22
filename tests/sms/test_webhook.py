@@ -105,7 +105,9 @@ def test_accepted_sms_gets_the_ai_notice_first(post: Post, sms: FakeSms) -> None
     post(event(CLAIM))
 
     # the fake queue never finishes the check, so the reply is the failure text
-    assert [text for _, text in sms.sent] == [AI_NOTICE, FAILURE_TEXT]
+    [notice, failure] = [text for _, text in sms.sent]
+    assert notice == AI_NOTICE
+    assert failure.startswith(f"{FAILURE_TEXT} http")
     assert {phone for phone, _ in sms.sent} == {SENDER}
 
 
@@ -229,4 +231,5 @@ def test_number_with_earlier_checks_gets_no_ai_notice(
 
     post(event(CLAIM, event_id="e2"))
 
-    assert [text for _, text in sms.sent] == [FAILURE_TEXT]
+    [failure] = [text for _, text in sms.sent]
+    assert failure.startswith(f"{FAILURE_TEXT} http")
