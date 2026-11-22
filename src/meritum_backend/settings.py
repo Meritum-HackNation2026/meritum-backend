@@ -11,6 +11,20 @@ from meritum_backend.channels import ChannelHashSalt
 from meritum_backend.constants import LIST_SEPARATORS, LOCAL_DB
 
 
+def _uris(value: object) -> object:
+    """Split a comma- or whitespace-separated list of URIs.
+
+    Args:
+        value: the raw value; anything but a string passes through.
+
+    Returns:
+        The URIs as a frozenset, or ``value`` unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    return frozenset(u for u in re.split(LIST_SEPARATORS, value) if u)
+
+
 def _emails(value: object) -> object:
     """Split a comma- or whitespace-separated list of addresses, lower-cased.
 
@@ -65,6 +79,9 @@ class Settings(BaseSettings):
         mcp_corpus_version: the corpus snapshot the MCP tool search_sources pins.
         eval_bundle_url: https link to a run's reproduction bundle (``{run_id}``
             is replaced); the panel's evaluation page when unset.
+        mcp_oauth_redirect_uris: redirect URIs MCP OAuth clients may register
+            besides loopback ones (comma- or space-separated); empty means
+            the chat apps (``mcp_oauth.constants.REDIRECT_URIS``).
         sms_gsm7: reply without Polish diacritics in GSM-7 (160 characters
             per SMS instead of 70).
         jury_login: login of the jury's panel access; with the password it signs
@@ -107,6 +124,9 @@ class Settings(BaseSettings):
     sms_gsm7: bool = False
     jury_login: str | None = None
     jury_password: SecretStr | None = None
+    mcp_oauth_redirect_uris: Annotated[
+        frozenset[str], NoDecode, BeforeValidator(_uris)
+    ] = frozenset()
 
 
 def get_settings() -> Settings:

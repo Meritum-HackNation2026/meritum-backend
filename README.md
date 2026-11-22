@@ -137,6 +137,7 @@ Serwer MCP pozwala sprawdzić twierdzenie z aplikacji czatu (US-WDR-06, US-WTY-0
 | Zmienna | Opis |
 |---|---|
 | `MERITUM_MCP_API_KEYS` | pary `etykieta=klucz` rozdzielone przecinkami; jedna etykieta na konektor, żeby dało się odebrać dostęp jednemu klientowi. Deploy bierze je z sekretu repozytorium `MERITUM_MCP_API_KEYS_{DEV,PRD}` (patrz „Sekrety w kontenerze”) |
+| `MERITUM_MCP_OAUTH_REDIRECT_URIS` | adresy powrotu, które może zarejestrować klient wbudowanego serwera OAuth (oprócz localhost), rozdzielone przecinkami; puste: `https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`, `https://chatgpt.com/connector_platform_oauth_redirect` i `https://chat.openai.com/connector_platform_oauth_redirect`. `/authorize` odrzuca kodem 400 adres spoza listy także u klientów zarejestrowanych wcześniej |
 | `MERITUM_MCP_OAUTH_INTROSPECTION_URL`, `MERITUM_MCP_OAUTH_CLIENT_ID`, `MERITUM_MCP_OAUTH_CLIENT_SECRET` | serwer OAuth, który wydaje tokeny aplikacjom czatu; muszą być ustawione wszystkie trzy |
 
 Bez żadnej z tych zmiennych `/mcp` odpowiada 401 każdemu. Klucze generuj losowo (`openssl rand -base64 32`), nie wklejaj ich do zgłoszeń, logów ani zrzutów ekranu.
@@ -187,13 +188,13 @@ Jak to działa:
 |---|---|
 | `GET /.well-known/oauth-protected-resource[/mcp]` | RFC 9728: zasób `<adres>/mcp` i jego serwer autoryzacji; odpowiedź 401 z `/mcp` wskazuje go w `WWW-Authenticate: Bearer resource_metadata="…"` |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414: wystawcą jest sam adres publiczny, PKCE tylko `S256`, klient publiczny (`none`), parametr `iss` w odpowiedzi (RFC 9207) |
-| `POST /api/v1/oauth/register` | RFC 7591: adresy przekierowania tylko `https` albo `http` na localhost, bez fragmentu, najwyżej 5 |
+| `POST /api/v1/oauth/register` | RFC 7591: adresy przekierowania z listy dozwolonych albo `http`/`https` na localhost, bez fragmentu, najwyżej 5; inny adres dostaje `400 invalid_redirect_uri` |
 | `GET /api/v1/oauth/authorize` | kod autoryzacji z PKCE; niezalogowany idzie przez logowanie OIDC i wraca na `/api/v1/oauth/authorize/resume` |
 | `POST /api/v1/oauth/token` | kod (60 s, jednorazowy, zgodny klient, `redirect_uri` i weryfikator PKCE) albo token odświeżania; token dostępu żyje 1 h, odświeżania 7 dni |
 
 Jedyny zakres to `mcp`, a tokeny mają odbiorcę `<adres>/mcp`. Klient MCP w limitach to `oauth:<user_id>`, więc limity liczą się na osobę.
 
-Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody (#146) ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
+Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody (#146) ani odwoływania pojedynczego tokenu. Kod trafia jednak tylko na adres z listy dozwolonych, więc obca strona nie przejmie tokenu. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
 
 Ścieżki `/.well-known/oauth-*` muszą trafiać do API: nginx aplikacji webowej przekazuje dziś do API tylko `/api/` i `/mcp`.
 

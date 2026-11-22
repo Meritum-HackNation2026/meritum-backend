@@ -67,7 +67,19 @@ URI_MAX: Final = 512
 """Longest redirect URI accepted."""
 
 LOOPBACK_HOSTS: Final = frozenset({"localhost", "127.0.0.1", "::1"})
-"""Hosts a redirect URI may reach over plain http (native apps)."""
+"""Hosts a redirect URI may reach over http or https, any port (native apps)."""
+
+REDIRECT_URIS: Final = frozenset(
+    {
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://claude.com/api/mcp/auth_callback",
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+        "https://chat.openai.com/connector_platform_oauth_redirect",
+    }
+)
+"""Redirect URIs a client may register besides loopback ones: the chat apps.
+
+``MERITUM_MCP_OAUTH_REDIRECT_URIS`` replaces the list (#146)."""
 
 CLIENT_PREFIX: Final = "oauth:"
 """Prefix of the MCP client id of a token holder; the rest is the user id."""

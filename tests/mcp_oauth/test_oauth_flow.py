@@ -108,7 +108,7 @@ def test_code_works_once() -> None:
 
 def test_code_of_another_client_is_refused() -> None:
     http = client()
-    mine, other = register(http), register(http, "https://example.com/cb")
+    mine, other = register(http), register(http, "http://127.0.0.1:3333/cb")
 
     assert exchange(http, other, code_for(http, mine))["error"] == "invalid_grant"
 
@@ -164,19 +164,36 @@ def test_bad_authorize_request_goes_back_with_an_error(
 
 @pytest.mark.parametrize(
     "uris",
-    [[], ["http://example.com/cb"], ["javascript:alert(1)"], ["https://a/#frag"]],
+    [
+        [],
+        ["http://example.com/cb"],
+        ["javascript:alert(1)"],
+        ["https://a/#frag"],
+        ["https://evil.example/cb"],
+        ["https://claude.ai/api/mcp/auth_callback", "https://evil.example/cb"],
+        ["https://claude.ai.evil.example/api/mcp/auth_callback"],
+    ],
 )
-def test_registration_needs_https_or_loopback_redirects(uris: list[str]) -> None:
+def test_registration_needs_allowed_or_loopback_redirects(uris: list[str]) -> None:
     reply = client().post("/api/v1/oauth/register", json={"redirect_uris": uris})
 
     assert reply.status_code == 400
     assert reply.json()["error"] == "invalid_redirect_uri"
 
 
-def test_loopback_redirect_may_use_http() -> None:
-    reply = client().post(
-        "/api/v1/oauth/register", json={"redirect_uris": ["http://127.0.0.1:3333/cb"]}
-    )
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "http://127.0.0.1:3333/cb",
+        "http://localhost:6274/oauth/callback",
+        "https://claude.ai/api/mcp/auth_callback",
+        "https://claude.com/api/mcp/auth_callback",
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+        "https://chat.openai.com/connector_platform_oauth_redirect",
+    ],
+)
+def test_chat_apps_and_loopback_may_register(uri: str) -> None:
+    reply = client().post("/api/v1/oauth/register", json={"redirect_uris": [uri]})
 
     assert reply.status_code == 201
 

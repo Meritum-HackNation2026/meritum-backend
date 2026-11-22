@@ -18,6 +18,7 @@ from meritum_backend.mcp_oauth.constants import (
     CODE_SECONDS,
     MCP_PATH,
     PENDING_SECONDS,
+    REDIRECT_URIS,
     REDIRECTS_MAX,
     REFRESH_SECONDS,
     SCOPE,
@@ -33,6 +34,7 @@ class OAuthServer:
         signer: signs and reads the tokens.
         base: the public address; the issuer, with ``/mcp`` the resource.
         clock: Unix seconds now; tests pass a fixed one.
+        redirects: the redirect URIs a client may use besides loopback ones.
 
     Attributes:
         issuer: the issuer identifier (no trailing slash).
@@ -47,9 +49,11 @@ class OAuthServer:
         signer: TokenSigner,
         base: str,
         clock: Callable[[], float] = time.time,
+        redirects: frozenset[str] = REDIRECT_URIS,
     ) -> None:
         self._signer = signer
         self._clock = clock
+        self._redirects = redirects
         self.issuer = base.rstrip("/")
         self.resource = self.issuer + MCP_PATH
         # shortcut: single-use codes in memory, so one API process; a shared
@@ -79,7 +83,9 @@ class OAuthServer:
             The client id, or None when a URI is not allowed.
         """
         uris = list(redirect_uris)
-        if not 0 < len(uris) <= REDIRECTS_MAX or not all(map(redirect_allowed, uris)):
+        if not 0 < len(uris) <= REDIRECTS_MAX or not all(
+            redirect_allowed(uri, self._redirects) for uri in uris
+        ):
             return None
         return self._signer.sign("client", {"exp": 0, "uris": uris})
 
@@ -90,10 +96,12 @@ class OAuthServer:
             client_id: the client id.
 
         Returns:
-            Its URIs; empty for an id this server did not issue.
+            Its URIs still allowed (ids never expire, the allowlist may shrink);
+            empty for an id this server did not issue.
         """
         claims = self._read("client", client_id)
-        return claims.uris if claims is not None else []
+        uris = claims.uris if claims is not None else []
+        return [uri for uri in uris if redirect_allowed(uri, self._redirects)]
 
     def resource_known(self, resource: str) -> bool:
         """Whether an RFC 8707 resource names this server (or is absent).

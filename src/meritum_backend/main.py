@@ -60,7 +60,11 @@ from meritum_backend.mcp import (
 from meritum_backend.mcp_oauth import OAuthServer, build_signer
 from meritum_backend.mcp_oauth.api import metadata_router as oauth_metadata_router
 from meritum_backend.mcp_oauth.api import router as oauth_router
-from meritum_backend.mcp_oauth.constants import MCP_PATH, RESOURCE_METADATA_PATH
+from meritum_backend.mcp_oauth.constants import (
+    MCP_PATH,
+    REDIRECT_URIS,
+    RESOURCE_METADATA_PATH,
+)
 from meritum_backend.moderation import (
     InMemoryAnswerStore,
     InMemoryClosureStore,
@@ -164,7 +168,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
         secrets.token_urlsafe(TOKEN_BYTES)
     )
     base = settings.public_url or PUBLIC_URLS.get(settings.env, LOCAL_URL)
-    app.state.mcp_oauth = OAuthServer(build_signer(key), base)
+    app.state.mcp_oauth = OAuthServer(
+        build_signer(key),
+        base,
+        redirects=settings.mcp_oauth_redirect_uris or REDIRECT_URIS,
+    )
     app.state.mcp_resource_metadata = f"{base}{RESOURCE_METADATA_PATH}{MCP_PATH}"
     app.state.mcp_auth = build_mcp_auth(McpSettings(), extra=[app.state.mcp_oauth])
     app.state.mcp_corpus_version = settings.mcp_corpus_version
