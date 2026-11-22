@@ -13,6 +13,7 @@ from meritum_core.checks.contracts import (
 )
 from tests.discord.fakes import flat
 
+from meritum_backend.channels.constants import STATUS_HINTS
 from meritum_backend.discord import reply_message
 
 CARD = "https://meritum.example/sprawdzenie/c1"
@@ -156,6 +157,6 @@ def test_result_without_claims_still_has_the_card_button() -> None:
     message = reply_message(empty, CARD, first_contact=False)
     (embed,) = message["embeds"]
     assert embed["title"] == "Wynik sprawdzenia: 0 twierdzeń"
-    assert embed["description"] == "To nie jest twierdzenie o faktach."
+    assert embed["description"] == STATUS_HINTS["out_of_scope"]
     assert embed["fields"] == []
     assert message["components"][0]["components"][0]["url"] == CARD
