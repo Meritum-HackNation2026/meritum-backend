@@ -24,7 +24,7 @@ from meritum_backend.auth.constants import (
     TOKEN_BYTES,
 )
 from meritum_backend.auth.factory import build_login
-from meritum_backend.checks.api import audio_router, image_router
+from meritum_backend.checks.api import audio_router, history_router, image_router
 from meritum_backend.checks.api import events_router as check_events_router
 from meritum_backend.checks.api import router as checks_router
 from meritum_backend.checks.factory import build_blobs, build_result_cache
@@ -57,6 +57,7 @@ from meritum_backend.notifications.api import config_router as notifier_config_r
 from meritum_backend.notifications.api import router as notifications_router
 from meritum_backend.notifications.factory import build_announcer, build_config_store
 from meritum_backend.privacy.access_log import mask_sessions_in_access_log
+from meritum_backend.privacy.api import account_router
 from meritum_backend.privacy.api import router as privacy_router
 from meritum_backend.settings import Settings
 from meritum_backend.sms.api import router as sms_router
@@ -163,6 +164,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(discord_router)
     app.include_router(auth_router)
     app.include_router(checks_router)
+    app.include_router(history_router)
     app.include_router(notifier_config_router)  # before staff: DELETE /staff/{email}
     app.include_router(staff_router)
     app.include_router(jury_router)
@@ -172,6 +174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(audio_router)
     app.include_router(image_router)
     app.include_router(privacy_router)
+    app.include_router(account_router)
     app.include_router(handoff_router)
     app.include_router(sms_router)
     app.include_router(notifications_router)

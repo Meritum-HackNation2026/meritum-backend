@@ -63,3 +63,18 @@ Feature: Kontrole działającego API
     Given plik GIF zamiast zrzutu ekranu
     When klient wysyła POST /api/v1/images
     Then wynik ma stan "out_of_scope" z komunikatem, jakie obrazy można wysłać
+
+  Scenario: historia na drugim urządzeniu
+    Given obywatel zalogowany kontem Google sprawdził 2 informacje na telefonie
+    When loguje się tym samym kontem na komputerze
+    Then GET /api/v1/me/checks zwraca te 2 sprawdzenia
+
+  Scenario: sprawdzenie bez konta
+    Given obywatel nie jest zalogowany
+    When wysyła sprawdzenie
+    Then dostaje wynik, a historia zostaje tylko w sessionStorage przeglądarki
+
+  Scenario: usunięcie konta
+    Given zalogowany obywatel z 2 sprawdzeniami
+    When wybiera „Usuń konto”
+    Then konto, historia sprawdzeń i powiadomienia konta są usunięte

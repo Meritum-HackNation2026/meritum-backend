@@ -118,6 +118,7 @@ def hit_record(
     return CheckRecord(
         check_id=check_id,
         session_id=session,
+        user_id=payload.user_id,
         channel=request.channel,
         channel_user_hash=payload.channel_user_hash,
         received_at=payload.received_at,

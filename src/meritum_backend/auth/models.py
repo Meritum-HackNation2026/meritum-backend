@@ -1,11 +1,17 @@
 """Models of the auth slice: the signed-in account and a login in progress."""
 
+import hashlib
 from typing import Annotated
 from urllib.parse import urlsplit
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
 
-from meritum_backend.auth.constants import HOME, RETURN_PATH_CHARS, RETURN_PATH_MAX
+from meritum_backend.auth.constants import (
+    HOME,
+    RETURN_PATH_CHARS,
+    RETURN_PATH_MAX,
+    USER_ID_MAX,
+)
 
 
 def _same_origin_path(path: str) -> str:
@@ -48,6 +54,19 @@ class Account(BaseModel):
     subject: str
     email: str | None = None
     email_verified: bool = False
+
+    @property
+    def user_id(self) -> str:
+        """The id checks and notifications of this account carry.
+
+        Returns:
+            ``provider:subject``; a SHA-256 hex digest of it when that would
+            exceed core's ``user_id`` length (the raw value never leaves).
+        """
+        raw = f"{self.provider}:{self.subject}"
+        if len(raw) <= USER_ID_MAX:
+            return raw
+        return hashlib.sha256(raw.encode()).hexdigest()
 
 
 class PendingLogin(BaseModel):

@@ -66,6 +66,26 @@ def current_user(request: Request) -> Account:
     return account
 
 
+def optional_user(request: Request) -> Account | None:
+    """The signed-in account, or None for an anonymous visitor.
+
+    Signing in is optional for citizens: a check works without it.
+
+    Args:
+        request: the current request.
+
+    Returns:
+        The account from a valid session, else None.
+
+    Features:
+        US-SPR-10, F-31
+    """
+    try:
+        return current_user(request)
+    except HTTPException:
+        return None
+
+
 def csrf_user(
     request: Request, account: Annotated[Account, Depends(current_user)]
 ) -> Account:
@@ -127,4 +147,5 @@ def same_secret(expected: str, sent: str) -> bool:
 
 Login = Annotated[LoginProvider, Depends(get_login)]
 CurrentUser = Annotated[Account, Depends(current_user)]
+OptionalUser = Annotated[Account | None, Depends(optional_user)]
 CsrfUser = Annotated[Account, Depends(csrf_user)]

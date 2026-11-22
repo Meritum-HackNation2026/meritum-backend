@@ -25,6 +25,7 @@ from meritum_core.jobs.contracts import CHECK, CheckInput
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import BaseModel, ValidationError
 
+from meritum_backend.auth.api import OptionalUser
 from meritum_backend.checks.api._cache import (
     Cache,
     Records,
@@ -100,6 +101,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
     records: Records,
     settings: Annotated[Settings, Depends(get_settings)],
     session: Annotated[str | None, Header(alias=SESSION_HEADER)] = None,
+    account: OptionalUser = None,
 ) -> CheckAccepted | JSONResponse:
     """Mask personal data, then enqueue the `check` workflow.
 
@@ -112,6 +114,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         readiness: the readiness probe; a service that is not ready refuses checks.
         cache: the result cache; a hit starts no `check` workflow.
         records: where a hit's CheckRecord goes.
+        account: the signed-in citizen, if any; their checks form the history.
         settings: the app settings (the channel user hash salt).
         session: the random browser session id; no sign-in needed.
 
@@ -143,6 +146,7 @@ async def start_check(  # ruff: ignore[too-many-arguments, too-many-positional-a
         payload = CheckInput(
             request=clean,
             session_id=session,
+            user_id=account.user_id if account else None,
             channel_user_hash=hashed,
             received_at=received_at,
         )
