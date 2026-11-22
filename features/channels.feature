@@ -3,8 +3,9 @@ Feature: Kanały bez sesji przeglądarki
   Scenario: pierwszy SMS z nowego numeru
     Given webhook bramki SMS dostaje tekst z nowego numeru
     When sprawdzenie się kończy
-    Then pierwsza odpowiedź mówi, że odpowiada system AI, i podaje werdykt głównego twierdzenia bez linku
-    And każdy SMS odpowiedzi ma najwyżej 70 znaków w UCS-2
+    Then pierwsza odpowiedź mówi, że odpowiada system AI, i podaje werdykt głównego twierdzenia
+    And ostatni SMS odpowiedzi kończy się linkiem do pełnego wyniku
+    And każdy SMS odpowiedzi mieści się w 3 częściach UCS-2
 
   Scenario: słowo USUN
     Given numer ma zapisane sprawdzenia
