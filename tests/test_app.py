@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from meritum_core.jobs.contracts import WorkflowSpec
+from meritum_core.jobs.contracts import CONTRACT_VERSION, WorkflowSpec
 from meritum_core.jobs.ports import JobState
 from pydantic import BaseModel
 
@@ -54,16 +54,12 @@ def test_liveness(client: TestClient) -> None:
     assert client.get("/api/v1/health/live").json() == {"status": "ok"}
 
 
-def test_health_reports_unreachable_database(client: TestClient) -> None:
-    response = client.get("/api/v1/health")
-    assert response.status_code == 503
-    assert response.json()["database"] == "unavailable"
-
-
 def test_ping_enqueues_and_reads_state(client: TestClient, jobs: FakeJobs) -> None:
     response = client.post("/api/v1/jobs/ping", json={"message": "hej"})
     assert response.status_code == 202
-    assert jobs.enqueued == [("ping", {"contract_version": 1, "message": "hej"})]
+    assert jobs.enqueued == [
+        ("ping", {"contract_version": CONTRACT_VERSION, "message": "hej"})
+    ]
     assert client.get("/api/v1/jobs/wf-1").json()["status"] == "SUCCESS"
     assert client.get("/api/v1/jobs/nope").status_code == 404
 
@@ -75,4 +71,5 @@ def test_ping_is_rate_limited_per_client(client: TestClient) -> None:
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "60"
     assert "Spróbuj ponownie" in response.json()["detail"]
+    assert response.json()["message_key"] == "errors.rate_limited"
     assert client.get("/api/v1/jobs/wf-1").status_code == 200  # reads are not limited

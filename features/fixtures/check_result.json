@@ -1,0 +1,62 @@
+{
+  "check_id": "chk-1",
+  "status": "done",
+  "claims": [
+    {
+      "claim": "W 2027 roku paszporty podrożeją.",
+      "claim_date": "2026-11-21",
+      "claim_date_source": "today",
+      "verdict": "insufficient_evidence",
+      "explanation": "Nie znaleźliśmy źródła o planowanej zmianie.",
+      "unresolved": "Brak zapowiedzi zmiany opłaty."
+    },
+    {
+      "claim": "Od jutra paszporty są darmowe.",
+      "claim_date": "2026-11-21",
+      "claim_date_source": "today",
+      "verdict": "false",
+      "strength": {
+        "level": "moderate",
+        "premises": {
+          "independent_sources": 1,
+          "primary_sources": 1,
+          "validity": "in_force",
+          "agreement": "consistent"
+        }
+      },
+      "citations": [
+        {
+          "source": {
+            "id": "gov-1",
+            "title": "Komunikat ministerstwa",
+            "publisher": "Ministerstwo",
+            "publisher_id": "ministerstwo",
+            "url": "https://www.gov.pl/komunikat",
+            "domain": "gov.pl",
+            "kind": "instytucja",
+            "tier": "primary",
+            "fetched_at": "2026-11-01T00:00:00Z"
+          },
+          "fragment": "Opłata za paszport wynosi 140 zł.",
+          "stance": "refutes",
+          "validity": "in_force"
+        }
+      ],
+      "explanation": "Ministerstwo podaje aktualną opłatę za paszport."
+    }
+  ],
+  "limitations": [
+    "Sprawdziliśmy tylko źródła z katalogu."
+  ],
+  "limitation_codes": ["corpus_scope"],
+  "escalation": {
+    "state": "recommended"
+  },
+  "corpus_version": "test",
+  "ai_marker": {
+    "ai_generated": true,
+    "provider": "openrouter",
+    "model": "anthropic/claude-haiku-5-5",
+    "generated_at": "2026-11-21T12:00:00Z"
+  }
+}
