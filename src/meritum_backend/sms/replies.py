@@ -6,6 +6,7 @@ Features:
 
 from meritum_core.checks import CheckResult
 
+from meritum_backend.channels import non_verdict_text
 from meritum_backend.sms.constants import (
     AI_NOTICE,
     DIACRITICS,
@@ -47,7 +48,8 @@ def reply_texts(
     """The SMS replies to one check, in sending order.
 
     Args:
-        result: the finished check's result; None when it failed.
+        result: the finished check's result; None when it failed. A result
+            without claims is worded from copy, never from its message.
         first_contact: the number has no earlier checks, so the AI notice goes first.
         gsm7: the sms_gsm7 setting (see ``one_sms``).
 
@@ -58,6 +60,11 @@ def reply_texts(
         US-WTY-07, US-BEZ-07, F-32, F-21
     """
     main = result.claims[0] if result is not None and result.claims else None
-    verdict = VERDICTS.get(main.verdict, FAILURE_TEXT) if main else FAILURE_TEXT
+    if main is not None:
+        verdict = VERDICTS.get(main.verdict, FAILURE_TEXT)
+    elif result is not None:
+        verdict = non_verdict_text(result) or FAILURE_TEXT
+    else:
+        verdict = FAILURE_TEXT
     texts = [AI_NOTICE, verdict] if first_contact else [verdict]
     return [one_sms(text, gsm7=gsm7) for text in texts]

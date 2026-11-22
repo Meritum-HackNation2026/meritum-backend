@@ -14,6 +14,7 @@ from typing import Any
 from meritum_core.checks import CheckResult
 from meritum_core.checks.contracts import ClaimResult
 
+from meritum_backend.channels import non_verdict_text
 from meritum_backend.discord.constants import (
     AI_NOTICE,
     CARD_BUTTON,
@@ -98,8 +99,8 @@ def _description(result: CheckResult) -> str:
     lines = []
     if result.transcript is not None and result.transcript.strip():
         lines.extend([TRANSCRIPT.format(text=result.transcript), TRANSCRIPT_HINT])
-    if result.message is not None:
-        lines.append(result.message)
+    if (text := non_verdict_text(result)) is not None:
+        lines.append(text)
     escalation = result.escalation
     if escalation is not None and escalation.case_id is not None:
         text = ESCALATION.get(escalation.state)
