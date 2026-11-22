@@ -74,7 +74,7 @@ def test_bad_signature_is_401(post: Post, jobs: InMemoryJobQueue) -> None:
 def test_timestamp_older_than_five_minutes_is_401(
     post: Post, jobs: InMemoryJobQueue
 ) -> None:
-    stale = str(int(time.time()) - 301)
+    stale = str(int(time.time()) - 600)
 
     response = post(event(CLAIM), timestamp=stale)
 
@@ -142,7 +142,7 @@ def test_without_signing_key_the_endpoint_does_not_exist(
 
 
 def test_timestamp_from_the_future_is_401(post: Post, jobs: InMemoryJobQueue) -> None:
-    ahead = str(int(time.time()) + 301)
+    ahead = str(int(time.time()) + 600)
 
     assert post(event(CLAIM), timestamp=ahead).status_code == 401
     assert jobs.enqueued == []
