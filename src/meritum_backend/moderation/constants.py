@@ -56,6 +56,12 @@ ANSWER_PATH: Final = "/odpowiedzi/{case}"
 ANSWER_NOTIFICATION_DAYS: Final = 30
 """How long a ``moderator_answer`` notification stays in the inbox."""
 
+CLOSE_REASON_MAX_CHARS: Final = 500
+"""Longest reason for closing a case without an answer."""
+
+CLOSURE_NOT_FOUND_DETAIL: Final = "closure not found"
+"""404 detail: the case was not closed without an answer."""
+
 CASE_ID_PATTERN: Final = r"^#S-\d+$"
 """Shape of a moderator case id."""
 

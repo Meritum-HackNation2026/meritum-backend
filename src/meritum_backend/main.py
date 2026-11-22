@@ -61,8 +61,12 @@ from meritum_backend.mcp_oauth import OAuthServer, build_signer
 from meritum_backend.mcp_oauth.api import metadata_router as oauth_metadata_router
 from meritum_backend.mcp_oauth.api import router as oauth_router
 from meritum_backend.mcp_oauth.constants import MCP_PATH, RESOURCE_METADATA_PATH
-from meritum_backend.moderation import InMemoryAnswerStore, InMemorySourceDocuments
-from meritum_backend.moderation.api import answer_router, handoff_router
+from meritum_backend.moderation import (
+    InMemoryAnswerStore,
+    InMemoryClosureStore,
+    InMemorySourceDocuments,
+)
+from meritum_backend.moderation.api import answer_router, close_router, handoff_router
 from meritum_backend.moderation.api import router as moderation_router
 from meritum_backend.notifications.api import config_router as notifier_config_router
 from meritum_backend.notifications.api import router as notifications_router
@@ -142,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.state.sms = build_sms(settings)
     app.state.discord_replies = build_replies()
     app.state.answers = InMemoryAnswerStore()
+    app.state.closures = InMemoryClosureStore()
     app.state.source_documents = InMemorySourceDocuments()
     repositories = build_app_repositories(DatabaseSettings())
     app.state.repositories = repositories
@@ -189,6 +194,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(jury_router)
     app.include_router(moderation_router)
     app.include_router(answer_router)
+    app.include_router(close_router)
     app.include_router(check_events_router)
     app.include_router(audio_router)
     app.include_router(image_router)

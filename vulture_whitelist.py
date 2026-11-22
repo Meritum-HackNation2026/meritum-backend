@@ -11,6 +11,7 @@ from meritum_backend.discord.gateway import MeritumClient
 from meritum_backend.evaluation.models import Comparison
 from meritum_backend.mcp import SourceSearch
 from meritum_backend.mcp_oauth.models import TokenResponse
+from meritum_backend.moderation import CaseClosure
 from meritum_backend.notifications import NotifierConfigView
 from meritum_backend.privacy.api import delete_my_account, delete_my_history
 from meritum_backend.settings import Settings
@@ -28,6 +29,8 @@ NotifierConfigView.secret_set  # response field, serialised by FastAPI
 Comparison.changed_cases  # response field, serialised by FastAPI
 SourceSearch.fragments  # tool result field, serialised by FastMCP
 HistoryItem.question_masked  # response field, serialised by FastAPI
+CaseClosure.closed_by  # response field, serialised by FastAPI
+CaseClosure.closed_at
 delete_my_history  # FastAPI route
 delete_my_account  # FastAPI route
 ArchiveRecord.archived_at  # column of page_archives, returned to the client

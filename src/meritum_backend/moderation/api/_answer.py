@@ -10,6 +10,7 @@ Features:
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from meritum_core.checks.contracts import ModeratorCase
 from meritum_core.moderation import ModeratorCaseRepository
 from meritum_core.notifications import NotificationRepository
 
@@ -133,7 +134,7 @@ async def answer_case(  # ruff: ignore[too-many-arguments, too-many-positional-a
     Features:
         US-MOD-07, US-POW-02, F-39, ADR-06
     """
-    case = await _open_case(cases, case_id)
+    case = await open_case(cases, case_id)
     verified, rejected = await verify_quotes(draft.quotes, documents)
     if rejected:
         raise HTTPException(
@@ -147,7 +148,22 @@ async def answer_case(  # ruff: ignore[too-many-arguments, too-many-positional-a
     return answer
 
 
-async def _open_case(cases: ModeratorCaseRepository, case_id: str):  # ruff: ignore[missing-return-type-private-function]
+async def open_case(cases: ModeratorCaseRepository, case_id: str) -> ModeratorCase:
+    """The case a moderator may still answer or close.
+
+    Args:
+        cases: the case repository.
+        case_id: the case id.
+
+    Returns:
+        The open case.
+
+    Raises:
+        HTTPException: 404 unknown case, 409 not open.
+
+    Features:
+        US-MOD-01, US-MOD-07, F-25, F-39
+    """
     case = await cases.get(case_id)
     if case is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, CASE_NOT_FOUND_DETAIL)
