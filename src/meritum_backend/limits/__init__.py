@@ -22,7 +22,7 @@ from meritum_backend.limits.api import (
     get_check_gate,
     start_pruning,
 )
-from meritum_backend.limits.constants import BUSY, RATE_LIMITED
+from meritum_backend.limits.constants import BUSY, RATE_LIMITED, REGION_HEADER
 from meritum_backend.limits.errors import CheckRefusedError
 from meritum_backend.limits.factory import build_check_gate
 from meritum_backend.limits.gate import CheckGate
@@ -32,6 +32,7 @@ from meritum_backend.limits.settings import LimitSettings
 __all__ = [
     "BUSY",
     "RATE_LIMITED",
+    "REGION_HEADER",
     "CheckGate",
     "CheckRefusedError",
     "ClientOrigin",
