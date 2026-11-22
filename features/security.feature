@@ -62,6 +62,11 @@ Feature: Bezpieczeństwo danych wejściowych
     When żądanie do /mcp przychodzi bez klucza i bez tokenu OAuth
     Then serwer odpowiada 401 z opisem metody uwierzytelniania i nie zleca sprawdzenia
 
+  Scenario: konektor MCP odkrywa serwer autoryzacji OAuth
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    When żądanie do /mcp przychodzi bez klucza i bez tokenu OAuth
+    Then nagłówek WWW-Authenticate prowadzi do serwera autoryzacji z PKCE S256
+
   Scenario: klient MCP z błędnym kluczem
     Given klient MCP połączony przez Streamable HTTP z /mcp
     When żądanie do /mcp przychodzi z kluczem, którego serwer nie zna

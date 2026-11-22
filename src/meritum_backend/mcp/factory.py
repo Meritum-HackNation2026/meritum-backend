@@ -4,6 +4,8 @@ Features:
     US-WDR-06, US-BEZ-02, F-37, ADR-32
 """
 
+from collections.abc import Sequence
+
 from meritum_core.corpus import (
     CorpusProvider,
     CorpusSearchPort,
@@ -49,11 +51,14 @@ def _keys(raw: str) -> dict[str, str]:
     return {label.strip(): key.strip() for label, _, key in pairs if label and key}
 
 
-def build_mcp_auth(settings: McpSettings | None = None) -> McpAuthenticator:
+def build_mcp_auth(
+    settings: McpSettings | None = None, extra: Sequence[McpAuthenticator] = ()
+) -> McpAuthenticator:
     """Build the authenticator the ``MERITUM_MCP_*`` variables name.
 
     Args:
         settings: the settings; read from the environment when omitted.
+        extra: further authenticators, asked last (the MCP OAuth server).
 
     Returns:
         Keys and OAuth introspection, whichever are configured; with neither,
@@ -74,4 +79,4 @@ def build_mcp_auth(settings: McpSettings | None = None) -> McpAuthenticator:
     )
     if bool(url) and bool(client_id) and bool(secret):
         parts.append(IntrospectionAuthenticator(url, client_id, secret))
-    return AnyOfAuthenticator(parts)
+    return AnyOfAuthenticator([*parts, *extra])
