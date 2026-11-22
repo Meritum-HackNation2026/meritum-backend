@@ -12,7 +12,7 @@ from meritum_backend.auth.api import CsrfUser
 from meritum_backend.notifications.constants import CONFIG_NOT_SET_DETAIL
 from meritum_backend.notifications.models import NotifierConfig, NotifierConfigView
 from meritum_backend.notifications.ports import NotifierConfigStore
-from meritum_backend.staff.api import Admin
+from meritum_backend.staff.api import Admin, RealAdmin
 
 router = APIRouter(prefix="/api/v1/staff/notifications", tags=["staff"])
 
@@ -66,7 +66,7 @@ async def read_target(_admin: Admin, configs: Configs) -> NotifierConfigView:
 
 @router.put("")
 async def set_target(
-    config: NotifierConfig, _admin: Admin, _csrf: CsrfUser, configs: Configs
+    config: NotifierConfig, _admin: RealAdmin, _csrf: CsrfUser, configs: Configs
 ) -> NotifierConfigView:
     """Choose webhook, Google Chat or e-mail; it replaces the previous target.
 
@@ -87,7 +87,7 @@ async def set_target(
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_target(_admin: Admin, _csrf: CsrfUser, configs: Configs) -> None:
+async def clear_target(_admin: RealAdmin, _csrf: CsrfUser, configs: Configs) -> None:
     """Stop external notifications; the staff inbox keeps working.
 
     Args:

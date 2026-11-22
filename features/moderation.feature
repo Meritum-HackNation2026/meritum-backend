@@ -84,3 +84,31 @@ Feature: Logowanie personelu i obywateli kontem Google albo Microsoft
     Given żądanie logowania z adresem powrotu https://zly.example/
     When logowanie się kończy
     Then backend przekierowuje na /
+
+  Scenario: jury wchodzi jako zwykły użytkownik
+    Given administrator utworzył link demo dla konta technicznego "obywatel"
+    When członek jury otwiera link demo
+    Then dostaje sesję tego konta i trafia na adres "/"
+
+  Scenario: jury wchodzi jako administrator
+    Given administrator utworzył link demo dla konta technicznego "admin"
+    When członek jury otwiera link demo
+    Then dostaje sesję tego konta i trafia na adres "/panel"
+    And ta sesja ma rolę administratora
+
+  Scenario: link demo użyty ponownie
+    Given administrator utworzył link demo dla konta technicznego "obywatel"
+    When członek jury otwiera link demo
+    And kolejna osoba otwiera ten sam link demo
+    Then kolejna osoba dostaje nową sesję tego samego konta
+
+  Scenario: link demo po terminie
+    Given administrator utworzył link demo dla konta technicznego "admin"
+    When członek jury otwiera link demo po terminie
+    Then dostaje odmowę i pozostaje bez sesji
+
+  Scenario: link demo cofnięty
+    Given administrator utworzył link demo dla konta technicznego "admin"
+    And administrator cofnął link demo
+    When członek jury otwiera link demo
+    Then dostaje odmowę i pozostaje bez sesji

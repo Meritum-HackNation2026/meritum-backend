@@ -57,3 +57,13 @@ def test_session_id_in_the_notification_stream_query_is_masked(
         log_access("/api/v1/notifications/stream" + query.format(s=SESSION))
     assert SESSION not in caplog.text
     assert "session={session_id}" in caplog.text
+
+
+def test_demo_token_in_the_link_path_is_masked(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    create_app(Settings(database_url=DB))
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER):
+        log_access("/api/v1/auth/demo/SECRETTOKEN123")
+    assert "SECRETTOKEN123" not in caplog.text
+    assert "/api/v1/auth/demo/{token}" in caplog.text

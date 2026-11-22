@@ -12,9 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from meritum_core.checks.contracts import StaffRole
 
 from meritum_backend.auth.api import CsrfUser, CurrentUser
-from meritum_backend.jury.constants import JURY_PROVIDER
+from meritum_backend.jury.constants import DEMO_ADMIN, DEMO_PROVIDER, JURY_PROVIDER
 from meritum_backend.staff import StaffAccount, StaffMember, StaffRepository, role_of
-from meritum_backend.staff.constants import ADMIN_ONLY, EVERY_ROLE
+from meritum_backend.staff.constants import ADMIN, ADMIN_ONLY, EVERY_ROLE
 from meritum_backend.staff.models import StaffEmail
 
 router = APIRouter(prefix="/api/v1/staff", tags=["staff"])
@@ -44,16 +44,23 @@ class StaffGate:
     Args:
         roles: the roles allowed through.
         allow_jury: opt in only for jury-visible read endpoints.
+        allow_demo: let the technical demo administrator through; off for
+            endpoints whose effect outlives a demo (staff roles, links, targets).
 
     Features:
         US-MOD-05, F-25
     """
 
     def __init__(
-        self, roles: AbstractSet[StaffRole], *, allow_jury: bool = False
+        self,
+        roles: AbstractSet[StaffRole],
+        *,
+        allow_jury: bool = False,
+        allow_demo: bool = True,
     ) -> None:
         self._roles = roles
         self._allow_jury = allow_jury
+        self._allow_demo = allow_demo
 
     async def __call__(
         self, request: Request, account: CurrentUser, staff: Staff
@@ -78,6 +85,9 @@ class StaffGate:
             member = StaffMember(email=None, role="analyst", read_only=True)
             if not self._allow_jury:
                 raise HTTPException(status.HTTP_403_FORBIDDEN, "read-only session")
+        elif account.provider == DEMO_PROVIDER:
+            admin = account.subject == DEMO_ADMIN and self._allow_demo
+            member = StaffMember(email=None, role=ADMIN) if admin else None
         else:
             member = await role_of(account, request.app.state.admin_emails, staff)
         if member is None or member.role not in self._roles:
@@ -88,6 +98,7 @@ class StaffGate:
 AnyStaff = Annotated[StaffMember, Depends(StaffGate(EVERY_ROLE))]
 PanelMember = Annotated[StaffMember, Depends(StaffGate(EVERY_ROLE, allow_jury=True))]
 Admin = Annotated[StaffMember, Depends(StaffGate(ADMIN_ONLY))]
+RealAdmin = Annotated[StaffMember, Depends(StaffGate(ADMIN_ONLY, allow_demo=False))]
 
 
 @router.get("/me", response_model_exclude_defaults=True)
@@ -125,7 +136,7 @@ async def list_accounts(_admin: Admin, staff: Staff) -> list[StaffAccount]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def grant(
-    account: StaffAccount, _admin: Admin, _csrf: CsrfUser, staff: Staff
+    account: StaffAccount, _admin: RealAdmin, _csrf: CsrfUser, staff: Staff
 ) -> StaffAccount:
     """Grant a role to an address; it replaces the address's previous role.
 
@@ -147,7 +158,7 @@ async def grant(
 
 @router.delete("/{email}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke(
-    email: StaffEmail, _admin: Admin, _csrf: CsrfUser, staff: Staff
+    email: StaffEmail, _admin: RealAdmin, _csrf: CsrfUser, staff: Staff
 ) -> None:
     """Take an address's role away.
 
