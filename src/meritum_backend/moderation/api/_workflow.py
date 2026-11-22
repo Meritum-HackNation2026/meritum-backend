@@ -16,6 +16,7 @@ from meritum_core.jobs.contracts import (
 from meritum_core.jobs.ports import JobQueue, JobState
 from pydantic import ValidationError
 
+from meritum_backend.checks import ResultCache
 from meritum_backend.moderation.constants import (
     ESCALATION_WAIT_SECONDS,
     POLL_SECONDS,
@@ -24,12 +25,15 @@ from meritum_backend.moderation.constants import (
 )
 
 
-async def has_claim(jobs: JobQueue, check_id: str, claim_index: int) -> bool:
+async def has_claim(
+    jobs: JobQueue, cache: ResultCache, check_id: str, claim_index: int
+) -> bool:
     """Whether the check is finished and has a claim at ``claim_index``.
 
     Args:
         jobs: the job queue port.
-        check_id: the check's workflow id.
+        cache: the result cache; a hit has no workflow, only its entry.
+        check_id: the check's id.
         claim_index: the claim's position in its result.
 
     Returns:
@@ -39,7 +43,10 @@ async def has_claim(jobs: JobQueue, check_id: str, claim_index: int) -> bool:
         US-MOD-03, F-24, ADR-22
     """
     state = await jobs.state(check_id)
-    if state is None or state.output is None:
+    if state is None:
+        entry = await cache.entry_of(check_id)
+        return entry is not None and claim_index < len(entry.claims)
+    if state.output is None:
         return False
     try:
         result = CheckOutput.model_validate(state.output).result

@@ -30,7 +30,7 @@ from meritum_core.jobs.ports import JobQueue
 from pydantic import BaseModel, BeforeValidator, StringConstraints
 
 from meritum_backend.checks import masked_text
-from meritum_backend.checks.api import InvalidCheck, KeyedErrorsRoute, PiiGate
+from meritum_backend.checks.api import Cache, InvalidCheck, KeyedErrorsRoute, PiiGate
 from meritum_backend.jobs.api import Jobs
 from meritum_backend.limits import limiter
 from meritum_backend.moderation.api._workflow import escalate, has_claim
@@ -144,6 +144,7 @@ async def _hand_off(
 async def escalate_claim(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]  # FastAPI injects each part as a parameter
     request: Request,  # ruff: ignore[unused-function-argument] (slowapi reads the client address)
     jobs: Jobs,
+    cache: Cache,
     check_id: str,
     claim_index: ClaimIndex,
     response: Response,
@@ -156,6 +157,7 @@ async def escalate_claim(  # ruff: ignore[too-many-arguments, too-many-positiona
     Args:
         request: the request; slowapi reads the client address from it.
         jobs: the job queue port.
+        cache: the result cache (a hit has no workflow).
         check_id: the finished check.
         claim_index: the claim's position in the check's result.
         response: the response; gets 503 when no case was saved.
@@ -172,7 +174,7 @@ async def escalate_claim(  # ruff: ignore[too-many-arguments, too-many-positiona
     Features:
         US-MOD-03, F-24, ADR-22
     """
-    if not await has_claim(jobs, check_id, claim_index):
+    if not await has_claim(jobs, cache, check_id, claim_index):
         raise HTTPException(status.HTTP_404_NOT_FOUND, CLAIM_NOT_FOUND_DETAIL)
     payload = EscalateClaimInput(
         check_id=check_id, claim_index=claim_index, reason="recommended_clicked"
@@ -192,6 +194,7 @@ async def escalate_claim(  # ruff: ignore[too-many-arguments, too-many-positiona
 async def dispute_claim(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]  # FastAPI injects each part as a parameter
     request: Request,  # ruff: ignore[unused-function-argument] (slowapi reads the client address)
     jobs: Jobs,
+    cache: Cache,
     check_id: str,
     claim_index: ClaimIndex,
     response: Response,
@@ -207,6 +210,7 @@ async def dispute_claim(  # ruff: ignore[too-many-arguments, too-many-positional
     Args:
         request: the request; slowapi reads the client address from it.
         jobs: the job queue port.
+        cache: the result cache (a hit has no workflow).
         check_id: the finished check.
         claim_index: the claim's position in the check's result.
         response: the response; gets 503 when no case was saved.
@@ -225,7 +229,7 @@ async def dispute_claim(  # ruff: ignore[too-many-arguments, too-many-positional
     Features:
         US-MOD-06, F-24, ADR-22
     """
-    if not await has_claim(jobs, check_id, claim_index):
+    if not await has_claim(jobs, cache, check_id, claim_index):
         raise HTTPException(status.HTTP_404_NOT_FOUND, CLAIM_NOT_FOUND_DETAIL)
     reason = dispute.justification if dispute else None
     payload = EscalateClaimInput(
