@@ -91,3 +91,15 @@ Feature: Kanały bez sesji przeglądarki
     Given załącznik audio w formacie, którego transkrypcja nie obsługuje
     When bot go odbiera
     Then odpowiada stanem "out_of_scope" z informacją, co można wysłać zamiast tego
+
+  Scenario: narzędzie sprawdzania w serwerze MCP
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    When woła narzędzie sprawdzania z tekstem "Czy od wczoraj w Pcimiu bilety autobusowe można kupić tylko przez aplikację?"
+    Then dostaje CheckResult z werdyktem, cytatami z linkami, siłą i informacją o AI
+    And CheckRecord ma session_id równy skrótowi z solą identyfikatora klienta MCP
+
+  Scenario: MCP zwraca stan niebędący werdyktem
+    Given klient MCP połączony przez Streamable HTTP z /mcp
+    And sprawdzenie kończy się stanem "technical_failure"
+    When woła narzędzie sprawdzania z tekstem "Czy od wczoraj w Pcimiu bilety autobusowe można kupić tylko przez aplikację?"
+    Then wynik ma stan "technical_failure" i kod awarii, bez werdyktu

@@ -11,6 +11,7 @@ dependencies = [
     "dbos>=3.6.0",
     "discord-py>=2.6",
     "fastapi>=0.165.0",
+    "fastmcp>=4.2.4",
     "httpx2>=2.16.2",
     "itsdangerous>=2.2.0",
     "joserfc>=1.6.0",

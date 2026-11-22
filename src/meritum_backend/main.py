@@ -48,6 +48,7 @@ from meritum_backend.limits import (
     start_pruning,
     too_many_requests,
 )
+from meritum_backend.mcp import build_mcp
 from meritum_backend.moderation import InMemoryAnswerStore, InMemorySourceDocuments
 from meritum_backend.moderation.api import answer_router, handoff_router
 from meritum_backend.moderation.api import router as moderation_router
@@ -101,7 +102,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
         startup_log = asyncio.create_task(app.state.readiness.log_startup())
         pruner = start_pruning(app.state.check_gate)
         try:
-            yield
+            async with mcp_app.lifespan(app):
+                yield
         finally:
             for task in (pruner, startup_log):
                 task.cancel()
@@ -171,4 +173,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:  # ruff: ignore[too
     app.include_router(sms_router)
     app.include_router(notifications_router)
     app.include_router(eval_router)
+    mcp_app = build_mcp(app)
+    app.router.routes.extend(
+        mcp_app.routes
+    )  # exactly /mcp: chat apps do not follow a redirect
     return app
