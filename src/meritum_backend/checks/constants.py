@@ -155,30 +155,6 @@ SUBSTANTIVE_FIELDS: Final = (
 CACHE_CONNECT_TIMEOUT_SECONDS: Final = 3
 """How long the result cache waits for a database connection before it misses."""
 
-CREATE_CACHE_TABLES: Final[tuple[LiteralString, ...]] = (
-    """
-    CREATE TABLE IF NOT EXISTS result_cache (
-        key text PRIMARY KEY,
-        entry jsonb NOT NULL,
-        expires_at timestamptz NOT NULL
-    )
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS result_cache_checks (
-        check_id text PRIMARY KEY,
-        key text NOT NULL,
-        served jsonb,
-        linked_at timestamptz NOT NULL DEFAULT now()
-    )
-    """,
-)
-"""Cached results by input key; each check's key and, for a hit, what it was served."""
-
-LOCK_CACHE_TABLES: Final[LiteralString] = (
-    "SELECT pg_advisory_xact_lock(hashtext('meritum.result_cache'))"
-)
-"""Serializes the first-use CREATE of every API instance; released at commit."""
-
 LOOKUP_CACHE: Final[LiteralString] = (
     "SELECT entry FROM result_cache WHERE key = %(key)s AND expires_at > %(now)s"
 )

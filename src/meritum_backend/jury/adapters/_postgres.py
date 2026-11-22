@@ -7,18 +7,18 @@ import psycopg
 
 from meritum_backend.jury.constants import (
     CONNECT_TIMEOUT,
-    CREATE_JURY_TABLE,
     DELETE_JURY_LINK,
     GET_JURY_LINK,
     INSERT_JURY_LINK,
-    LOCK_JURY_SCHEMA,
     PURGE_EXPIRED_JURY_LINKS,
 )
 from meritum_backend.jury.ports import JuryUnavailableError
 
 
 class PostgresJuryLinks:
-    """Store links in the API schema shared by all replicas.
+    """Store links in the app schema shared by all replicas.
+
+    The table comes from core's app migrations (0004), run by the worker.
 
     Args:
         conninfo: API database connection string.
@@ -29,7 +29,6 @@ class PostgresJuryLinks:
 
     def __init__(self, conninfo: str) -> None:
         self._conninfo = conninfo
-        self._ready = False
 
     async def save(self, token_hash: bytes, expires_at: datetime) -> None:
         """Persist the digest and expiry, dropping links past their deadline.
@@ -48,7 +47,6 @@ class PostgresJuryLinks:
             async with await psycopg.AsyncConnection.connect(
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT
             ) as conn:
-                await self._ensure_table(conn)
                 await conn.execute(PURGE_EXPIRED_JURY_LINKS)
                 await conn.execute(INSERT_JURY_LINK, (token_hash, expires_at))
         except psycopg.Error:
@@ -74,17 +72,9 @@ class PostgresJuryLinks:
             async with await psycopg.AsyncConnection.connect(
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT
             ) as conn:
-                await self._ensure_table(conn)
                 return await self._consume(conn, token_hash, now)
         except psycopg.Error:
             raise JuryUnavailableError from None
-
-    async def _ensure_table(self, conn: psycopg.AsyncConnection) -> None:
-        if not self._ready:
-            await conn.execute(LOCK_JURY_SCHEMA)
-            await conn.execute(CREATE_JURY_TABLE)
-            await conn.commit()
-            self._ready = True
 
     @staticmethod
     async def _consume(

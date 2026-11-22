@@ -10,9 +10,7 @@ import psycopg
 
 from meritum_backend.limits.constants import (
     CONNECT_TIMEOUT_SECONDS,
-    CREATE_RATE_TABLE,
     HIT_RATE_KEY,
-    LOCK_RATE_TABLE,
     PRUNE_RATE_WINDOWS,
 )
 
@@ -21,6 +19,8 @@ _log = logging.getLogger(__name__)
 
 class PostgresRateCounter:
     """RateCounter over the ``rate_limit_hits`` table.
+
+    The table comes from core's app migrations (0004), run by the worker.
 
     Args:
         conninfo: the API role's database URL.
@@ -31,7 +31,6 @@ class PostgresRateCounter:
 
     def __init__(self, conninfo: str) -> None:
         self._conninfo = conninfo
-        self._ready = False
 
     async def hit(self, key: str, window_seconds: int) -> int:
         """Count one hit of ``key`` in the current window.
@@ -65,25 +64,14 @@ class PostgresRateCounter:
             async with await psycopg.AsyncConnection.connect(
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT_SECONDS
             ) as conn:
-                await self._ensure_table(conn)
                 await conn.execute(PRUNE_RATE_WINDOWS, {"window": window_seconds})
         except psycopg.Error:
             _log.warning("rate counter unavailable; old windows stay", exc_info=True)
 
-    async def _ensure_table(self, conn: psycopg.AsyncConnection) -> None:
-        if not self._ready:
-            # Own transaction, one instance at a time: CREATE INDEX next to a
-            # running upsert would deadlock, and parallel CREATE TABLE collides.
-            await conn.execute(LOCK_RATE_TABLE)
-            for statement in CREATE_RATE_TABLE:
-                await conn.execute(statement)
-            await conn.commit()
-            self._ready = True
-
+    @staticmethod
     async def _count(
-        self, conn: psycopg.AsyncConnection, key: str, window_seconds: int
+        conn: psycopg.AsyncConnection, key: str, window_seconds: int
     ) -> int:
-        await self._ensure_table(conn)
         params = {"key": key, "window": window_seconds}
         row = await (await conn.execute(HIT_RATE_KEY, params)).fetchone()
         await conn.commit()  # the hit holds no row lock while old windows go

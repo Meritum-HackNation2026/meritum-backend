@@ -16,11 +16,9 @@ from pydantic import ValidationError
 
 from meritum_backend.checks.constants import (
     CACHE_CONNECT_TIMEOUT_SECONDS,
-    CREATE_CACHE_TABLES,
     ENTRY_OF_CHECK,
     FILL_CACHE,
     LINK_CHECK,
-    LOCK_CACHE_TABLES,
     LOOKUP_CACHE,
     PRUNE_ENTRIES,
     PRUNE_LINKS,
@@ -34,7 +32,8 @@ type _Params = Mapping[str, object]
 class PostgresResultCache:
     """ResultCache over ``result_cache`` and ``result_cache_checks``.
 
-    An unreachable database is a miss: the check then runs the workflow.
+    An unreachable database is a miss: the check then runs the workflow. The
+    tables come from core's app migrations (0004), run by the worker.
 
     Args:
         conninfo: the API role's database URL.
@@ -45,7 +44,6 @@ class PostgresResultCache:
 
     def __init__(self, conninfo: str) -> None:
         self._conninfo = conninfo
-        self._ready = False
 
     async def lookup(self, key: str, now: datetime) -> CachedResult | None:
         """Read the live entry of ``key`` (see the port).
@@ -126,12 +124,11 @@ class PostgresResultCache:
             _log.warning("result cache unavailable; treated as a miss", exc_info=True)
             return []
 
+    @staticmethod
     async def _execute(
-        self,
         conn: psycopg.AsyncConnection,
         statements: tuple[tuple[LiteralString, _Params], ...],
     ) -> list[TupleRow]:
-        await self._ensure_tables(conn)
         rows: list[TupleRow] = []
         for query, params in statements:
             cursor = await conn.execute(query, params)
@@ -139,11 +136,3 @@ class PostgresResultCache:
             rows = await cursor.fetchall() if has_rows else []
         await conn.commit()
         return rows
-
-    async def _ensure_tables(self, conn: psycopg.AsyncConnection) -> None:
-        if not self._ready:
-            await conn.execute(LOCK_CACHE_TABLES)
-            for statement in CREATE_CACHE_TABLES:
-                await conn.execute(statement)
-            await conn.commit()
-            self._ready = True

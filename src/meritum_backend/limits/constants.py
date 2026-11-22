@@ -94,22 +94,6 @@ REGION_CODE: Final = re.compile(r"[A-Z]{2}")
 UNKNOWN_IP: Final = "unknown"
 """Client address when the server saw none (test clients, unix sockets)."""
 
-CREATE_RATE_TABLE: Final[tuple[LiteralString, ...]] = (
-    """
-    CREATE TABLE IF NOT EXISTS rate_limit_hits (
-        key text NOT NULL,
-        window_start timestamptz NOT NULL,
-        hits integer NOT NULL,
-        PRIMARY KEY (key, window_start)
-    )
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS rate_limit_hits_window_start
-    ON rate_limit_hits (window_start)
-    """,
-)
-"""The table in the API role's own schema (its search_path), made on first use."""
-
 HIT_RATE_KEY: Final[LiteralString] = """
     INSERT INTO rate_limit_hits AS h (key, window_start, hits)
     VALUES (
@@ -130,8 +114,3 @@ PRUNE_RATE_WINDOWS: Final[LiteralString] = """
     WHERE turn.mine AND window_start < now() - make_interval(secs => %(window)s)
 """
 """Drops finished windows; one instance at a time, the others skip (no lock waits)."""
-
-LOCK_RATE_TABLE: Final[LiteralString] = (
-    "SELECT pg_advisory_xact_lock(hashtext('meritum.rate_limit_hits'))"
-)
-"""Serializes the first-use CREATE of every instance; released at commit."""
