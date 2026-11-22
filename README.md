@@ -261,6 +261,8 @@ Rejestr podmiotów przetwarzających (ADR-14, design-system#9): Google LLC i Mic
 
 Role (`StaffRole` z core): `moderator` widzi sprawy, `analyst` mierniki i eksport, `admin` zarządza kontami i listą tematów wysokiego ryzyka. Adresy z `MERITUM_ADMIN_EMAILS` są administratorami od startu; pozostałe role nadaje administrator. Każdy endpoint panelu sprawdza rolę zależnością `StaffGate` (`staff/api.py`), a zmiany stanu wymagają też `CsrfUser`.
 
+`GET /api/v1/export` zwraca sprawdzenia z ostatnich `days` dni we wszystkich kanałach, również bez sprawy moderatora. Gdy zapisów jest więcej niż 10 000, API zwraca 422. Zmniejsz `days`, aby pobrać krótszy okres.
+
 | Endpoint | Role |
 | --- | --- |
 | `GET /api/v1/staff/me` | każda rola; 403 znaczy „brak dostępu do panelu” |
