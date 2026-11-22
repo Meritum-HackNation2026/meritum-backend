@@ -127,7 +127,7 @@ Serwer MCP pozwala sprawdzić twierdzenie z aplikacji czatu (US-WDR-06, US-WTY-0
 | Adres | dev: `https://meritum-dev.gburek.app/mcp`, prd: `https://meritum.gburek.app/mcp` (bez ukośnika na końcu, bo aplikacje czatu nie podążają za przekierowaniami) |
 | Transport | Streamable HTTP |
 | Narzędzia | `check_claim` (jedno twierdzenie albo pytanie o fakt, do 4000 znaków; czeka do 90 s na wynik) i `search_sources` (krótkie fragmenty z katalogu źródeł: tytuł, wydawca, data, link, wersja korpusu; to nie jest werdykt) |
-| Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, albo token dostępu OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp"` |
+| Uwierzytelnianie | klucz API w nagłówku `Authorization: Bearer <klucz>` albo `X-API-Key: <klucz>`, token dostępu z wbudowanego serwera OAuth (niżej) albo token zewnętrznego serwera OAuth sprawdzany introspekcją (RFC 7662); bez nich 401 z `WWW-Authenticate: Bearer realm="meritum-mcp", resource_metadata="<adres>/.well-known/oauth-protected-resource/mcp"` |
 | Limity | `check_claim` i `search_sources` mają wspólny limit 30 wywołań na minutę na klienta (według etykiety klucza API lub tożsamości OAuth). `check_claim` podlega też limitom z sekcji „Limity zapytań”, a `search_sources` ma dodatkowo limit 30 wyszukiwań na minutę z jednego adresu. Po przekroczeniu limitu narzędzie prosi o ponowną próbę za minutę. |
 | Retencja | jak w każdym kanale: zapis sprawdzenia 30 dni; „Usuń moje sprawdzenia” działa po skrócie identyfikatora klienta |
 | Identyfikator klienta | etykieta klucza (część przed `=`) albo `client_id`/`sub` tokenu OAuth; API zapisuje tylko skrót HMAC-SHA-256 z `<kanał>:<identyfikator>` i solą `MERITUM_CHANNEL_HASH_SALT`, surowy identyfikator nie trafia do kolejki, bazy ani logów |
@@ -154,17 +154,27 @@ claude mcp add --transport http meritum https://meritum-dev.gburek.app/mcp \
 npx @modelcontextprotocol/inspector   # Streamable HTTP, adres jak wyżej, nagłówek X-API-Key
 ```
 
-**claude.ai: klucz API w nagłówku (wg dokumentacji, jeszcze nie próbowane ręcznie).** Własne konektory są na planach Free (jeden), Pro, Max, Team i Enterprise. Uwierzytelnianie nie musi być OAuth: formularz ma sekcję „Request headers” ze stałymi poświadczeniami, które Claude wysyła z każdym żądaniem.
+**claude.ai: zalecane logowanie OAuth („Sign in now”).** Własne konektory są na planach Free (jeden), Pro, Max, Team i Enterprise. claude.ai dostaje z `/mcp` odpowiedź 401 ze wskazaniem metadanych OAuth, więc przy „No sign in” ostrzega: „This server offers OAuth sign-in: choose 'Sign in now' instead”. To ten sam serwer OAuth co dla ChatGPT (niżej). Każda osoba loguje się swoim kontem, limity liczą się na nią (`oauth:<user_id>`), a klucz API nie trafia do formularza.
 
 1. Pro i Max: Customize → Connectors → „+ Add” → „Add custom connector”. W Team i Enterprise konektor dodaje właściciel organizacji (Organization settings → Connectors), a członkowie klikają „Connect”.
-2. Nazwa `Meritum`, adres `https://meritum-dev.gburek.app/mcp`, „Continue”.
-3. Authentication: „No sign in”; w „Request headers” nagłówek `X-API-Key` z kluczem z `MERITUM_MCP_API_KEYS`.
-4. „Add”, w rozmowie „+” → „Connectors”, włącz Meritum.
-5. Napisz: „Sprawdź w Meritum: <twierdzenie>”. Odpowiedź ma mieć werdykt, cytaty z linkami, siłę podstawy i informację o AI.
+2. Nazwa `Meritum`, adres `https://meritum-dev.gburek.app/mcp` (bez ukośnika na końcu), „Continue”.
+3. Authentication: „Sign in now”. Pól OAuth Client ID i Client Secret nie wypełniaj: claude.ai rejestruje się sam przez `POST /api/v1/oauth/register` (klient publiczny, PKCE `S256`).
+4. Przeglądarka przechodzi na logowanie Meritum. Zaloguj się kontem Google (Microsoft tylko wtedy, gdy na serwerze nie ma Google; wybór dostawcy w #146). Kto jest już zalogowany w Meritum, wraca do claude.ai od razu, bo nie ma ekranu zgody.
+5. W rozmowie „+” → „Connectors”, włącz Meritum i napisz: „Sprawdź w Meritum: <twierdzenie>”. Odpowiedź ma mieć werdykt, cytaty z linkami, siłę podstawy i informację o AI.
+
+Token dostępu żyje godzinę, a claude.ai odnawia go tokenem odświeżania przez 7 dni. Po tym czasie albo po zmianie `MERITUM_SESSION_SECRET` trzeba kliknąć „Connect” przy konektorze i zalogować się jeszcze raz.
+
+**claude.ai: klucz API w nagłówku (zapasowo).** Działa na dev z nagłówkiem `X-API-Key`, mimo ostrzeżenia o OAuth. Wszyscy, którzy używają tego samego klucza, dzielą jego limit i identyfikator klienta, więc to droga dla zespołu i na wypadek awarii logowania, nie dla jury.
+
+1. Kroki 1 i 2 jak wyżej.
+2. Authentication: „No sign in”; w „Request headers” nagłówek `X-API-Key` z kluczem z `MERITUM_MCP_API_KEYS`. Ostrzeżenie o OAuth nie blokuje dodania.
+3. „Add”, w rozmowie „+” → „Connectors”, włącz Meritum.
+
+Etykiety przycisków są według formularza claude.ai z 22.11.2026; przy rozbieżności obowiązuje strona producenta.
 
 Serwer musi być osiągalny z internetu na porcie 443 (adresy Meritum to spełniają).
 
-**ChatGPT: OAuth.** ChatGPT nie wyśle klucza API, więc API ma własny, minimalny serwer OAuth 2.1 według specyfikacji autoryzacji MCP (#117). Logowanie to zwykłe logowanie Google albo Microsoft z sekcji „Logowanie (OIDC)”, bez nowych sekretów. Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
+**ChatGPT: OAuth.** ChatGPT nie wyśle klucza API, więc API ma własny, minimalny serwer OAuth 2.1 (ten sam obsługuje claude.ai) według specyfikacji autoryzacji MCP (#117). Logowanie to zwykłe logowanie Google albo Microsoft z sekcji „Logowanie (OIDC)”, bez nowych sekretów. Własne serwery MCP są w ChatGPT Business i Enterprise/Edu w przeglądarce, a w Pro z uprawnieniami odczytu; Developer mode nie jest wymagany.
 
 1. <https://chatgpt.com/plugins> → „+” → „Add custom MCP server” (starsza ścieżka: Workspace settings → Apps → Create).
 2. Nazwa `Meritum`, w „Connection” adres `https://meritum-dev.gburek.app/mcp` (Streamable HTTP).
@@ -183,7 +193,7 @@ Jak to działa:
 
 Jedyny zakres to `mcp`, a tokeny mają odbiorcę `<adres>/mcp`. Klient MCP w limitach to `oauth:<user_id>`, więc limity liczą się na osobę.
 
-Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
+Ograniczenia tej wersji: nic nie jest zapisywane w bazie, więc identyfikator klienta, kody i tokeny są podpisane kluczem `MERITUM_SESSION_SECRET` (zmiana klucza unieważnia wszystkie). Nie ma ekranu zgody (#146) ani odwoływania pojedynczego tokenu: token daje tylko narzędzia, które i tak są publiczne. Stary token odświeżania działa do wygaśnięcia, mimo że każde odświeżenie wydaje nowy. Jednorazowość kodu pilnuje pamięć procesu, więc API musi działać w jednej replice. Dokumenty klienta (CIMD) nie są obsługiwane; ChatGPT używa wtedy dynamicznej rejestracji.
 
 Ścieżki `/.well-known/oauth-*` muszą trafiać do API: nginx aplikacji webowej przekazuje dziś do API tylko `/api/` i `/mcp`.
 
