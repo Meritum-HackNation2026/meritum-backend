@@ -31,18 +31,24 @@ Feature: Kanały bez sesji przeglądarki
   Scenario: pierwsze użycie komendy (scenariusz G)
     Given użytkownik pierwszy raz wywołuje /sprawdz z tekstem "Czy Wrocław był jedynym miastem w Polsce, w którym 65-latkowie jeździli komunikacją miejską za darmo?"
     When bot dostaje wynik sprawdzenia z kanałem "discord"
-    Then pierwsza wiadomość mówi, że odpowiada system AI, i podsumowuje werdykt każdego twierdzenia z linkiem do pełnej karty wyniku
-    And potem bot wysyła po jednej wiadomości na twierdzenie: werdykt, jeden najważniejszy cytat albo ocenę fact-checkera ze źródłem i siłę
+    Then bot podmienia odpowiedź na jedną wiadomość: z informacją, że odpowiada system AI, i osadzeniem z werdyktem, najważniejszym cytatem ze źródłem i datą oraz siłą podstawy dla każdego twierdzenia
+    And pod wiadomością jest przycisk-link "Pełna karta" do wyniku, a w treści nie ma surowego adresu
 
-  Scenario: długi cytat
-    Given odpowiedź dla twierdzenia przekracza 2000 znaków
-    When bot dzieli odpowiedź na wiadomości
-    Then żadna wiadomość nie ma więcej niż 2000 znaków treści, osadzenia mają razem najwyżej 6000 znaków, a podział nie przecina cytatu
+  Scenario: wynik widoczny dla kanału
+    Given użytkownik wywołuje /sprawdz z opcją publiczne: True
+    When bot dostaje wynik sprawdzenia z kanałem "discord"
+    Then odpowiedź jest widoczna dla wszystkich na kanale
+    And bez tej opcji odpowiedź zostaje efemeryczna
+
+  Scenario: długi wynik
+    Given wynik nie mieści się w limitach Discorda
+    When bot buduje odpowiedź
+    Then osadzenie ma razem najwyżej 6000 znaków, a bot skraca cytaty, nie twierdzenia
 
   Scenario: odpowiedź po 3 sekundach
     Given sprawdzenie trwa dłużej niż 3 s
     When Discord czeka na odpowiedź na interakcję
-    Then bot odpowiada odroczoną odpowiedzią, a wynik wysyła jako wiadomość uzupełniającą
+    Then bot odpowiada odroczoną odpowiedzią, a wynik wstawia w jej miejsce
 
   Scenario: wiadomość z RCS/MMS z tekstem jest sprawdzana jak SMS
     Given bramka wysyła zdarzenie mms:downloaded z częścią tekstową

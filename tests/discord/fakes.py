@@ -1,6 +1,6 @@
 """Fakes of the Discord tests: the app on in-memory ports and a recording client."""
 
-from typing import cast, override
+from typing import Any, cast, override
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -16,6 +16,7 @@ from tests.conftest import MakeProbe, worker_report
 from meritum_backend.checks.adapters import MemoryResultCache
 from meritum_backend.checks.api import get_records, get_result_cache
 from meritum_backend.discord.api import get_replies
+from meritum_backend.discord.messages import Message
 from meritum_backend.health.api import get_readiness
 from meritum_backend.jobs.api import get_jobs
 from meritum_backend.limits import CheckGate, LimitSettings, get_check_gate
@@ -24,15 +25,23 @@ from meritum_backend.main import create_app
 from meritum_backend.settings import Settings, get_settings
 
 
+def flat(message: dict[str, Any]) -> str:
+    """All text of a Discord message body: content, embed title, description, fields."""
+    parts = [message.get("content") or ""]
+    for embed in message.get("embeds", []):
+        parts += [embed.get("title", ""), embed.get("description", "")]
+        parts += [f"{f['name']}\n{f['value']}" for f in embed.get("fields", [])]
+    return "\n".join(p for p in parts if p)
+
+
 class FakeReplies:
     def __init__(self) -> None:
-        self.sent: list[tuple[str, str, str]] = []
+        self.sent: list[tuple[str, Message, bool]] = []
 
-    async def edit_original(self, application_id: str, token: str, text: str) -> None:
-        self.sent.append(("edit", f"{application_id}/{token}", text))
-
-    async def follow_up(self, application_id: str, token: str, text: str) -> None:
-        self.sent.append(("follow_up", f"{application_id}/{token}", text))
+    async def edit_original(
+        self, application_id: str, token: str, message: Message, *, public: bool
+    ) -> None:
+        self.sent.append((f"{application_id}/{token}", message, public))
 
 
 def repositories(client: TestClient) -> AppRepositories:

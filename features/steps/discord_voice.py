@@ -14,12 +14,14 @@ from meritum_core.security import PiiGateSettings, build_pii_gate
 from meritum_core.shared.blobs.adapters import MemoryBlobStore
 from pydantic import SecretStr
 from tests.checks.cache_fakes import RESULT, FinishedWorker
+from tests.discord.fakes import flat
 from tests.discord.test_voice import CDN, FakeCdn, ogg
 
 from meritum_backend.checks.adapters import MemoryResultCache
 from meritum_backend.discord.api import Ports
 from meritum_backend.discord.constants import TRANSCRIPT_HINT
 from meritum_backend.discord.gateway import GatewayHandler, Incoming
+from meritum_backend.discord.messages import Message
 from meritum_backend.limits import CheckGate, LimitSettings
 from meritum_backend.limits.adapters import FixedPendingChecks, MemoryRateCounter
 from meritum_backend.settings import Settings
@@ -59,8 +61,8 @@ def _unsupported(context: Context) -> None:
 @when("bot ją odbiera")
 @when("bot go odbiera")
 def _receives(context: Context) -> None:
-    async def reply(content: str) -> None:  # ruff: ignore[unused-async] -- the Incoming.reply type
-        context.sent.append(content)
+    async def reply(message: Message) -> None:  # ruff: ignore[unused-async] -- the Incoming.reply type
+        context.sent.append(flat(message))
 
     incoming = Incoming("m1", "1234567890", "", reply, CDN)
     asyncio.run(context.gateway.handle(incoming))

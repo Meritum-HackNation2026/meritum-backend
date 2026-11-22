@@ -5,6 +5,7 @@ conversation records the replies instead of calling Discord.
 """
 
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from behave import given, then, when
@@ -13,6 +14,7 @@ from meritum_core.checks.fakes import InMemoryCheckRecordRepository
 from meritum_core.security import PiiGateSettings, build_pii_gate
 from pydantic import SecretStr
 from tests.checks.cache_fakes import FinishedWorker
+from tests.discord.fakes import flat
 
 import discord
 from meritum_backend.checks.adapters import MemoryResultCache
@@ -47,6 +49,11 @@ def _handler(context: Context) -> None:
     context.gateway = GatewayHandler(ports)
 
 
+def _flat(args: tuple[str, ...], kwargs: dict[str, Any]) -> str:
+    embeds = [e.to_dict() for e in kwargs.get("embeds", [])]
+    return flat({"content": args[0] if args else None, "embeds": embeds})
+
+
 def _message(context: Context, content: str, *, in_server: bool) -> MagicMock:
     message = MagicMock(spec=discord.Message)
     message.author = MagicMock(bot=False, id=7)
@@ -54,8 +61,12 @@ def _message(context: Context, content: str, *, in_server: bool) -> MagicMock:
     message.content = content
     message.guild = MagicMock() if in_server else None
     message.mentions = [MagicMock(id=_BOT_ID)] if in_server else []
-    message.reply = AsyncMock(side_effect=lambda text, **_: context.sent.append(text))
-    message.channel = MagicMock(send=AsyncMock(side_effect=context.sent.append))
+    message.reply = AsyncMock(
+        side_effect=lambda *a, **kw: context.sent.append(_flat(a, kw))
+    )
+    message.channel = MagicMock(
+        send=AsyncMock(side_effect=lambda *a, **kw: context.sent.append(_flat(a, kw)))
+    )
     return message
 
 
@@ -82,7 +93,7 @@ def _receives(context: Context) -> None:
 )
 def _same_check(context: Context) -> None:
     assert '"channel":"discord"' in context.jobs.enqueued[0].payload.model_dump_json()
-    assert context.message.channel.send.await_count == len(context.sent) > 1
+    assert context.message.channel.send.await_count == len(context.sent) == 1
     assert "systemem AI" in context.sent[0]
     context.message.reply.assert_not_awaited()
 
@@ -105,7 +116,7 @@ def _mention(context: Context) -> None:
 def _reply_with_result(context: Context) -> None:
     payload = context.jobs.enqueued[0].payload.model_dump_json()
     assert "https://example.pl/artykul" in payload
-    assert context.message.reply.await_count == len(context.sent) > 1
+    assert context.message.reply.await_count == len(context.sent) == 1
 
 
 @given("Gateway zrywa połączenie")

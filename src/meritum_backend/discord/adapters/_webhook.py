@@ -10,18 +10,20 @@ from typing import Any
 import httpx2
 
 from meritum_backend.discord.constants import API_URL, EPHEMERAL, HTTP_TIMEOUT_SECONDS
+from meritum_backend.discord.messages import Message
 
 # httpx2 logs each request URL at INFO; here the URL holds the interaction token
 logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
-def _body(text: str) -> dict[str, Any]:
+def _body(message: Message, *, public: bool) -> dict[str, Any]:
     # claim text comes from users: never let it ping @everyone or roles
-    return {"content": text, "flags": EPHEMERAL, "allowed_mentions": {"parse": []}}
+    flags = {} if public else {"flags": EPHEMERAL}
+    return {**message, **flags, "allowed_mentions": {"parse": []}}
 
 
 class WebhookReplies:
-    """Edits the deferred answer and posts follow-ups through ``/webhooks``.
+    """Edits the deferred answer through ``/webhooks``.
 
     Args:
         transport: a mock transport in tests; the network when None.
@@ -33,30 +35,20 @@ class WebhookReplies:
     def __init__(self, transport: httpx2.AsyncBaseTransport | None = None) -> None:
         self._transport = transport
 
-    async def _send(self, method: str, path: str, text: str) -> None:
-        async with httpx2.AsyncClient(
-            base_url=API_URL, transport=self._transport, timeout=HTTP_TIMEOUT_SECONDS
-        ) as client:
-            response = await client.request(method, path, json=_body(text))
-        response.raise_for_status()
-
-    async def edit_original(self, application_id: str, token: str, text: str) -> None:
+    async def edit_original(
+        self, application_id: str, token: str, message: Message, *, public: bool
+    ) -> None:
         """PATCH ``/webhooks/{app}/{token}/messages/@original``.
 
         Args:
             application_id: the Discord app id.
             token: the interaction token.
-            text: the message.
+            message: the embed, components and content.
+            public: visible to the channel; else ephemeral (set when deferred).
         """
         path = f"/webhooks/{application_id}/{token}/messages/@original"
-        await self._send("PATCH", path, text)
-
-    async def follow_up(self, application_id: str, token: str, text: str) -> None:
-        """POST ``/webhooks/{app}/{token}`` (ephemeral, like the first answer).
-
-        Args:
-            application_id: the Discord app id.
-            token: the interaction token.
-            text: the message.
-        """
-        await self._send("POST", f"/webhooks/{application_id}/{token}", text)
+        async with httpx2.AsyncClient(
+            base_url=API_URL, transport=self._transport, timeout=HTTP_TIMEOUT_SECONDS
+        ) as client:
+            response = await client.patch(path, json=_body(message, public=public))
+        response.raise_for_status()

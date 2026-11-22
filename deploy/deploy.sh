@@ -59,6 +59,30 @@ for i in $(seq 30); do
   [ "$i" = 30 ] && { log "liveness check failed"; docker logs --tail 50 "$container" >&2; exit 1; }
   sleep 2
 done
+# Discord commands (#102): the API container registers its own COMMANDS, so a new option
+# or command reaches Discord with the deploy. The app id is a repo variable; no id or
+# token, or a refused call, only warns (the deploy does not depend on Discord).
+app_id=$(jq -rn --arg k "DISCORD_APPLICATION_ID_$(printf '%s' "$env" | tr '[:lower:]' '[:upper:]')" \
+  '(env.VARS_JSON // "{}" | fromjson)[$k] // empty')
+if [ -n "$app_id" ] && [ -n "${MERITUM_DISCORD_BOT_TOKEN:-}" ]; then
+  if registered=$(docker exec -e DISCORD_APPLICATION_ID="$app_id" "$container" python -c "
+import json, os, urllib.request
+from meritum_backend.discord.constants import COMMANDS
+request = urllib.request.Request(
+    'https://discord.com/api/v10/applications/' + os.environ['DISCORD_APPLICATION_ID'] + '/commands',
+    data=json.dumps(COMMANDS).encode(), method='PUT',
+    headers={'Authorization': 'Bot ' + os.environ['MERITUM_DISCORD_BOT_TOKEN'],
+             'Content-Type': 'application/json',
+             'User-Agent': 'DiscordBot (https://github.com/Meritum-HackNation2026, 0.1)'})
+print(', '.join(c['name'] for c in json.load(urllib.request.urlopen(request, timeout=30))))" 2>&1); then
+    log "registered Discord commands: $registered"
+  else
+    echo "::warning title=Discord commands not registered::$registered"
+  fi
+else
+  log "no DISCORD_APPLICATION_ID_$env or bot token: Discord commands not registered"
+fi
+
 # Readiness (#19) names missing variables and providers (never values); a 503 warns
 # and does not stop the deploy, unless the API's database is unreachable.
 # The database may come up a moment after the container: ask again for up to 60 s.

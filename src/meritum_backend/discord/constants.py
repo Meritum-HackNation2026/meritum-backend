@@ -20,6 +20,12 @@ DELETE_MY_DATA: Final = "usun-moje-dane"
 TEXT_OPTION: Final = "tekst"
 """Option of the slash command that carries the text to check."""
 
+PUBLIC_OPTION: Final = "publiczne"
+"""Boolean option of ``/sprawdz``: show the result to the whole channel."""
+
+PUBLIC_OPTION_TEXT: Final = "Pokaż wynik wszystkim na kanale"
+"""copy/pl.json discord.public_option."""
+
 _WHERE: Final[dict[str, Any]] = {"contexts": [0, 1, 2], "integration_types": [0, 1]}
 """Usable in servers, DMs with the app and private channels; installable on a
 server or on a user's own account (citizens can use it anywhere)."""
@@ -40,7 +46,14 @@ COMMANDS: Final[list[dict[str, Any]]] = [
                 "description_localizations": {"pl": "Tekst albo link do sprawdzenia"},
                 "required": True,
                 "max_length": 4000,
-            }
+            },
+            {
+                "type": 5,
+                "name": PUBLIC_OPTION,
+                "description": "Show the result to everyone in the channel",
+                "description_localizations": {"pl": PUBLIC_OPTION_TEXT},
+                "required": False,
+            },
         ],
         **_WHERE,
     },
@@ -104,9 +117,6 @@ FINISHED_STATUSES: Final = frozenset(
 )
 """DBOS workflow statuses that will not change any more."""
 
-MESSAGE_MAX_CHARS: Final = 2000
-"""Discord limit of a message's content for bots."""
-
 CARD_PATH: Final = "/sprawdzenie/{check_id}"
 """Path of the full result card in the web app."""
 
@@ -120,8 +130,11 @@ AI_NOTICE: Final = (
 )
 """copy/pl.json ai_notice.discord: first reply to a new user hash (AI Act art. 50)."""
 
-SUMMARY: Final = "Wynik sprawdzenia: {claims}. Pełna karta: {link}"
-"""copy/pl.json discord.summary."""
+RESULT_TITLE: Final = "Wynik sprawdzenia: {claims}"
+"""copy/pl.json discord.result_title."""
+
+CARD_BUTTON: Final = "Pełna karta"
+"""copy/pl.json discord.card_button: label of the link button."""
 
 CLAIMS_PLURAL: Final = {
     "one": "{count} twierdzenie",
