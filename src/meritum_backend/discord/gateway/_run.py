@@ -8,6 +8,7 @@ import logging
 
 from meritum_backend.discord.api import Ports
 from meritum_backend.discord.constants import BOT_TOKEN_MISSING
+from meritum_backend.discord.factory import build_voice_downloader
 from meritum_backend.discord.gateway._client import MeritumClient
 from meritum_backend.discord.gateway._handler import GatewayHandler
 from meritum_backend.main import create_app
@@ -47,7 +48,9 @@ async def run(settings: Settings | None = None) -> int:
             state.result_cache,
             state.repositories.records,
             settings,
+            state.blobs,
         )
-        async with MeritumClient(GatewayHandler(ports)) as client:
+        handler = GatewayHandler(ports, voice=build_voice_downloader())
+        async with MeritumClient(handler) as client:
             await client.start(token.get_secret_value())
     return 0

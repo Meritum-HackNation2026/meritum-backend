@@ -116,6 +116,74 @@ async def _read_capped(request: Request) -> bytes | None:
     return b"".join(chunks)
 
 
+class AudioStoreError(Exception):
+    """The blob store failed: nobody's fault, so no verdict and no reason.
+
+    Features:
+        US-SPR-11, F-08
+    """
+
+
+class AudioRefusedError(Exception):
+    """The recording cannot be checked: no verdict, only a reason.
+
+    Args:
+        code: the HTTP status POST /api/v1/audio answers with.
+        key: the copy/pl.json key naming the reason.
+
+    Features:
+        US-SPR-11, F-08
+    """
+
+    def __init__(self, code: int, key: str) -> None:
+        super().__init__(key)
+        self.code = code
+        self.key = key
+
+
+async def store_audio(blobs: BlobStore, data: bytes) -> str:
+    """Validate a recording by its bytes and keep it for the record's retention.
+
+    Shared by POST /api/v1/audio and the Discord Gateway's voice messages.
+
+    Args:
+        blobs: the blob store port.
+        data: the file; the caller has already capped its size.
+
+    Returns:
+        The audio id to send as ``audio_id`` to POST /api/v1/checks.
+
+    Raises:
+        AudioRefusedError: 422 over MAX_AUDIO_SECONDS, 415 for any other file.
+        AudioStoreError: The store failed.
+
+    Features:
+        US-SPR-11, F-08, ADR-13, ADR-31
+    """
+    try:
+        info = inspect_audio(data)
+    except AudioTooLongError as exc:
+        raise AudioRefusedError(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, AUDIO_TOO_LONG_KEY
+        ) from exc
+    except (
+        UnsupportedAudioError
+    ) as exc:  # UnsupportedAudioFormatError and any future kind
+        raise AudioRefusedError(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, AUDIO_FORMAT_KEY
+        ) from exc
+    try:
+        ref = await blobs.put(
+            data,
+            kind=BlobKind.AUDIO,
+            content_type=AUDIO_CONTENT_TYPES[info.format],
+            expires_at=datetime.now(UTC) + AUDIO_RETENTION,
+        )
+    except Exception as exc:  # disk, bucket or SDK errors: none is the user's fault
+        raise AudioStoreError from exc
+    return ref.blob_id
+
+
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
@@ -160,21 +228,10 @@ async def upload_audio(request: Request, blobs: Blobs) -> AudioAccepted | JSONRe
     if data is None:
         return _rejected(status.HTTP_413_CONTENT_TOO_LARGE, AUDIO_TOO_LARGE_KEY)
     try:
-        info = inspect_audio(data)
-    except AudioTooLongError:
-        return _rejected(status.HTTP_422_UNPROCESSABLE_CONTENT, AUDIO_TOO_LONG_KEY)
-    except UnsupportedAudioError:  # UnsupportedAudioFormatError and any future kind
-        return _rejected(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, AUDIO_FORMAT_KEY)
-    content_type = AUDIO_CONTENT_TYPES[info.format]
-    try:
-        ref = await blobs.put(
-            data,
-            kind=BlobKind.AUDIO,
-            content_type=content_type,
-            expires_at=datetime.now(UTC) + AUDIO_RETENTION,
-        )
-    except Exception as exc:  # disk, bucket or SDK errors: none is the user's fault
+        return AudioAccepted(audio_id=await store_audio(blobs, data))
+    except AudioRefusedError as refused:
+        return _rejected(refused.code, refused.key)
+    except AudioStoreError as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, STORAGE_DETAIL
         ) from exc
-    return AudioAccepted(audio_id=ref.blob_id)

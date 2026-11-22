@@ -14,6 +14,7 @@ from meritum_core.checks import CheckRecordRepository
 from meritum_core.checks.contracts import CheckRequest
 from meritum_core.jobs.ports import JobQueue
 from meritum_core.security import PiiGatePort
+from meritum_core.shared.blobs import BlobStore
 from pydantic import ValidationError
 
 from meritum_backend.channels import channel_user_hash
@@ -85,6 +86,7 @@ class Ports:
         cache: the result cache.
         records: the check records.
         settings: the app settings.
+        blobs: where voice messages are kept; None when the Gateway has none.
 
     Features:
         US-WTY-06, F-03, ADR-08
@@ -97,15 +99,19 @@ class Ports:
     cache: ResultCache
     records: CheckRecordRepository
     settings: Settings
+    blobs: BlobStore | None = None
 
 
-async def start(ports: Ports, text: str, user_id: str) -> str | dict[str, Any]:
+async def start(
+    ports: Ports, text: str, user_id: str, audio_id: str | None = None
+) -> str | dict[str, Any]:
     """Run POST /api/v1/checks itself, so Discord has no verification of its own.
 
     Args:
         ports: what start_check takes.
         text: the text the user asked about.
         user_id: the Discord user id; start_check hashes it.
+        audio_id: a stored voice message to transcribe instead of ``text``.
 
     Returns:
         The check id, or the ephemeral answer saying why it did not start.
@@ -115,6 +121,8 @@ async def start(ports: Ports, text: str, user_id: str) -> str | dict[str, Any]:
     """
     hashed = user_hash(ports.settings, user_id) or ""
     request = {"channel": CHANNEL, "text": text, "channel_user_id": user_id or None}
+    if audio_id is not None:
+        request["audio_id"] = audio_id
     try:
         check = CheckRequest.model_validate(request)
         started = await start_check(

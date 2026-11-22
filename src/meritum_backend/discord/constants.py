@@ -184,6 +184,36 @@ ERRORS: Final = {
 SEEN_MESSAGES: Final = 1000
 """Message ids the Gateway remembers, so a resumed session never answers twice."""
 
+VOICE_HOSTS: Final = frozenset({"cdn.discordapp.com", "media.discordapp.net"})
+"""Hosts a voice message may be downloaded from: Discord's CDN only, so a forged
+attachment URL never makes the bot fetch an arbitrary address."""
+
+VOICE_TIMEOUT_SECONDS: Final = 30.0
+"""Longest wait for a voice message download (the signed URL expires quickly)."""
+
+TRANSCRIPT: Final = "Transkrypcja nagrania: „{text}”"
+"""copy/pl.json result.transcript as a line before the transcript."""
+
+TRANSCRIPT_HINT: Final = (
+    "Transkrypcję przygotował system automatycznie. Może zawierać błędy."
+)
+"""copy/pl.json result.transcript_hint."""
+
+AUDIO_REFUSALS: Final = {
+    "errors.audio_too_large": (
+        "Plik jest za duży. Wyślij nagranie do {max_mb} MB albo je przytnij."
+    ),
+    "errors.audio_too_long": (
+        "Nagranie jest za długie. Wyślij najwyżej {max_minutes} min albo je przytnij."
+    ),
+    "out_of_scope_code.audio": (
+        "Tego nagrania nie sprawdzimy. Wyślij inne nagranie albo przepisz tekst."
+        " Przyjmujemy pliki: {formats}."
+    ),
+}
+"""copy/pl.json errors.audio_* and out_of_scope_code.audio (+ limitation_code
+audio_format_unsupported): why a recording got no verdict."""
+
 GATEWAY_INTENTS: Final = ("guilds", "guild_messages", "dm_messages")
 """Non-privileged intents only: a message that mentions the bot or is sent to it
 in a DM carries its content without MESSAGE_CONTENT."""

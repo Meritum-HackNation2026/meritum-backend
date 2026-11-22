@@ -33,3 +33,26 @@ class InteractionReplies(Protocol):
             text: at most MESSAGE_MAX_CHARS characters.
         """
         ...
+
+
+class VoiceDownloader(Protocol):
+    """Fetches a voice message's bytes from Discord's CDN (port).
+
+    Features:
+        US-SPR-11, US-WTY-06, F-08, F-03
+    """
+
+    async def download(self, url: str) -> bytes:
+        """Return the attachment's bytes.
+
+        Args:
+            url: the signed attachment URL; it expires quickly.
+
+        Returns:
+            The file's bytes.
+
+        Raises:
+            VoiceTooLargeError: The file is over MAX_AUDIO_BYTES.
+            VoiceDownloadError: The URL is not Discord's CDN or the fetch failed.
+        """
+        ...
