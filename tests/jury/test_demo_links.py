@@ -1,6 +1,7 @@
 """Demo links: reusable, technical accounts only, dev only, expiring, revocable."""
 
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from urllib.parse import urlparse
 
 import pytest
@@ -53,6 +54,7 @@ def test_admin_link_opens_the_panel_but_cannot_persist_privileges(
     assert redirect.headers["location"] == "/panel"
     assert visitor.get("/api/v1/staff/me").json()["role"] == "admin"
     assert visitor.get("/api/v1/staff").status_code == 200
+    assert visitor.get(PATH).status_code == 403
     csrf = {"X-CSRF-Token": visitor.get("/api/v1/auth/me").json()["csrf_token"]}
     for method, path, body in [
         ("POST", "/api/v1/staff", {"email": "x@example.com", "role": "admin"}),
@@ -68,7 +70,9 @@ def test_admin_link_opens_the_panel_but_cannot_persist_privileges(
 @pytest.mark.parametrize("role", [None, "moderator", "analyst"])
 def test_only_a_real_admin_issues_demo_links(app: FastAPI, role: str | None) -> None:
     body = {"account": "admin"}
-    assert member(app, role).post(PATH, json=body).status_code == 403
+    client = member(app, role)
+    assert client.post(PATH, json=body).status_code == 403
+    assert client.get(PATH).status_code == 403
 
 
 def test_unknown_account_and_bad_deadline_are_rejected(app: FastAPI) -> None:
@@ -131,6 +135,7 @@ def test_demo_links_do_not_exist_on_prd() -> None:
     assert (
         signed_in(prd, ADMIN).post(PATH, json={"account": "admin"}).status_code == 404
     )
+    assert signed_in(prd, ADMIN).get(PATH).status_code == 404
     assert anonymous(prd).get("/api/v1/auth/demo/" + "a" * 43).status_code == 404
 
 
@@ -139,3 +144,34 @@ def test_demo_redemption_is_rate_limited(app: FastAPI) -> None:
     for _ in range(10):
         assert client.get("/api/v1/auth/demo/" + "a" * 43).status_code == 404
     assert client.get("/api/v1/auth/demo/" + "a" * 43).status_code == 429
+
+
+def test_active_demo_links_can_be_revoked_by_id(app: FastAPI) -> None:
+    admin = signed_in(app, ADMIN)
+    first = admin.post(PATH, json={"account": "admin"}).json()
+    second = admin.post(PATH, json={"account": "obywatel"}).json()
+    response = admin.get(PATH)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert [link["id"] for link in response.json()] == [second["id"], first["id"]]
+    assert admin.post(PATH + "/revoke", json={"id": second["id"]}).status_code == 204
+    assert anonymous(app).get(urlparse(second["url"]).path).status_code == 404
+    assert [link["id"] for link in admin.get(PATH).json()] == [first["id"]]
+
+
+def test_list_omits_expired_and_jury_links(app: FastAPI) -> None:
+    admin = signed_in(app, ADMIN)
+    assert anonymous(app).get(PATH).status_code == 401
+    soon = datetime.now(UTC) + timedelta(minutes=1)
+    issued = admin.post(PATH, json={"account": "admin", "expires_at": soon.isoformat()})
+    assert issued.status_code == 201
+    jury = urlparse(admin.post("/api/v1/staff/jury-links").json()["url"]).fragment
+    jury_id = sha256(jury.encode()).hexdigest()
+    assert admin.post(PATH + "/revoke", json={"id": jury_id}).status_code == 404
+    assert len(admin.get(PATH).json()) == 1
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            "meritum_backend.jury.api._demo_admin.datetime",
+            type("D", (), {"now": staticmethod(lambda _tz: soon + timedelta(1))}),
+        )
+        assert admin.get(PATH).json() == []

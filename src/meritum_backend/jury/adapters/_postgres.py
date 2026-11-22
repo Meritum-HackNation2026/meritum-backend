@@ -4,16 +4,20 @@ from datetime import datetime
 from secrets import compare_digest
 
 import psycopg
+from psycopg.rows import class_row
 
 from meritum_backend.jury.constants import (
     CONNECT_TIMEOUT,
+    DELETE_DEMO_LINK,
     DELETE_JURY_LINK,
     GET_JURY_LINK,
+    INSERT_DEMO_METADATA,
     INSERT_JURY_LINK,
+    LIST_DEMO_LINKS,
     PEEK_JURY_LINK,
     PURGE_EXPIRED_JURY_LINKS,
 )
-from meritum_backend.jury.ports import JuryUnavailableError
+from meritum_backend.jury.ports import DemoLink, JuryUnavailableError
 
 
 class PostgresJuryLinks:
@@ -31,12 +35,15 @@ class PostgresJuryLinks:
     def __init__(self, conninfo: str) -> None:
         self._conninfo = conninfo
 
-    async def save(self, token_hash: bytes, expires_at: datetime) -> None:
+    async def save(
+        self, token_hash: bytes, expires_at: datetime, *, demo: DemoLink | None = None
+    ) -> None:
         """Persist the digest and expiry, dropping links past their deadline.
 
         Args:
             token_hash: SHA-256 digest of the link token.
             expires_at: the link deadline.
+            demo: metadata if this is a reusable demo link.
 
         Raises:
             JuryUnavailableError: the database operation failed.
@@ -50,6 +57,10 @@ class PostgresJuryLinks:
             ) as conn:
                 await conn.execute(PURGE_EXPIRED_JURY_LINKS)
                 await conn.execute(INSERT_JURY_LINK, (token_hash, expires_at))
+                if demo is not None:
+                    await conn.execute(
+                        INSERT_DEMO_METADATA, (token_hash, demo.account, demo.issued_at)
+                    )
         except psycopg.Error:
             raise JuryUnavailableError from None
 
@@ -108,11 +119,12 @@ class PostgresJuryLinks:
             raise JuryUnavailableError
         return row[0] if row[0] > now else None
 
-    async def remove(self, token_hash: bytes) -> bool:
+    async def remove(self, token_hash: bytes, *, demo_only: bool = False) -> bool:
         """Delete the matching row.
 
         Args:
             token_hash: SHA-256 digest of the link token.
+            demo_only: require a demo metadata record before removing the link.
 
         Returns:
             Whether a row was deleted.
@@ -127,9 +139,34 @@ class PostgresJuryLinks:
             async with await psycopg.AsyncConnection.connect(
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT
             ) as conn:
-                return (
-                    await conn.execute(DELETE_JURY_LINK, (token_hash,))
-                ).rowcount > 0
+                query = DELETE_DEMO_LINK if demo_only else DELETE_JURY_LINK
+                return (await conn.execute(query, (token_hash,))).rowcount > 0
+        except psycopg.Error:
+            raise JuryUnavailableError from None
+
+    async def active_demo(self, now: datetime) -> list[DemoLink]:
+        """List unexpired demo links, newest first.
+
+        Args:
+            now: current time used to check expiry.
+
+        Returns:
+            The active demo link metadata.
+
+        Raises:
+            JuryUnavailableError: the database operation failed.
+
+        Features:
+            US-OBS-06, US-MOD-05, F-28, F-25
+        """
+        try:
+            async with (
+                await psycopg.AsyncConnection.connect(
+                    self._conninfo, connect_timeout=CONNECT_TIMEOUT
+                ) as conn,
+                conn.cursor(row_factory=class_row(DemoLink)) as cur,
+            ):
+                return await (await cur.execute(LIST_DEMO_LINKS, (now,))).fetchall()
         except psycopg.Error:
             raise JuryUnavailableError from None
 

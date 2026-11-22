@@ -137,3 +137,29 @@ def refused_without_session(context: Context) -> None:
     """
     assert context.visit.status_code == HTTPStatus.NOT_FOUND
     assert context.visitor.get("/api/v1/auth/me").status_code == HTTPStatus.UNAUTHORIZED
+
+
+@when("administrator pobiera listę linków demo")
+def admin_lists_demo_links(context: Context) -> None:
+    """Read the demo links from the staff API.
+
+    Features:
+        US-OBS-06, US-MOD-05, F-28, F-25
+    """
+    context.demo_list = context.admin.get(LINKS)
+
+
+@then("lista zawiera metadane wydanego linku bez tokenu")
+def shows_safe_demo_metadata(context: Context) -> None:
+    """Check that the list exposes only management metadata.
+
+    Features:
+        US-OBS-06, US-MOD-05, F-28, F-25
+    """
+    response = context.demo_list
+    assert response.status_code == HTTPStatus.OK, response.text
+    (link,) = response.json()
+    assert set(link) == {"id", "account", "issued_at", "expires_at"}
+    assert link["account"] == context.demo_account
+    assert link["expires_at"] == context.demo_expiry
+    assert context.demo_path.rsplit("/", 1)[1] not in response.text

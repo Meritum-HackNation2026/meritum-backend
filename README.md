@@ -370,6 +370,18 @@ Baza, rola, schemat i plik `~/meritum/envs/api-<env>.env` na hoście pochodzą z
 
 Gałęzie: zmiany przez PR do `develop`, wydanie przez PR `develop` → `main`. Nie pushuj bezpośrednio do `develop` ani `main`. Na planie Free GitHub nie wymusza tego w repozytoriach prywatnych, więc to zasada zespołu. Gałąź funkcji usuń po merge'u (`gh pr merge --delete-branch` albo przycisk w PR). Automatyczne usuwanie jest wyłączone, bo bez ochrony gałęzi skasowałoby też `develop` po PR `develop` → `main`.
 
+## Lista linków demo (#126)
+
+Administrator zalogowany przez OIDC pobiera `GET /api/v1/staff/demo-links`
+na dev i lokalnie. Lista zawiera identyfikator, konto, datę wydania i termin
+ważności każdego aktywnego linku. Pełny adres jest dostępny w odpowiedzi na
+wydanie. `POST /api/v1/staff/demo-links/revoke` przyjmuje `{"id":"…"}`
+z nagłówkiem `X-CSRF-Token`.
+
+Metadane zapisuje tabela `demo_link_metadata` z migracji 0009 z meritum-core.
+Linki sprzed tej zmiany działają do swojego terminu ważności. Lista obejmuje
+linki wydane po wdrożeniu zapisu metadanych.
+
 ## Dane demo dla jury (dev)
 
 `scripts/seed_demo.py` zasila konta demo (backend#53) przykładowymi danymi, żeby jury nie widziało pustych ekranów: 6 sprawdzeń (prawda, fałsz, częściowo poparte, opinia, link, twierdzenie zdrowotne), sprawa moderatora z odpowiedzią, jedno uruchomienie ewaluacji i powiadomienie `moderator_answer` dla obywatela. Skrypt używa tylko publicznego API z uwierzytelnieniem (nic nie zapisuje w bazie), działa wyłącznie na dev i lokalnie (inny adres kończy się odmową) i jest idempotentny: krok, którego wynik już istnieje, jest pomijany. Prawdziwych danych osobowych nie ma.
