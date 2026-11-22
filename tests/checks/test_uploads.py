@@ -111,7 +111,7 @@ def test_too_long_recording_gets_its_own_copy_key() -> None:
 def test_empty_body_is_an_unsupported_format() -> None:
     response = client_on(Blobs()).post("/api/v1/audio", content=b"")
     assert response.status_code == 415
-    assert response.json()["message_key"] == "status_hint.out_of_scope_audio_format"
+    assert response.json()["message_key"] == "out_of_scope_code.audio"
 
 
 def test_storage_failure_is_503_without_details() -> None:
@@ -191,7 +191,7 @@ def test_streamed_oversize_is_413_and_stores_nothing() -> None:
         (
             UnsupportedAudioFormatError("any wording"),
             415,
-            "status_hint.out_of_scope_audio_format",
+            "out_of_scope_code.audio",
         ),
     ],
 )

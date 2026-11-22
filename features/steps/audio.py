@@ -199,7 +199,7 @@ def unsupported_format(context: Context, state: str) -> None:
     assert context.response.status_code == HTTPStatus.UNSUPPORTED_MEDIA_TYPE
     body = context.response.json()
     assert body["status"] == state
-    assert body["message_key"] == "status_hint.out_of_scope_audio_format"
+    assert body["message_key"] == "out_of_scope_code.audio"
     assert body["formats"] == ["OGG", "MP3", "M4A", "WAV"]
     assert context.blobs.stored == []
 

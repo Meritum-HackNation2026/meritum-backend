@@ -1,0 +1,569 @@
+{
+  "$comment": "Meritum UI copy (pl). Keys mirror codes in the meritum-core contracts (package src/meritum_core/checks/contracts/; read-only copy in contracts/). Tone: DESIGN_SYSTEM.md section 8. Plain language for people without technical knowledge.",
+  "brand": {
+    "name": "Meritum",
+    "subtitle": "obywatelski radar dezinformacji",
+    "taglines": [
+      "Sprawdź, zanim podasz dalej.",
+      "Każde ustalenie ma źródło. Gdy źródeł brak, mówimy to wprost."
+    ]
+  },
+  "form": {
+    "$comment": "audio_transcription_warning is shown next to the audio field before sending; result.transcript_hint is shown on the result card next to the transcript (meritum-frontend#22, frontend/007). audio_provider, audio_cost and audio_retention sit under the audio field; {days} is the same check-record retention as in form.privacy (design-system#69). delete_session_* confirm „Usuń moje sprawdzenia” on the page (design-system#74).",
+    "title": "Sprawdź informację",
+    "lead": "Wklej tekst albo link. Sprawdzimy twierdzenia w opisanych źródłach i pokażemy, na czym opieramy odpowiedź.",
+    "input_label": "Tekst albo link",
+    "input_placeholder": "Np. „Od stycznia nie zapłacisz w sklepie gotówką”",
+    "submit": "Sprawdź",
+    "checking": "Sprawdzamy…",
+    "privacy": "Konto nie jest potrzebne. Oczywiste dane osobowe (telefon, e-mail, PESEL) ukrywamy przed analizą. Zapis sprawdzenia usuwamy po {days} dniach.",
+    "delete_session": "Usuń moje sprawdzenia",
+    "delete_session_title": "Usunąć twoje sprawdzenia?",
+    "delete_session_text": "Usuniemy sprawdzenia z tej karty przeglądarki i ich zapisy na naszym serwerze. Tego nie da się cofnąć.",
+    "delete_session_yes": "Usuń",
+    "delete_session_cancel": "Anuluj",
+    "audio_label": "Albo nagranie (plik audio)",
+    "audio_note": "Nagranie zamienimy na tekst w regionie UE i pokażemy transkrypcję obok wyniku.",
+    "audio_limits": "Plik do {max_mb} MB i {max_minutes} min nagrania. Formaty: {formats}.",
+    "audio_transcription_warning": "System z użyciem AI zamieni nagranie na tekst. Może się pomylić, więc porównaj transkrypcję z nagraniem.",
+    "audio_provider": "Transkrypcję robi {name} ({region}).",
+    "audio_cost": "Zamiana nagrania na tekst jest bezpłatna.",
+    "audio_retention": "Plik nagrania i transkrypcję usuwamy razem z zapisem sprawdzenia, najpóźniej po {days} dniach."
+  },
+  "history": {
+    "title": "Twoje sprawdzenia",
+    "empty": "Tu pojawią się sprawdzenia z tej rozmowy.",
+    "session_note": "Historia jest zapisana tylko w tej przeglądarce: w tej karcie i w kartach z niej otwartych.",
+    "account_note": "Jesteś zalogowany, więc historię przechowujemy na naszym serwerze. Możesz ją usunąć w każdej chwili.",
+    "delete": "Usuń moją historię"
+  },
+  "conversation": {
+    "$comment": "Conversation view of the web page (DESIGN_SYSTEM.md 6.8, design-system#79, meritum-frontend#67). label names the thread for screen readers; you is the hidden speaker name of the citizen's question; examples are claims to check, not facts, shown on the empty page and sent on click; audio_question stands in the thread for a sent recording.",
+    "label": "Rozmowa z Meritum",
+    "you": "Ty",
+    "examples_lead": "Albo sprawdź jedno z tych twierdzeń:",
+    "examples": [
+      "Od stycznia nie zapłacisz w sklepie gotówką.",
+      "Prezydent w Polsce może rządzić przez trzy kadencje.",
+      "Od 1 stycznia 2026 płaca minimalna wynosi 4806 zł."
+    ],
+    "attach_audio": "Dodaj nagranie",
+    "remove_audio": "Usuń nagranie",
+    "audio_question": "Nagranie: {name}"
+  },
+  "account": {
+    "optional": "Logowanie nie jest potrzebne. Zaloguj się, jeśli chcesz zachować historię po zamknięciu przeglądarki.",
+    "sign_in_google": "Zaloguj się kontem Google",
+    "sign_in_microsoft": "Zaloguj się kontem Microsoft",
+    "sign_out": "Wyloguj się",
+    "delete_account": "Usuń konto i historię",
+    "stored": "Zapisujemy imię i nazwisko, adres e-mail i identyfikator konta od Google albo Microsoft. Zapisujemy też historię sprawdzeń z ukrytymi danymi osobowymi.",
+    "signed_in_as": "Zalogowano jako {email}.",
+    "signed_out": "Wylogowano. Historia zostaje na koncie i zobaczysz ją po ponownym zalogowaniu.",
+    "sign_in_failed": "Nie udało się zalogować. Spróbuj jeszcze raz albo sprawdzaj bez konta.",
+    "session_expired": "Minął czas logowania. Zaloguj się ponownie, żeby zobaczyć historię."
+  },
+  "sms": {
+    "$comment": "Polish characters force UCS-2: one SMS holds 70 characters. reply carries only the main claim's verdict (operators often filter links in SMS). Transliteration to GSM-7 (160 characters) is an option. reply and failure must fit; fees is shown on the website and in README too.",
+    "fees": "Usługa jest bezpłatna. Operator może pobrać standardową opłatę za SMS według twojej taryfy.",
+    "reply": "{verdict}",
+    "too_long": "Za długi tekst. Wyślij krótszy albo sam link.",
+    "failure": "Nie udało się sprawdzić. To nie jest ocena. Spróbuj później.",
+    "delete_hint": "Wyślij USUN, a usuniemy zapisy sprawdzeń z tego numeru."
+  },
+  "channel_privacy": {
+    "title": "Polityka prywatności kanału",
+    "summary": "Liczymy tylko zbiorcze statystyki użycia. Twój identyfikator z Discorda albo numer telefonu służy tylko do odpowiedzi i liczenia powtórzeń. Przechowujemy go jako skrót przez {days} dni i nie pokazujemy moderatorom. Adres IP i region mogą służyć do ochrony przed atakami.",
+    "delete_discord": "Napisz /usun-moje-dane, a usuniemy zapisy twoich sprawdzeń.",
+    "deleted": "Usunęliśmy zapisy twoich sprawdzeń."
+  },
+  "extension": {
+    "$comment": "popup_* show the popup's connection to the Meritum server; {api} is its address or version (design-system#16); popup_delete* delete the checks sent from this extension (design-system#22).",
+    "check": "Sprawdź",
+    "checked": "Sprawdzono",
+    "popup_title": "Sprawdź tekst albo link",
+    "page_hint": "Wysyłamy treść posta dopiero po kliknięciu „Sprawdź”.",
+    "popup_connecting": "Łączymy z serwerem Meritum…",
+    "popup_api_ok": "Połączono z serwerem Meritum ({api}).",
+    "popup_api_down": "Serwer Meritum nie odpowiada. Spróbuj za kilka minut.",
+    "popup_delete": "Usuń moje sprawdzenia",
+    "popup_delete_confirm": "Usunąć sprawdzenia wysłane z tej wtyczki? Tego nie da się cofnąć.",
+    "popup_delete_yes": "Usuń",
+    "popup_delete_cancel": "Anuluj",
+    "popup_deleted": "Usunęliśmy sprawdzenia wysłane z tej wtyczki.",
+    "popup_delete_failed": "Nie udało się usunąć sprawdzeń. Spróbuj za kilka minut."
+  },
+  "result": {
+    "label": "Meritum",
+    "claims_title": "Co sprawdziliśmy",
+    "claim": "Twierdzenie",
+    "explanation": "Wyjaśnienie",
+    "explanation_hint": "To nasze wyjaśnienie, przygotowane z pomocą AI. Podstawą są cytaty ze źródeł poniżej.",
+    "sources_title": "Na czym się opieramy",
+    "source_meta": "{publisher}, {date}",
+    "source_undated": "{publisher}, data publikacji nieznana",
+    "fragment": "Fragment",
+    "strength_title": "Siła podstawy",
+    "premises": "Niezależne źródła: {independent}, w tym urzędowe lub pierwotne: {primary}. {agreement}",
+    "agreement": {
+      "consistent": "Źródła są zgodne.",
+      "conflicting": "Źródła podają różne informacje."
+    },
+    "conflict": "Wiarygodne źródła są tu sprzeczne, więc nie rozstrzygamy. Obie strony są poniżej. Różnica: {difference}",
+    "newest": "Najnowsze źródło jest z {source_date}, a twierdzenie dotyczy {claim_date} ({claim_date_source}).",
+    "claim_date_source": {
+      "text": "data z tekstu",
+      "input_published_at": "data publikacji sprawdzanej treści",
+      "today": "dzisiejsza data"
+    },
+    "unresolved": "Czego nie udało się ustalić",
+    "archival": "Uwaga: najnowszy dowód jest nieaktualny dla daty, której dotyczy twierdzenie. Informacja mogła się zmienić.",
+    "limitations": "Ograniczenia",
+    "incident": "Podobne do znanego przypadku dezinformacji z bazy {database}: {title} ({date}). To kontekst, a nie podstawa oceny.",
+    "incident_domain": "Ten link prowadzi do serwisu z bazy {database} ({title}). To informacja o serwisie, a nie ocena tej treści.",
+    "ai_disclosure": "Odpowiedź przygotował system z użyciem AI. Sprawdź źródła sam: linki prowadzą do oryginałów.",
+    "via_web": "znalezione w wyszukiwaniu w zatwierdzonych serwisach",
+    "superseded": "Ten dowód zastąpił nowszy dokument z {date}.",
+    "superseded_undated": "Ten dowód zastąpił nowszy dokument.",
+    "timeline_title": "Oś czasu dowodów",
+    "what_would_change": "Co zmieniłoby werdykt",
+    "stance": {
+      "$comment": "Citation.stance: headings of the citation groups on the evidence timeline (DESIGN_SYSTEM.md 6.4). Never a verdict word.",
+      "supports": "Wspierają twierdzenie",
+      "refutes": "Przeczą twierdzeniu",
+      "context": "Dają kontekst"
+    },
+    "transcript": "Transkrypcja nagrania",
+    "transcript_hint": "Transkrypcję przygotował system automatycznie. Może zawierać błędy.",
+    "claim_review": "Według {publisher}: „{rating}”.",
+    "claim_review_context": "Ocena fact-checkera {publisher}: „{rating}”. To kontekst, a nie podstawa naszej oceny.",
+    "fact_check_unavailable": "Nie mogę teraz sprawdzić indeksu Google Fact Check z powodu błędu dostępu. To nie znaczy, że takiej oceny nie ma.",
+    "no_result_hint": "Brak wyniku w naszych źródłach nie oznacza, że tak nie jest.",
+    "no_change_hint": "Brak wyniku w naszych źródłach nie oznacza, że zmiany nie było.",
+    "announced_only": "Zapowiedziano to na {date}. Nie mamy informacji, czy się odbyło.",
+    "image_date_hint": "Data widoczna na obrazie nie potwierdza sama w sobie rzeczywistej daty publikacji.",
+    "match_basis": "Podstawa dopasowania: zgadzają się {fields}.",
+    "different_quantities": "Te liczby mierzą co innego: {difference}. To nie są sprzeczne dane.",
+    "incident_database": {
+      "organiser": "incydentów organizatora",
+      "euvsdisinfo": "EUvsDisinfo (EEAS East StratCom Task Force)",
+      "fact_check": "sprawdzonych publikacji fact-checkerów"
+    },
+    "euvsdisinfo_disclaimer": "Publikacje EUvsDisinfo nie są oficjalnym stanowiskiem UE. Wpis w bazie nie znaczy, że dany serwis jest powiązany z Kremlem.",
+    "report_error": "Zgłoś błąd",
+    "report_error_send": "Wyślij zgłoszenie",
+    "report_error_reason": "Co jest nie tak? (opcjonalnie)",
+    "report_error_done": "Dziękujemy. Zgłoszenie trafiło do moderatorów (sprawa {case}). Odpowiedź przyjdzie jako powiadomienie.",
+    "escalate": "Przekaż moderatorom",
+    "how_it_works": "Jak działa Meritum"
+  },
+  "verdict": {
+    "confirmed": "Potwierdzone",
+    "false": "Fałszywe",
+    "misleading": "Wprowadzające w błąd",
+    "insufficient_evidence": "Brak wystarczających dowodów",
+    "not_verifiable": "Nie podlega weryfikacji"
+  },
+  "verdict_hint": {
+    "confirmed": "Źródła potwierdzają to twierdzenie.",
+    "false": "Źródła przeczą temu twierdzeniu.",
+    "misleading": "Dane mogą być prawdziwe, ale prowadzą do błędnego wniosku albo brakuje im kontekstu.",
+    "insufficient_evidence": "Nie rozstrzygamy, bo nie mamy wystarczających źródeł.",
+    "not_verifiable": "To opinia, przewidywanie albo ocena. Faktów nie da się tu sprawdzić."
+  },
+  "would_change_verdict": {
+    "$comment": "ClaimResult.would_change_verdict: list under result.what_would_change. Each line names a missing kind of evidence, never a fact (US-ZRD-11, core/026).",
+    "needs_primary_source": "Dokument urzędowy albo inne źródło pierwotne na ten temat.",
+    "needs_second_publisher": "Drugi niezależny wydawca, który podaje to samo.",
+    "needs_fresh_evidence": "Nowsze źródło z okresu, którego dotyczy twierdzenie.",
+    "needs_resolving_source": "Nowszy dokument urzędowy, który rozstrzygnie spór między źródłami.",
+    "needs_named_source": "Wypowiedź podpisana nazwiskiem albo nazwą instytucji, opublikowana w jej oficjalnym kanale."
+  },
+  "strength": {
+    "strong": "Mocna",
+    "moderate": "Umiarkowana",
+    "weak": "Słaba"
+  },
+  "status": {
+    "needs_clarification": "Doprecyzuj pytanie",
+    "out_of_scope": "Poza zakresem",
+    "technical_failure": "Problem techniczny"
+  },
+  "status_hint": {
+    "needs_clarification": "Nie wiemy, które twierdzenie sprawdzić. Napisz je jednym zdaniem.",
+    "out_of_scope": "Sprawdzamy twierdzenia o faktach z życia publicznego. Tego pytania nie obsługujemy.",
+    "technical_failure": "Nie udało się sprawdzić. To nie jest ocena treści. Spróbuj za kilka minut.",
+    "out_of_scope_image": "Na razie nie sprawdzamy obrazów. Przepisz tekst z obrazka albo wklej link do źródła.",
+    "technical_failure_url": "Nie udało się otworzyć strony z linku: jest niedostępna albo wymaga logowania. To nie jest ocena treści. Wklej tekst."
+  },
+  "out_of_scope_code": {
+    "$comment": "CheckResult.out_of_scope_code and CachedResult.out_of_scope_code, out_of_scope only; status_hint.out_of_scope stays for a result without a code. status_hint.out_of_scope_image is kept for channels that read it. audio replaces status_hint.out_of_scope_audio_format and does not say why the recording was rejected: limitation_code gives the formats or the length limit (design-system#89).",
+    "image": "Na razie nie sprawdzamy obrazów. Przepisz tekst z obrazka albo wklej link do źródła.",
+    "audio": "Tego nagrania nie sprawdzimy. Wyślij inne nagranie albo przepisz tekst.",
+    "not_informational": "Nie widzimy tu twierdzenia o faktach z życia publicznego, więc nie mamy czego sprawdzić. Napisz jednym zdaniem, co chcesz sprawdzić."
+  },
+  "failure_code": {
+    "$comment": "CheckResult.failure_code, technical_failure only; status_hint.technical_failure stays for a result without a code. status_hint.technical_failure_url is kept for channels that read it. Never names a key or a provider.",
+    "provider_unavailable": "Usługa, z której korzystamy przy sprawdzaniu, nie odpowiada. To nie jest ocena treści. Spróbuj za kilka minut.",
+    "web_search_unavailable": "Nie udało się wyszukać świeżych publikacji, a bez nich nie damy odpowiedzi. To nie jest ocena treści. Spróbuj za kilka minut.",
+    "transcription_failed": "Nie udało się zamienić nagrania na tekst. To nie jest ocena treści. Wyślij nagranie jeszcze raz albo przepisz tekst.",
+    "url_unavailable": "Nie udało się otworzyć strony z linku: jest niedostępna albo wymaga logowania. To nie jest ocena treści. Wklej tekst.",
+    "not_ready": "Meritum jeszcze się uruchamia i nie przyjmuje sprawdzeń. To nie jest ocena treści. Spróbuj za kilka minut."
+  },
+  "limitation_code": {
+    "$comment": "CheckResult.limitation_codes and CachedResult.limitation_codes: listed under result.limitations. A limitation never changes the status. result.fact_check_unavailable is kept for channels that read it. audio_format_unsupported and audio_too_long explain an out_of_scope recording; the card already says the reason, so they only give the accepted formats ({formats}, as in form.audio_limits) and the length limit ({max_minutes}) (design-system#83).",
+    "fact_check_unavailable": "Nie mogę teraz sprawdzić indeksu Google Fact Check z powodu błędu dostępu. To nie znaczy, że takiej oceny nie ma.",
+    "image_search_not_run": "Nie szukaliśmy wcześniejszych wystąpień tego obrazu. Nie wiemy, czy pojawił się już gdzie indziej.",
+    "audio_format_unsupported": "Przyjmujemy pliki: {formats}.",
+    "audio_too_long": "Sprawdzamy nagrania do {max_minutes} min."
+  },
+  "escalation": {
+    "$comment": "Escalation.state: recommended, created and updated match the contract. not_saved is shown on HTTP 503 when „Przekaż moderatorom” or „Zgłoś błąd” could not persist the case (no case_id, no case number). Backend will send it instead of escalation.recommended once meritum-backend picks up this key. updated has the same text as created and the frontend shows created in both states, so the citizen never learns that someone else asked the same (meritum-frontend#23).",
+    "recommended": "Ta sprawa nadaje się do sprawdzenia przez moderatora. Nie została jeszcze przekazana.",
+    "created": "Przekazaliśmy sprawę moderatorom (sprawa {case}).",
+    "updated": "Przekazaliśmy sprawę moderatorom (sprawa {case}).",
+    "not_saved": "Sprawy nie zapisaliśmy u moderatorów. Spróbuj jeszcze raz."
+  },
+  "source_warning": {
+    "eu_sanctioned_entity": "Ta treść pochodzi od podmiotu z listy sankcji UE ({entity}). To informacja o źródle, a nie ocena samej treści."
+  },
+  "analysis": {
+    "title": "Meritum sprawdza",
+    "draft": "Wersja wstępna. Werdykt pokażemy po sprawdzeniu cytatów.",
+    "steps": {
+      "receive": "Przyjmujemy pytanie",
+      "fetch_url": "Pobieramy stronę z linku",
+      "transcribe_audio": "Zamieniamy nagranie na tekst",
+      "screen_injection": "Sprawdzamy, czy treść nie zawiera ukrytych poleceń",
+      "extract_claims": "Wyodrębniamy twierdzenia do sprawdzenia",
+      "search_corpus": "Szukamy w bazie źródeł",
+      "search_web": "Szukamy świeżych publikacji w zatwierdzonych serwisach",
+      "search_fact_checks": "Szukamy ustaleń fact-checkerów",
+      "assess_evidence": "Porównujemy źródła z twierdzeniami",
+      "verify_citations": "Sprawdzamy, czy cytaty są dosłowne",
+      "write_answer": "Piszemy odpowiedź prostym językiem",
+      "save_record": "Zapisujemy przebieg sprawdzenia"
+    },
+    "step_status": {
+      "pending": "czeka",
+      "active": "w toku",
+      "done": "gotowe",
+      "skipped": "pominięte",
+      "failed": "nieudane"
+    }
+  },
+  "techniques": {
+    "false_authority": {
+      "name": "Fałszywy autorytet",
+      "how_to_spot": "Ekspert bez nazwiska albo znana osoba bez potwierdzenia w jej oficjalnych kanałach."
+    },
+    "conspiracy_theory": {
+      "name": "Teoria spiskowa",
+      "how_to_spot": "Każdy dowód przeciw zostaje nazwany fałszerstwem, a „oni” ukrywają prawdę."
+    },
+    "out_of_context": {
+      "name": "Wyrwanie z kontekstu",
+      "how_to_spot": "Prawdziwe nagranie lub cytat z innego miejsca, czasu albo sensu. Sprawdź datę i źródło oryginału."
+    },
+    "outdated": {
+      "name": "Nieaktualna informacja",
+      "how_to_spot": "Coś było prawdą kiedyś, ale przepisy albo fakty się zmieniły. Sprawdź datę."
+    },
+    "fabricated_quote": {
+      "name": "Zmyślony cytat",
+      "how_to_spot": "Cytat bez linku do wypowiedzi. Szukaj go u autora, nie w udostępnieniach."
+    },
+    "manipulated_media": {
+      "name": "Zmanipulowane zdjęcie lub wideo",
+      "how_to_spot": "Nienaturalne usta i dłonie, rozjechany dźwięk, brak tego materiału w oficjalnych źródłach."
+    },
+    "impersonation": {
+      "name": "Podszywanie się",
+      "how_to_spot": "Nazwa i logo podobne do prawdziwych, ale inny adres strony lub konta."
+    },
+    "cherry_picking": {
+      "name": "Wybiórcze dane",
+      "how_to_spot": "Jedna liczba bez punktu odniesienia. Zapytaj: w porównaniu z czym?"
+    }
+  },
+  "source_kind": {
+    "akt_prawny": "akt prawny",
+    "dane_publiczne": "dane publiczne",
+    "instytucja": "instytucja",
+    "fact_check": "fact-checking",
+    "media": "media"
+  },
+  "source_tier": {
+    "primary": "źródło urzędowe lub pierwotne",
+    "secondary": "źródło wtórne"
+  },
+  "match_basis": {
+    "$comment": "IncidentMatch.match_basis: the words joined into {fields} of result.match_basis. A content match needs title, topic and date (jury scenario I).",
+    "title": "tytuł",
+    "topic": "temat",
+    "date": "data",
+    "domain": "domena"
+  },
+  "moderation": {
+    "queue_title": "Sprawy do sprawdzenia",
+    "reason": {
+      "insufficient_evidence": "brak wystarczających dowodów",
+      "high_risk": "sprawa wysokiego ryzyka",
+      "repeated_unanswered": "powtarzające się pytanie bez odpowiedzi",
+      "user_dispute": "zgłoszenie błędu przez użytkownika"
+    },
+    "similar": {
+      "$comment": "All questions in the case (sum of checks over its claims), the first one included. Pick the form with Intl.PluralRules('pl').select(count).",
+      "one": "{count} podobne pytanie",
+      "few": "{count} podobne pytania",
+      "many": "{count} podobnych pytań",
+      "other": "{count} podobnego pytania"
+    },
+    "high_risk_by": {
+      "embeddings": "temat rozpoznany po podobieństwie do listy administratora",
+      "keywords": "temat rozpoznany po słowach kluczowych"
+    },
+    "role": {
+      "moderator": "moderator",
+      "analyst": "analityk",
+      "admin": "administrator"
+    },
+    "state": {
+      "open": "otwarta",
+      "answered": "z odpowiedzią",
+      "closed": "zamknięta"
+    },
+    "askers": {
+      "$comment": "Distinct askers in the case. Pick the form with Intl.PluralRules('pl').select(count).",
+      "one": "{count} osoba pytająca",
+      "few": "{count} różne osoby pytające",
+      "many": "{count} różnych osób pytających",
+      "other": "{count} różnej osoby pytającej"
+    }
+  },
+  "staff": {
+    "$comment": "Staff panel. sign_in: meritum-frontend#24 (frontend/010) and meritum-backend#15; admin: meritum-frontend#31 (frontend/021). Sign-in buttons reuse account.sign_in_google, account.sign_in_microsoft and account.sign_out; role names are in moderation.role.",
+    "sign_in": {
+      "title": "Panel Meritum dla zespołu",
+      "lead": "Zaloguj się kontem Google albo Microsoft z adresem, któremu administrator nadał rolę.",
+      "no_access": "To konto nie ma dostępu do panelu. Poproś administratora o nadanie roli.",
+      "failed": "Nie udało się zalogować. Spróbuj jeszcze raz.",
+      "session_expired": "Minął czas logowania. Zaloguj się ponownie, żeby wrócić do panelu.",
+      "signed_in_as": "{email}, rola: {role}",
+      "signed_out": "Wylogowano z panelu."
+    },
+    "admin": {
+      "title": "Administracja",
+      "accounts": {
+        "title": "Konta personelu",
+        "lead": "Rolę nadajesz adresowi e-mail. Ta osoba loguje się kontem Google albo Microsoft z tym adresem.",
+        "email": "Adres e-mail",
+        "role": "Rola",
+        "add": "Dodaj konto",
+        "added": "Dodano konto {email} z rolą {role}.",
+        "remove": "Odbierz dostęp",
+        "remove_confirm": "Odebrać dostęp do panelu osobie {email}?",
+        "removed": "Odebrano dostęp osobie {email}.",
+        "empty": "Nie ma jeszcze kont personelu.",
+        "invalid_email": "To nie wygląda na adres e-mail. Sprawdź, czy ma znak @ i domenę.",
+        "duplicate": "To konto już jest na liście."
+      },
+      "topics": {
+        "title": "Tematy wysokiego ryzyka",
+        "lead": "Gdy w tych tematach brakuje dowodów, sprawa trafia do moderatorów. System sam rozpoznaje temat, a słowa kluczowe pomagają, gdy go nie rozpozna.",
+        "name": "Temat",
+        "keywords": "Słowa kluczowe",
+        "keywords_hint": "Oddziel je przecinkami, np. wybory, głosowanie, komisja wyborcza.",
+        "add": "Dodaj temat",
+        "added": "Dodano temat „{topic}”.",
+        "remove": "Usuń temat",
+        "removed": "Usunięto temat „{topic}”.",
+        "empty": "Lista tematów jest pusta. Żadna sprawa nie dostanie powodu „sprawa wysokiego ryzyka”."
+      }
+    }
+  },
+  "jury": {
+    "$comment": "One-time jury link with a read-only analyst role: meritum-backend#32, meritum-frontend#27 (frontend/011). contact is the team address from the submission materials.",
+    "welcome": "Witamy. Masz dostęp do panelu tylko do odczytu do {date}.",
+    "used": "Ten link działa tylko raz, a ktoś już z niego skorzystał. Napisz do zespołu Meritum: {contact}, a wyślemy nowy.",
+    "expired": "Ten link wygasł {date}, bo skończył się okres oceny. Jeśli potrzebujesz dostępu, napisz do zespołu Meritum: {contact}.",
+    "read_only": "Tryb tylko do odczytu. Widzisz przebiegi i porównania, ale nie uruchomisz przebiegu ani nie dodasz zestawu."
+  },
+  "errors": {
+    "empty": "Wklej tekst (co najmniej 3 znaki) albo link.",
+    "invalid_url": "To nie wygląda na adres strony. Wklej pełny link zaczynający się od http:// albo https://.",
+    "url_too_long": "Link jest za długi. Wklej adres do 2083 znaków albo sam tekst.",
+    "too_long": "Tekst jest za długi. Wklej najwyżej 4000 znaków albo sam link.",
+    "rate_limited": "Za dużo sprawdzeń w krótkim czasie. Spróbuj za minutę.",
+    "rate_limited_daily": "Na dziś wykorzystano limit wysłanych nagrań. Spróbuj później.",
+    "busy": "Mamy teraz bardzo dużo pytań. Spróbuj za kilka minut. To nie jest ocena treści.",
+    "offline": "Brak połączenia. Spróbuj, gdy wrócisz do sieci.",
+    "unsupported_site": "Przycisk „Sprawdź” działa na X, Facebooku, Instagramie, Reddicie i TikToku. Tekst z innych stron wklej w okienku wtyczki.",
+    "audio_too_large": "Plik jest za duży. Wyślij nagranie do {max_mb} MB albo je przytnij.",
+    "audio_too_long": "Nagranie jest za długie. Wyślij najwyżej {max_minutes} min albo je przytnij.",
+    "check_not_found": "Nie mamy zapisanego wyniku pod tym adresem. Zapis mógł zostać usunięty albo adres jest nieprawidłowy. To nie jest ocena treści. Wklej treść jeszcze raz i kliknij „Sprawdź”.",
+    "rate_limited_handoff": "Za dużo zgłoszeń w krótkim czasie. Spróbuj za minutę.",
+    "handoff_not_found": "Tego wyniku nie da się już przekazać, bo nie mamy go zapisanego. Sprawdź treść jeszcze raz.",
+    "handoff_rejected": "Nie udało się wysłać. Spróbuj jeszcze raz albo odśwież wynik."
+  },
+  "ai_notice": {
+    "$comment": "AI Act art. 50: shown at first contact in every channel. first_contact: above the web form field and in the extension popup; discord: first bot reply; sms: first SMS to a new number, must fit one UCS-2 SMS (70 characters); mcp: in every MCP tool result. The result card line is result.ai_disclosure.",
+    "first_contact": "Odpowiada system AI. Sprawdza informacje w opisanych źródłach i pokazuje cytaty, ale może się mylić.",
+    "discord": "Jestem botem Meritum, systemem AI. Sprawdzam informacje w opisanych źródłach i podaję cytaty.",
+    "sms": "Odpowiada system AI Meritum. Sprawdzamy w źródłach.",
+    "mcp": "Wynik przygotował system AI Meritum. Sprawdza informacje w opisanych źródłach i podaje cytaty, ale może się mylić."
+  },
+  "discord": {
+    "$comment": "Message content max 2000 characters (API limit for bots). First message: summary with a link; then one message per claim. Never split inside a citation.",
+    "summary": "Wynik sprawdzenia: {claims}. Pełna karta: {link}",
+    "claims": {
+      "$comment": "{claims} in summary: pick the form with Intl.PluralRules('pl').select(count).",
+      "one": "{count} twierdzenie",
+      "few": "{count} twierdzenia",
+      "many": "{count} twierdzeń",
+      "other": "{count} twierdzenia"
+    },
+    "user_author": "Ty",
+    "summary_line": "{verdict}: {claim}",
+    "claim": "{verdict}: {claim}\n„{fragment}” ({publisher}, {date})\nSiła podstawy: {strength}",
+    "claim_undated": "{verdict}: {claim}\n„{fragment}” ({publisher}, data publikacji nieznana)\nSiła podstawy: {strength}",
+    "claim_no_strength": "{verdict}: {claim}\n„{fragment}” ({publisher}, {date})",
+    "claim_undated_no_strength": "{verdict}: {claim}\n„{fragment}” ({publisher}, data publikacji nieznana)",
+    "claim_unsettled": "{verdict}: {claim}\n{unresolved}"
+  },
+  "notifications": {
+    "title": "Powiadomienia",
+    "empty": "Nie masz powiadomień.",
+    "unread": "Nieprzeczytane: {count}",
+    "mark_read": "Oznacz jako przeczytane",
+    "retention": "Powiadomienia usuwamy po {days} dniach.",
+    "kind": {
+      "check_progress": "Sprawdzenie trwa: {step}",
+      "check_done": "Sprawdzenie gotowe. Zobacz wynik.",
+      "moderator_answer": "Moderator odpowiedział na sprawę {case}.",
+      "new_evidence": "Mamy nowy dowód do twojego wcześniejszego pytania.",
+      "case_assigned": "Nowa albo zaktualizowana sprawa {case}.",
+      "system": "{message}",
+      "eval_run_done": "Przebieg ewaluacji się zakończył. Zobacz wyniki."
+    },
+    "system_message": {
+      "maintenance_planned": "Planujemy prace techniczne. Meritum może na chwilę przestać działać.",
+      "service_degraded": "Meritum działa wolniej niż zwykle. Sprawdzenia mogą potrwać dłużej albo się nie udać.",
+      "service_restored": "Meritum znów działa normalnie."
+    },
+    "status": {
+      "unread": "nieprzeczytane",
+      "read": "przeczytane"
+    }
+  },
+  "evaluation": {
+    "title": "Ewaluacja",
+    "golden_set": "golden set (zestaw deweloperski)",
+    "runs": "Przebiegi",
+    "new_run": "Uruchom na golden secie",
+    "upload": "Dodaj zestaw (JSON albo CSV)",
+    "compare": "Porównaj przebiegi",
+    "changed_cases": "Przypadki, które zmieniły wynik",
+    "status": {
+      "queued": "w kolejce",
+      "running": "trwa",
+      "done": "gotowy",
+      "failed": "nieudany"
+    }
+  },
+  "method": {
+    "$comment": "Page „Jak działa Meritum” (US-ZRD-12, F-29, meritum-frontend#20). Page title: result.how_it_works. The data controller block comes from privacy.json (controller). Source kinds and tiers: source_kind, source_tier. Facts only from the product document; numbers only from a measured evaluation run.",
+    "lead": "Tu opisujemy, jak Meritum sprawdza informacje, skąd bierze źródła i jak mierzymy jakość odpowiedzi. Metodę opisujemy według zasad IFCN i EFCSN, międzynarodowej i europejskiej sieci fact-checkerów.",
+    "sources": {
+      "title": "Jak wybieramy i sprawdzamy źródła",
+      "text": [
+        "Dowodów szukamy tylko w jawnym katalogu źródeł. Każda pozycja ma powód kwalifikacji, licencję albo podstawę prawną i sposób odświeżania.",
+        "Źródła urzędowe i pierwotne to serwisy gov.pl i agencji z listy organizatora konkursu, ISAP, EUR-Lex, dane.gov.pl i BIP.",
+        "Źródła wtórne to artykuły z fakenews.pl i pravda.org.pl, których wydawcy podpisali kodeks IFCN. Do tego teksty z bazy EUvsDisinfo, które prostują fałszywe twierdzenia.",
+        "Oceny fact-checkerów z IFCN albo EFCSN, takich jak Demagog i AFP Sprawdzam, znajdujemy w Google Fact Check Tools API. Podajemy wtedy nazwę fact-checkera, ocenę, tytuł, datę i link.",
+        "Dla każdej domeny sprawdzamy robots.txt i zastrzeżenie eksploracji tekstów i danych. Źródło wtórne z takim zastrzeżeniem wypada z katalogu.",
+        "Każdy cytat to dosłowny fragment źródła z tytułem, wydawcą, datą i linkiem. Fragment, którego nie ma w źródle, odpada przed pokazaniem."
+      ]
+    },
+    "verdict": {
+      "title": "Jak liczymy werdykt i siłę",
+      "text": [
+        "Z jednego zapytania wyodrębniamy najwyżej pięć twierdzeń o faktach. Pozostałe wymieniamy w ograniczeniach.",
+        "Każde twierdzenie dostaje jeden z pięciu werdyktów. Potwierdzone, fałszywe i wprowadzające w błąd wymagają co najmniej jednego cytatu.",
+        "Gdy dowodów brakuje albo wiarygodne źródła są sprzeczne, nie rozstrzygamy. Mówimy wtedy, czego nie ustaliliśmy.",
+        "Siłę podstawy liczy jedna reguła w kodzie, bez oceny modelu. Liczymy tylko niezależnych wydawców, których cytaty zgadzają się z werdyktem.",
+        "Mocna: co najmniej dwóch wydawców, w tym jeden urzędowy lub pierwotny, i świeże dowody. Umiarkowana: co najmniej dwóch wydawców albo jeden urzędowy lub pierwotny. Słaba: jeden wydawca spoza źródeł urzędowych albo nieaktualny dowód.",
+        "Wyjaśnienie przygotowuje model AI, a jego podstawą są cytaty. Treść pytania i źródeł trafia do modelu tylko jako dane do analizy."
+      ]
+    },
+    "team": {
+      "title": "Kto prowadzi projekt",
+      "text": [
+        "Meritum buduje Zespół Meritum na HackNation 2026, w konkursie MSZ „Prawdowid”.",
+        "Projekt nie ma partnerstw z MSZ ani z organizacjami fact-checkingowymi.",
+        "Aplikacja działa na serwerze zespołu w Polsce. Model wektorów gemini-embedding-001 działa w Vertex AI w Warszawie (Google Cloud, europe-central2).",
+        "Model językowy Claude Haiku 5.5 od Anthropic działa poza UE. Łączymy się z nim przez OpenRouter z ustawieniem, w którym pytania i odpowiedzi nie są rutynowo przechowywane. Poza UE działają też na przykład Cloudflare i wyszukiwarka Vertex AI Search. Pełny wykaz jest w polityce prywatności.",
+        "Na koniec prac udostępnimy publicznie wszystkie repozytoria i system."
+      ]
+    },
+    "catalog": {
+      "title": "Katalog źródeł",
+      "lead": "Tu są wszystkie źródła, w których szukamy dowodów. Przy każdym podajemy powód kwalifikacji i licencję.",
+      "columns": {
+        "source": "Źródło",
+        "kind": "Rodzaj",
+        "license": "Licencja lub podstawa prawna",
+        "qualified_because": "Powód kwalifikacji",
+        "exclusion_reason": "Powód wykluczenia"
+      },
+      "excluded_title": "Źródła wykluczone",
+      "excluded_lead": "Z tych źródeł nie korzystamy. Przy każdym podajemy powód.",
+      "unavailable": "Katalog źródeł nie jest jeszcze opublikowany. Pokażemy go tutaj, gdy będzie gotowy."
+    },
+    "metrics": {
+      "$comment": "The page shows the last finished run on the golden set only. {date} in run_date: a long Polish date, e.g. „20 listopada 2026”. names: Keys follow the metrics listed in meritum-core#36 (EvalMetrics); rename them when the contract lands.",
+      "title": "Mierniki jakości",
+      "lead": "Pokazujemy tylko liczby zmierzone naszym skryptem ewaluacji na golden secie, czyli zestawie deweloperskim. Zestaw jury jest dla nas ukryty, więc nie stroimy na nim progów.",
+      "run_date": "Ostatni przebieg ewaluacji: {date}.",
+      "reproduce": "Paczka do odtworzenia przebiegu",
+      "no_run": "Nie ma jeszcze zakończonego przebiegu ewaluacji, więc nie pokazujemy liczb.",
+      "names": {
+        "macro_f1": "Trafność werdyktów (macro-F1)",
+        "citation_coverage": "Pokrycie twierdzeń cytatami",
+        "citation_accuracy": "Poprawność cytatów",
+        "abstention": "Trafne wstrzymanie się od werdyktu",
+        "injection_robustness": "Odporność na wstrzyknięcie poleceń",
+        "latency_median_s": "Mediana czasu odpowiedzi (s)",
+        "latency_max_s": "Najdłuższy czas odpowiedzi (s)",
+        "cost_per_100": "Koszt 100 testów",
+        "channel_consistency": "Spójność odpowiedzi w kanałach",
+        "feedback_loop": "Pętla informacji"
+      }
+    },
+    "corrections": {
+      "title": "Polityka poprawek",
+      "text": [
+        "Gdy nowszy dokument zastępuje starszy albo wydawca publikuje korektę, starszy dowód oznaczamy jako zastąpiony. Nie liczy się do siły, ale zostaje widoczny na osi czasu.",
+        "Zgłoszony błąd rozpatruje moderator, czyli człowiek. Planujemy, że odpowie cytatami ze źródeł z katalogu, sprawdzanymi dosłownie jak odpowiedź systemu.",
+        "Odpowiedzi moderatora nie publikujemy. Trafi jako powiadomienie do osób, które pytały o to samo."
+      ]
+    },
+    "report_error": {
+      "title": "Co się dzieje po kliknięciu „Zgłoś błąd”",
+      "text": [
+        "Przycisk jest przy każdym twierdzeniu na karcie wyniku. Możesz dopisać, co jest nie tak, ale nie musisz.",
+        "Dane osobowe w tym opisie maskujemy tak samo jak w pytaniu.",
+        "Zgłoszenie tworzy sprawę dla moderatora albo dołącza do sprawy o to samo twierdzenie. Dostajesz numer sprawy.",
+        "Dopóki moderator nie rozpatrzy zgłoszenia, wynik dla innych osób się nie zmienia. Odpowiedź moderatora przyjdzie jako powiadomienie."
+      ]
+    },
+    "pilot": {
+      "title": "Droga do pilotażu",
+      "text": [
+        "Na hackathonie nie publikujemy odpowiedzi. Pytania bez odpowiedzi trafiają do kolejki moderatora.",
+        "W pilotażu odpowiedź publiczną zatwierdzi człowiek przed publikacją. Opcjonalnie zatwierdzą ją wspólnie osoby o różnych poglądach.",
+        "Po hackathonie planujemy też model językowy na własnym serwerze, żeby mniej zależeć od dostawców spoza EOG."
+      ]
+    }
+  }
+}
