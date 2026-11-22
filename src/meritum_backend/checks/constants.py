@@ -108,8 +108,8 @@ AUDIO_TOO_LARGE_KEY: Final = "errors.audio_too_large"
 AUDIO_TOO_LONG_KEY: Final = "errors.audio_too_long"
 """copy/pl.json key: the recording is over MAX_AUDIO_SECONDS."""
 
-AUDIO_FORMAT_KEY: Final = "status_hint.out_of_scope_audio_format"
-"""copy/pl.json key: not a supported recording; the form lists the formats."""
+AUDIO_FORMAT_KEY: Final = "out_of_scope_code.audio"
+"""copy/pl.json key: this recording cannot be checked (design-system#90)."""
 
 AUDIO_UPLOAD_LIMIT: Final = "10/minute;30/day"
 """Uploads per client address; each can keep MAX_AUDIO_BYTES for 30 days."""

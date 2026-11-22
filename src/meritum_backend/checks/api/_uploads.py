@@ -58,7 +58,7 @@ class AudioRejected(BaseModel):
     Attributes:
         status: always ``out_of_scope``, as core's UnsupportedAudioError.
         message_key: errors.audio_too_large, errors.audio_too_long or
-            status_hint.out_of_scope_audio_format (copy/pl.json).
+            out_of_scope_code.audio (copy/pl.json).
         formats: the formats that can be sent ({formats} of form.audio_limits).
         max_mb: the size limit ({max_mb} of the copy).
         max_minutes: the length limit ({max_minutes} of the copy).
