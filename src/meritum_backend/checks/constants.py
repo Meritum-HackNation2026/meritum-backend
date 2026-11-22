@@ -212,3 +212,10 @@ ENTRY_OF_CHECK: Final[LiteralString] = (
     " WHERE check_id = %(check_id)s AND served IS NOT NULL"
 )
 """The entry a cache hit got; kept with the hit, so a later refill never changes it."""
+
+UNREADABLE_RESULT_MESSAGE: Final = (
+    "Nie udało się odczytać wyniku sprawdzenia. To nie jest ocena. Spróbuj później."
+)
+"""Message of the technical failure served when a check's output does not validate."""
+UNKNOWN_CORPUS_VERSION: Final = "unknown"
+"""corpus_version of that failure: the unreadable output names none we trust."""

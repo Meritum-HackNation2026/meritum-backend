@@ -42,7 +42,7 @@ async def has_claim(jobs: JobQueue, check_id: str, claim_index: int) -> bool:
     if state is None or state.output is None:
         return False
     try:
-        result = CheckOutput.model_validate(state.output).result
+        result = CheckOutput.model_validate(state.output, extra="ignore").result
     except ValidationError:  # another workflow's id
         return False
     return claim_index < len(result.claims)
@@ -53,7 +53,9 @@ def _saved(state: JobState | None) -> Escalation | None:
     if not succeeded or state.output is None:
         return None
     try:
-        escalation = EscalateClaimOutput.model_validate(state.output).escalation
+        escalation = EscalateClaimOutput.model_validate(
+            state.output, extra="ignore"
+        ).escalation
     except ValidationError:
         return None
     return None if escalation.case_id is None else escalation

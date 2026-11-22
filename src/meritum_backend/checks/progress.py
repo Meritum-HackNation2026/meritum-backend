@@ -4,14 +4,21 @@ Features:
     US-SPR-02, F-09
 """
 
-import contextlib
+import logging
 
 from meritum_core.checks import AnalysisStatus, CheckResult
 from meritum_core.jobs.contracts import CheckOutput
 from meritum_core.jobs.ports import JobState
 from pydantic import ValidationError
 
-from meritum_backend.checks.constants import FINISHED_STEP_STATES, VERIFY_STEP
+from meritum_backend.checks.constants import (
+    FINISHED_STEP_STATES,
+    UNKNOWN_CORPUS_VERSION,
+    UNREADABLE_RESULT_MESSAGE,
+    VERIFY_STEP,
+)
+
+_log = logging.getLogger(__name__)
 
 
 def without_early_verdict(progress: AnalysisStatus) -> AnalysisStatus:
@@ -46,6 +53,13 @@ def check_result(state: JobState) -> CheckResult | None:
     Args:
         state: the workflow's state.
 
+    Fields a newer worker contract added are dropped. A check's output that still
+    does not validate is logged and served as a technical failure, so the client
+    gets an answer instead of a 404.
+
+    Args:
+        state: the workflow's state.
+
     Returns:
         The result, or None while there is no output or when the output is not
         a check's (another workflow, e.g. a ping).
@@ -53,11 +67,19 @@ def check_result(state: JobState) -> CheckResult | None:
     Features:
         US-SPR-02, F-09
     """
-    if state.output is None:
+    if state.output is None or "result" not in state.output:
         return None
-    with contextlib.suppress(ValidationError):
-        return CheckOutput.model_validate(state.output).result
-    return None
+    try:
+        return CheckOutput.model_validate(state.output, extra="ignore").result
+    except ValidationError:
+        _log.exception("unreadable output of check %s", state.workflow_id)
+    return CheckResult(
+        check_id=state.workflow_id,
+        status="technical_failure",
+        message=UNREADABLE_RESULT_MESSAGE,
+        failure_code="provider_unavailable",
+        corpus_version=UNKNOWN_CORPUS_VERSION,
+    )
 
 
 def is_check(state: JobState) -> bool:
