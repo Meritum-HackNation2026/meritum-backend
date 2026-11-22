@@ -83,21 +83,26 @@ else
   log "no DISCORD_APPLICATION_ID_$env or bot token: Discord commands not registered"
 fi
 
-# Readiness (#19) names missing variables and providers (never values); a 503 warns
-# and does not stop the deploy, unless the API's database is unreachable.
-# The database may come up a moment after the container: ask again for up to 60 s.
+# Health returns 200 even when optional providers are down. Retry failures while
+# required dependencies come up, then stop the deploy if health still fails.
 for i in $(seq 30); do
-  readiness=$(docker exec "$container" python -c "import urllib.error, urllib.request
+  if readiness=$(docker exec "$container" python -c "import urllib.error, urllib.request
 try: print(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=10).read().decode())
-except urllib.error.HTTPError as e: print(e.read().decode())" 2>&1 || true)
-  case "$readiness" in *'"database":"unavailable"'*) [ "$i" = 30 ] || { sleep 2; continue; } ;; esac
-  break
+except urllib.error.HTTPError as e:
+    print(e.read().decode())
+    raise SystemExit(1)" 2>&1); then
+    break
+  fi
+  if [ "$i" = 30 ]; then
+    log "health check failed: $readiness"
+    docker logs --tail 50 "$container" >&2
+    exit 1
+  fi
+  sleep 2
 done
 case "$readiness" in
   *'"status":"ok"'*) log "ready: $readiness" ;;
-  # the database does not depend on the jury's keys: an unreachable one fails the deploy
-  *'"database":"unavailable"'*) log "database unavailable: $readiness"; docker logs --tail 50 "$container" >&2; exit 1 ;;
-  *) echo "::warning title=API not ready::$readiness" ;;
+  *) echo "::warning title=API degraded::$readiness" ;;
 esac
 
 # Smoke test through the worker of the same env (skipped while it is not deployed yet).
