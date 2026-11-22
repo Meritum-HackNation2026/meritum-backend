@@ -37,17 +37,6 @@ CONNECT_TIMEOUT: Final = 3
 """Maximum seconds spent establishing a database connection."""
 
 
-LOCK_JURY_SCHEMA: Final = "SELECT pg_advisory_xact_lock(hashtext('meritum_jury_links'))"
-"""Serialize first-time creation of the PostgreSQL table."""
-
-CREATE_JURY_TABLE: Final = """
-CREATE TABLE IF NOT EXISTS jury_links (
-    token_hash bytea PRIMARY KEY,
-    expires_at timestamptz NOT NULL
-)
-"""
-"""Store only token digests and expiry timestamps."""
-
 INSERT_JURY_LINK: Final = "INSERT INTO jury_links VALUES (%s, %s)"
 """Store a newly issued digest and expiry."""
 

@@ -1,6 +1,7 @@
 """PostgresJuryLinks on a real database (local only, -m integration).
 
-Needs `docker compose up -d --wait db`.
+Needs `docker compose up -d --wait db` (or MERITUM_TEST_DATABASE_URL); runs as
+a role without DDL, like the API on dev (``api_url`` in tests/conftest.py).
 """
 
 import asyncio
@@ -10,7 +11,6 @@ from hashlib import sha256
 
 import pytest
 
-from meritum_backend.constants import LOCAL_DB
 from meritum_backend.jury.adapters import PostgresJuryLinks
 
 
@@ -19,9 +19,9 @@ def _digest() -> bytes:
 
 
 @pytest.mark.integration
-def test_concurrent_redemptions_consume_a_link_once() -> None:
+def test_concurrent_redemptions_consume_a_link_once(api_url: str) -> None:
     digest, now = _digest(), datetime.now(UTC)
-    first, second = PostgresJuryLinks(LOCAL_DB), PostgresJuryLinks(LOCAL_DB)
+    first, second = PostgresJuryLinks(api_url), PostgresJuryLinks(api_url)
 
     async def redeem() -> list[datetime | None]:
         await first.save(digest, now + timedelta(hours=1))
@@ -32,9 +32,9 @@ def test_concurrent_redemptions_consume_a_link_once() -> None:
 
 
 @pytest.mark.integration
-def test_expired_link_is_reported_and_not_consumed() -> None:
+def test_expired_link_is_reported_and_not_consumed(api_url: str) -> None:
     digest, now = _digest(), datetime.now(UTC)
-    links = PostgresJuryLinks(LOCAL_DB)
+    links = PostgresJuryLinks(api_url)
 
     async def redeem_twice() -> list[datetime | None]:
         await links.save(digest, now - timedelta(seconds=1))
@@ -45,9 +45,9 @@ def test_expired_link_is_reported_and_not_consumed() -> None:
 
 
 @pytest.mark.integration
-def test_issuing_a_link_drops_expired_ones() -> None:
+def test_issuing_a_link_drops_expired_ones(api_url: str) -> None:
     old, now = _digest(), datetime.now(UTC)
-    links = PostgresJuryLinks(LOCAL_DB)
+    links = PostgresJuryLinks(api_url)
 
     async def run() -> datetime | None:
         await links.save(old, now - timedelta(seconds=1))
