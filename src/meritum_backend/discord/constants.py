@@ -180,3 +180,15 @@ ERRORS: Final = {
     ),
 }
 """copy/pl.json errors.*: why a check did not start; anything else is FAILURE_TEXT."""
+
+SEEN_MESSAGES: Final = 1000
+"""Message ids the Gateway remembers, so a resumed session never answers twice."""
+
+GATEWAY_INTENTS: Final = ("guilds", "guild_messages", "dm_messages")
+"""Non-privileged intents only: a message that mentions the bot or is sent to it
+in a DM carries its content without MESSAGE_CONTENT."""
+
+BOT_TOKEN_MISSING: Final = (
+    "MERITUM_DISCORD_BOT_TOKEN is not set: the Gateway cannot start"  # ruff: ignore[hardcoded-password-string]
+)
+"""Logged, then the process exits with 1."""

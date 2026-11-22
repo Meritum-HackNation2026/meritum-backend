@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and (re)deploy the API of one environment on dellpromaxgb10.
+# Build and (re)deploy the API (and, with a bot token, the Discord Gateway) of one environment on dellpromaxgb10.
 #   deploy/deploy.sh <main|develop> [git-sha]
 # Runs on the self-hosted runner `dellpromaxgb10` (on the host itself).
 # Needs the platform (meritum-infra: onprem/dellpromaxgb10/platform/setup.sh):
@@ -37,6 +37,19 @@ gcp_mounts "$envfile"
 docker run -d --name "$container" --network meritum --restart unless-stopped \
   "${labels[@]}" --env-file "$envfile" "${env_args[@]}" "${mount_args[@]}" "${gcp_args[@]}" "$image" >/dev/null
 log "started $container"
+
+# Discord Gateway (#39): the same image, its own process, only when the env has a bot token.
+gateway="meritum-discord-$env"
+docker rm -f "$gateway" >/dev/null 2>&1 || true
+if [ -n "${MERITUM_DISCORD_BOT_TOKEN:-}" ]; then
+  docker run -d --name "$gateway" --network meritum --restart unless-stopped --no-healthcheck \
+    --label meritum.managed=true --label meritum.role=discord --label meritum.env="$env" --label meritum.sha="$sha" \
+    --env-file "$envfile" "${env_args[@]}" "${mount_args[@]}" "${gcp_args[@]}" "$image" \
+    python -m meritum_backend.discord.gateway >/dev/null
+  log "started $gateway"
+else
+  log "no MERITUM_DISCORD_BOT_TOKEN: $gateway not started"
+fi
 
 get() { docker exec "$container" python -c "import sys, urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000$1', timeout=5).read().decode())"; }
 post() { docker exec "$container" python -c "import urllib.request; print(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000$1', data=b'', method='POST'), timeout=5).read().decode())"; }

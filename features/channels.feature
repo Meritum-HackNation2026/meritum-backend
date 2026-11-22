@@ -59,3 +59,18 @@ Feature: Kanały bez sesji przeglądarki
     Given sprawdzenie tekstu "Czy we Włoszech ostatnio odbywał się strajk generalny?" z formularza zakończyło się 10 minut temu
     When ten sam tekst z innymi spacjami i cudzysłowami przychodzi z wtyczki
     Then oba wyniki mają ten sam znacznik AI z dostawcą i modelem, który napisał uzasadnienie
+
+  Scenario: wiadomość prywatna
+    Given użytkownik pisze do bota wiadomość prywatną z tekstem do sprawdzenia
+    When proces Gateway ją odbiera
+    Then woła to samo sprawdzenie co POST /api/v1/checks z channel "discord" i odpowiada w tej rozmowie wiadomościami z backend/007
+
+  Scenario: wzmianka bez intencji MESSAGE_CONTENT
+    Given bot jest na serwerze bez uprzywilejowanej intencji MESSAGE_CONTENT
+    When ktoś wspomina bota z linkiem do artykułu
+    Then bot odpowiada w wątku wynikiem sprawdzenia linku
+
+  Scenario: zerwane połączenie
+    Given Gateway zrywa połączenie
+    When proces wznawia sesję
+    Then nie wysyła drugi raz odpowiedzi na wiadomość, na którą już odpowiedział

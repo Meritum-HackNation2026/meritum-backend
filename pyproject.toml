@@ -9,6 +9,7 @@ dependencies = [
     "authlib>=1.9.10",
     "cryptography>=50.0.2",
     "dbos>=3.6.0",
+    "discord-py>=2.6",
     "fastapi>=0.165.0",
     "httpx2>=2.16.2",
     "itsdangerous>=2.2.0",

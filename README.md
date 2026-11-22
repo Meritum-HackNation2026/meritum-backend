@@ -63,13 +63,24 @@ Aplikację da się dodać do serwera albo do własnego konta, a odpowiedź widzi
 - dev: <https://discord.com/oauth2/authorize?client_id=1573690220782559332&scope=applications.commands>
 - prd: <https://discord.com/oauth2/authorize?client_id=1573692006398693396&scope=applications.commands>
 
-Komenda woła to samo sprawdzenie co `POST /api/v1/checks` (funkcja `start_check`, z kanałem `discord` i skrótem identyfikatora użytkownika), więc wynik nie zależy od kanału. Discord czeka na odpowiedź 3 s, dlatego endpoint od razu odpowiada odroczoną odpowiedzią („Meritum myśli…”), a po zakończeniu sprawdzenia zastępuje ją podsumowaniem: werdykt każdego twierdzenia i link do pełnej karty (`/sprawdzenie/<check_id>`), przy pierwszym użyciu poprzedzone informacją, że odpowiada system AI, a numer sprawy tylko wtedy, gdy sprawa u moderatorów została utworzona albo zaktualizowana. Potem przychodzi po jednej wiadomości na twierdzenie: werdykt, najważniejszy cytat ze źródłem i datą (albo ocena fact-checkera z linkiem) i siła podstawy. Format i podział (`meritum_backend.discord.reply_messages`, treść najwyżej 2000 znaków, bez osadzeń, podział tylko między wierszami, więc cytat nigdy nie jest przecięty) wykorzysta też proces Gateway (backend#28). Odpowiedzi idą przez webhook interakcji (token ważny 15 minut), bez tokenu bota i bez wzmianek (`allowed_mentions` puste).
+Komenda woła to samo sprawdzenie co `POST /api/v1/checks` (funkcja `start_check`, z kanałem `discord` i skrótem identyfikatora użytkownika), więc wynik nie zależy od kanału. Discord czeka na odpowiedź 3 s, dlatego endpoint od razu odpowiada odroczoną odpowiedzią („Meritum myśli…”), a po zakończeniu sprawdzenia zastępuje ją podsumowaniem: werdykt każdego twierdzenia i link do pełnej karty (`/sprawdzenie/<check_id>`), przy pierwszym użyciu poprzedzone informacją, że odpowiada system AI, a numer sprawy tylko wtedy, gdy sprawa u moderatorów została utworzona albo zaktualizowana. Potem przychodzi po jednej wiadomości na twierdzenie: werdykt, najważniejszy cytat ze źródłem i datą (albo ocena fact-checkera z linkiem) i siła podstawy. Format i podział (`meritum_backend.discord.reply_messages`, treść najwyżej 2000 znaków, bez osadzeń, podział tylko między wierszami, więc cytat nigdy nie jest przecięty) wykorzystuje też proces Gateway (backend#39). Odpowiedzi idą przez webhook interakcji (token ważny 15 minut), bez tokenu bota i bez wzmianek (`allowed_mentions` puste).
 
 Każde środowisko ma własną aplikację Discord. Jej klucz publiczny jest w zmiennych repo `DISCORD_PUBLIC_KEY_DEV` i `DISCORD_PUBLIC_KEY_PRD` (deploy przekazuje go jako `MERITUM_DISCORD_PUBLIC_KEY`, patrz „Sekrety w kontenerze”), a w ustawieniach aplikacji jako Interactions Endpoint URL wpisany jest `https://meritum-dev.gburek.app/api/v1/discord/interactions` albo `https://meritum.gburek.app/...`. Komendy rejestruje:
 
 ```bash
 DISCORD_APPLICATION_ID=... DISCORD_BOT_TOKEN=... uv run python scripts/register_discord_commands.py
 ```
+
+### Gateway: wzmianki i wiadomości prywatne
+
+Interakcje HTTP nie dostarczają zwykłych wiadomości, więc wzmianki na kanale serwera i wiadomości prywatne obsługuje osobny proces połączony z Gateway Discorda: `python -m meritum_backend.discord.gateway` (`src/meritum_backend/discord/gateway/`), z tego samego obrazu co API. Klient to [discord.py](https://discordpy.readthedocs.io/) 2.x. Proces składa te same porty co API (kolejka, limity, maskowanie danych osobowych, pamięć wyników, zapisy sprawdzeń) i woła `start_check` z kanałem `discord` oraz `reply_when_done` z formatem i podziałem odpowiedzi z `meritum_backend.discord`, więc nie ma w nim własnej weryfikacji.
+
+- Intencje: tylko `guilds`, `guild_messages` i `dm_messages`, bez uprzywilejowanej `MESSAGE_CONTENT`. Discord i tak przekazuje treść wiadomości, która wspomina bota, i wiadomości prywatnych. Wiadomość na serwerze bez wzmianki bota jest ignorowana, tak samo wiadomości innych botów.
+- Odpowiedź: na serwerze jako odpowiedź na wiadomość z wzmianką (bez pingowania autora), w wiadomości prywatnej jako zwykłe wiadomości w tej rozmowie. Wzmianka bez tekstu dostaje podpowiedź `errors.empty`.
+- Wznowienie sesji: Discord po wznowieniu odtwarza zdarzenia, dlatego proces pamięta identyfikatory ostatnich 1000 wiadomości i drugi raz na tę samą nie odpowiada. Pamięć jest w procesie, więc po jego restarcie (nowa sesja, nie wznowienie) wiadomość sprzed restartu nie wraca.
+- Token: `MERITUM_DISCORD_BOT_TOKEN`. Bez niego proces loguje błąd i kończy się kodem 1; test gotowości API zgłasza brak tokenu, gdy kanał Discord jest włączony kluczem publicznym.
+- Deploy: `deploy/deploy.sh` uruchamia kontener `meritum-discord-<env>` (ten sam obraz, polecenie Gateway, bez healthchecku HTTP), gdy sekret `DISCORD_BOT_TOKEN_{DEV,PRD}` jest ustawiony; bez niego kontenera nie startuje i usuwa stary.
+- Na serwerze bot potrzebuje uprawnień do czytania i pisania w kanale. Próbę na żywym bocie i serwerze testowym wykonuje się ręcznie, poza CI.
 
 Endpoint nie ma limitu po IP (wszystkie żądania przychodzą z serwerów Discorda); wspólne limity sprawdzeń liczą skrót użytkownika Discorda.
 
@@ -258,7 +269,7 @@ Job `deploy` podaje skryptowi wszystkie sekrety i zmienne repozytorium (`toJSON(
 |---|---|---|
 | `MERITUM_DISCORD_PUBLIC_KEY` | `DISCORD_PUBLIC_KEY_{DEV,PRD}` (zmienna) | kanał Discord |
 | `MERITUM_CHANNEL_HASH_SALT` | `MERITUM_CHANNEL_HASH_SALT_{DEV,PRD}` (sekret) | #24, #66 (klucze licznika limitów) |
-| `MERITUM_DISCORD_BOT_TOKEN` | `DISCORD_BOT_TOKEN_{DEV,PRD}` (sekret) | #19 (test gotowości) |
+| `MERITUM_DISCORD_BOT_TOKEN` | `DISCORD_BOT_TOKEN_{DEV,PRD}` (sekret) | #19 (test gotowości), #39 (proces Gateway) |
 | `MERITUM_SESSION_SECRET` | `MERITUM_SESSION_SECRET_{DEV,PRD}` (sekret) | #15 |
 | `MERITUM_GOOGLE_CLIENT_ID` | `GOOGLE_CLIENT_ID_{DEV,PRD}` (zmienna) | #15 |
 | `MERITUM_GOOGLE_CLIENT_SECRET` | `GOOGLE_CLIENT_SECRET_{DEV,PRD}` (sekret) | #15 |
