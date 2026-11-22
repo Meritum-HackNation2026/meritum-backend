@@ -38,6 +38,12 @@ id, which works as a key."""
 SESSION_REPLACEMENT: Final = r"\1{session_id}\2"
 """Regex replacement: the access log shows ``{session_id}`` instead of the id."""
 
+DEMO_IN_PATH: Final = re.compile(r"(/api/v1/auth/demo/)[^/?\s]+")
+"""The demo link path, also behind a root path; its last segment is a login key."""
+
+DEMO_REPLACEMENT: Final = r"\1{token}"
+"""Regex replacement: the access log shows ``{token}`` instead of the demo token."""
+
 SESSION_IN_QUERY: Final = re.compile(r"([?&]session=)[^&#\s]+")
 """The notification stream's ``?session=`` (EventSource sends no headers); the
 id works as a key to that session's inbox."""

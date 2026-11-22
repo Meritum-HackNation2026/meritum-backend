@@ -52,3 +52,36 @@ class MemoryJuryLinks:
             if expires_at > now:
                 del self._links[key]
             return expires_at
+
+    async def peek(self, token_hash: bytes, now: datetime) -> datetime | None:
+        """Read the matching link without removing it.
+
+        Args:
+            token_hash: SHA-256 digest of the submitted token.
+            now: current time used to check validity.
+
+        Returns:
+            The expiry of the matching link, or None if missing or expired.
+
+        Features:
+            US-OBS-06, US-MOD-05, F-28, F-25
+        """
+        with self._lock:
+            key = next((k for k in self._links if compare_digest(k, token_hash)), None)
+            expires_at = None if key is None else self._links[key]
+            return expires_at if expires_at is not None and expires_at > now else None
+
+    async def remove(self, token_hash: bytes) -> bool:
+        """Delete the matching link.
+
+        Args:
+            token_hash: SHA-256 digest of the link token.
+
+        Returns:
+            Whether a link was deleted.
+
+        Features:
+            US-OBS-06, US-MOD-05, F-28, F-25
+        """
+        with self._lock:
+            return self._links.pop(token_hash, None) is not None

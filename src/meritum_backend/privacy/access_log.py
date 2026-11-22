@@ -15,6 +15,8 @@ from typing import override
 from meritum_backend.privacy.constants import (
     ACCESS_LOGGER,
     ACCESS_PATH_ARG,
+    DEMO_IN_PATH,
+    DEMO_REPLACEMENT,
     SESSION_IN_PATH,
     SESSION_IN_QUERY,
     SESSION_QUERY_REPLACEMENT,
@@ -45,6 +47,7 @@ class SessionIdFilter(logging.Filter):
         path = args[ACCESS_PATH_ARG]
         if isinstance(path, str):
             masked = SESSION_IN_PATH.sub(SESSION_REPLACEMENT, path)
+            masked = DEMO_IN_PATH.sub(DEMO_REPLACEMENT, masked)
             masked = SESSION_IN_QUERY.sub(SESSION_QUERY_REPLACEMENT, masked)
             record.args = (
                 *args[:ACCESS_PATH_ARG],

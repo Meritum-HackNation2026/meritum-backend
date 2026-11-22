@@ -1,4 +1,4 @@
-"""Constants for one-time jury access."""
+"""Constants for jury and demo access links."""
 
 from datetime import timedelta
 from typing import Final
@@ -53,3 +53,22 @@ PURGE_EXPIRED_JURY_LINKS: Final = "DELETE FROM jury_links WHERE expires_at <= no
 
 JSON_MEDIA_TYPE: Final = "application/json"
 """The only body type redemption accepts: a cross-site form cannot send it."""
+
+
+DEMO_PROVIDER: Final = "demo"
+"""Synthetic identity provider of the technical demo accounts."""
+
+DEMO_ADMIN: Final = "admin"
+"""Subject of the demo administrator account."""
+
+DEMO_ACCOUNTS: Final = {"obywatel": "/", DEMO_ADMIN: "/panel"}
+"""Technical demo accounts and the page each one lands on."""
+
+DEMO_ENVS: Final = frozenset({"local", "dev"})
+"""Environments where demo links exist; never ``prd`` (issue #53)."""
+
+DEMO_PATH: Final = "/api/v1/auth/demo/"
+"""Path of the demo link; the token is the last segment."""
+
+PEEK_JURY_LINK: Final = "SELECT expires_at FROM jury_links WHERE token_hash = %s"
+"""Read a reusable link without locking or consuming it."""

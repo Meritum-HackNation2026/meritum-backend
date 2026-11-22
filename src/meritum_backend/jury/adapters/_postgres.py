@@ -10,6 +10,7 @@ from meritum_backend.jury.constants import (
     DELETE_JURY_LINK,
     GET_JURY_LINK,
     INSERT_JURY_LINK,
+    PEEK_JURY_LINK,
     PURGE_EXPIRED_JURY_LINKS,
 )
 from meritum_backend.jury.ports import JuryUnavailableError
@@ -73,6 +74,62 @@ class PostgresJuryLinks:
                 self._conninfo, connect_timeout=CONNECT_TIMEOUT
             ) as conn:
                 return await self._consume(conn, token_hash, now)
+        except psycopg.Error:
+            raise JuryUnavailableError from None
+
+    async def peek(self, token_hash: bytes, now: datetime) -> datetime | None:
+        """Read the matching row without locking or deleting it.
+
+        Args:
+            token_hash: SHA-256 digest of the submitted token.
+            now: current time used to check validity.
+
+        Returns:
+            The expiry of the matching link, or None if missing or expired.
+
+        Raises:
+            JuryUnavailableError: the database operation failed.
+
+        Features:
+            US-OBS-06, US-MOD-05, F-28, F-25
+        """
+        try:
+            async with await psycopg.AsyncConnection.connect(
+                self._conninfo, connect_timeout=CONNECT_TIMEOUT
+            ) as conn:
+                row = await (
+                    await conn.execute(PEEK_JURY_LINK, (token_hash,))
+                ).fetchone()
+        except psycopg.Error:
+            raise JuryUnavailableError from None
+        if row is None:
+            return None
+        if not isinstance(row[0], datetime):
+            raise JuryUnavailableError
+        return row[0] if row[0] > now else None
+
+    async def remove(self, token_hash: bytes) -> bool:
+        """Delete the matching row.
+
+        Args:
+            token_hash: SHA-256 digest of the link token.
+
+        Returns:
+            Whether a row was deleted.
+
+        Raises:
+            JuryUnavailableError: the database operation failed.
+
+        Features:
+            US-OBS-06, US-MOD-05, F-28, F-25
+        """
+        try:
+            async with await psycopg.AsyncConnection.connect(
+                self._conninfo, connect_timeout=CONNECT_TIMEOUT
+            ) as conn:
+                return (
+                    await conn.execute(DELETE_JURY_LINK, (token_hash,))
+                ).rowcount > 0
         except psycopg.Error:
             raise JuryUnavailableError from None
 

@@ -14,6 +14,7 @@ from meritum_backend.auth.constants import (
     PUBLIC_URLS,
     TOKEN_BYTES,
 )
+from meritum_backend.jury.api._demo import router as demo_router
 from meritum_backend.jury.api._redemption import Store
 from meritum_backend.jury.api._redemption import router as redemption_router
 from meritum_backend.jury.constants import (
@@ -24,10 +25,11 @@ from meritum_backend.jury.constants import (
 )
 from meritum_backend.jury.ports import JuryUnavailableError
 from meritum_backend.settings import Settings, get_settings
-from meritum_backend.staff.api import Admin
+from meritum_backend.staff.api import RealAdmin
 
 router = APIRouter(prefix="/api/v1", tags=["jury"])
 router.include_router(redemption_router)
+router.include_router(demo_router)
 
 
 class IssuedJuryLink(BaseModel):
@@ -48,7 +50,7 @@ class IssuedJuryLink(BaseModel):
 @router.post("/staff/jury-links", status_code=status.HTTP_201_CREATED)
 async def issue_jury_link(
     response: Response,
-    _admin: Admin,
+    _admin: RealAdmin,
     _csrf: CsrfUser,
     store: Store,
     settings: Annotated[Settings, Depends(get_settings)],

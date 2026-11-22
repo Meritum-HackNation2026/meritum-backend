@@ -70,7 +70,19 @@ def get_jury_links(request: Request) -> JuryLinks:
 Store = Annotated[JuryLinks, Depends(get_jury_links)]
 
 
-async def _admit(request: Request, ip: str) -> None:
+async def admit(request: Request, ip: str) -> None:
+    """Count a redemption attempt and refuse past the per-minute budget.
+
+    Args:
+        request: the request (the app holds the counter).
+        ip: the client address.
+
+    Raises:
+        HTTPException: 429 over the budget, 503 when the counter fails.
+
+    Features:
+        US-OBS-06, US-MOD-05, F-28, F-25
+    """
     counter = cast("RateCounter", request.app.state.jury_rate_counter)
     secret = cast("bytes", request.app.state.jury_rate_secret)
     digest = hmac.new(secret, f"{JURY_RATE_SCOPE}:{ip}".encode(), sha256).hexdigest()
@@ -134,7 +146,7 @@ async def redeem_jury_link(
     Features:
         US-OBS-06, US-MOD-05, F-28, F-25
     """
-    await _admit(request, origin.ip)
+    await admit(request, origin.ip)
     token = await _read_token(request)
     if not re.fullmatch(LINK_PATTERN, token):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "invalid jury link", NO_STORE)
